@@ -1,7 +1,8 @@
 
 import streamlit as st
 from google import genai
-from ddgs import DDGS
+st.set_page_config(page_title="Bras AI", page_icon="🤖")
+
 import os
 
 # ==========================================
@@ -9,11 +10,8 @@ import os
 # Created & Developed by BRAS AI Team
 # ==========================================
 
-st.set_page_config(
-    page_title="BRAS AI",
-    page_icon="💜",
-    layout="wide"
-)
+
+
 
 # -------- PREMIUM DESIGN --------
 
