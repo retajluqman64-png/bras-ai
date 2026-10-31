@@ -3,7 +3,8 @@ import streamlit as st
 # إعدادات الصفحة وتصميمها الأنيق
 st.set_page_config(page_title="Bras AI", page_icon="🤖", layout="centered")
 
-st.set_page_title_config(page_title="Bras AI", page_icon="🤖", layout="centered")
+
+
 
 # واجهة الترحيب والهوية الرسمية
 st.title("🤖 Bras AI - مساعدكِ الذكي المتعدد اللغات")
