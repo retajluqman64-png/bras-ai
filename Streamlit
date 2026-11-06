@@ -1,17 +1,13 @@
 import streamlit as st
 import google.generativeai as genai
 
-# إعداد الصفحة والشعار
+# إعداد الصفحة
 st.title("💖 BRAS AI")
 st.write("Your Own AI Assistant")
 
-# وضع المفتاح مباشرة لحل مشكلة السطور
+# تهيئة المفتاح مباشرة بدون تعقيد
 genai.configure(api_key="AQAb8RN6I20Gjn0TzigAck8B26Cuyzcvwx40pDOUZeIFtYgPNZg")
-
-try:
-    model = genai.GenerativeModel('gemini-1.5-flash')
-except Exception as e:
-    st.error(f"خطأ في إعداد الموديل: {e}")
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # واجهة الدردشة
 if "messages" not in st.session_state:
@@ -32,5 +28,4 @@ if prompt := st.chat_input("Ask Bras AI..."):
             st.markdown(response.text)
         st.session_state.messages.append({"role": "assistant", "content": response.text})
     except Exception as e:
-        st.error(f"حدث خطأ أثناء الاتصال: {e}")
-
+        st.error(f"حدث خطأ: {e}")
