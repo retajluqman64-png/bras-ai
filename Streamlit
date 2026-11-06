@@ -5,14 +5,13 @@ import google.generativeai as genai
 st.title("💖 BRAS AI")
 st.write("Your Own AI Assistant")
 
-# جلب مفتاح API من Secrets
+# وضع المفتاح مباشرة لحل مشكلة السطور
+genai.configure(api_key="AQAb8RN6I20Gjn0TzigAck8B26Cuyzcvwx40pDOUZeIFtYgPNZg")
+
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=api_key)
-    # استخدام موديل جيمني الحديث والسريع
     model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    st.error("يرجى التأكد من ضبط GEMINI_API_KEY في الـ Secrets بشكل صحيح.")
+    st.error(f"خطأ في إعداد الموديل: {e}")
 
 # واجهة الدردشة
 if "messages" not in st.session_state:
@@ -34,3 +33,4 @@ if prompt := st.chat_input("Ask Bras AI..."):
         st.session_state.messages.append({"role": "assistant", "content": response.text})
     except Exception as e:
         st.error(f"حدث خطأ أثناء الاتصال: {e}")
+
