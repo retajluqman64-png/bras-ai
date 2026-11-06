@@ -6,7 +6,7 @@ st.title("💖 BRAS AI")
 st.write("Your Own AI Assistant")
 
 # تهيئة المفتاح مباشرة بدون تعقيد
-genai.configure(api_key="AQAb8RN6I20Gjn0TzigAck8B26Cuyzcvwx40pDOUZeIFtYgPNZg")
+genai.configure(api_key="AQ.Ab8RN6I20Gjn0Tz-igAck8B26Cuyzcvwx40pDOUZeIFtYgPNZg")
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # واجهة الدردشة
