@@ -1,15 +1,15 @@
 import streamlit as st
 import google.generativeai as genai
 
-# إعداد الصفحة
-st.title("💖 BRAS AI")
+# عنوان التطبيق
+st.title("💜 BRAS AI")
 st.write("Your Own AI Assistant")
 
-# تهيئة المفتاح مباشرة بدون تعقيد
-genai.configure(api_key="AQ.Ab8RN6I20Gjn0Tz-igAck8B26Cuyzcvwx40pDOUZeIFtYgPNZg")
+# تهيئة المفتاح والنموذج
+genai.configure(api_key="AQ.Ab8RN6Jl0Vg3kvyaxWY2ah7cQOU2bfxOCSeDNRW5oYa6J5qi0A")
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# واجهة الدردشة
+# واجهة المحادثة
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
