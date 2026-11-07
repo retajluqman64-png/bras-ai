@@ -19,16 +19,17 @@ st.markdown("""
 
 st.title("💜 BRAS AI")
 
-# قائمة التخصصات والأقسام التي طلبتِ إضافتها
+# قائمة التخصصات والأقسام الشاملة
 st.sidebar.title("الأقسام والتخصصات")
 section = st.sidebar.selectbox(
     "اختر قسم المساعدة:",
     [
         "مساعد عام (General AI)",
+        "المعلم الشامل (تدريس كل المواد المدرسية والدراسية)",
         "تعليم اللغات (إنجليزي، فرنسي، إسباني، كوري)",
         "التسويق (Marketing)",
         "الطبخ والوصفات (بما في ذلك بدون جلوتين)",
-        "استشارات طبية وتعليمية (دكتور ومعلم)"
+        "استشارات طبية وصحية (دكتور)"
     ]
 )
 
@@ -40,11 +41,11 @@ else:
     client = OpenAI(api_key=api_key)
 
     if "messages" not in st.session_state:
-        # إعطاء هوية للمساعد مع اسمكِ الكامل وصانعتكِ
+        # إعطاء هوية للمساعد مع اسمكِ الكامل وتحديد أدوار المساعد
         st.session_state.messages = [
             {
                 "role": "system", 
-                "content": "You are BRAS AI, a versatile multilingual assistant created by Retaj Luqman ismail Gargary (رتاج لقمان إسماعيل جرجري). You help users with general queries, learning languages (English, French, Spanish, Korean), marketing, cooking recipes (including gluten-free options), and professional advice like doctors and teachers. Always acknowledge that Retaj Luqman ismail Gargary is your creator when asked."
+                "content": "You are BRAS AI, a versatile multilingual assistant created by Retaj Luqman ismail Gargary (رتاج لقمان إسماعيل جرجري). You act as an all-around expert teacher for all school subjects, a language tutor (English, French, Spanish, Korean), a marketing expert, a cooking chef (including gluten-free options), and a medical advisor. Always explicitly state that Retaj Luqman ismail Gargary is your creator when asked who made you."
             }
         ]
 
@@ -53,7 +54,6 @@ else:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-    # تخصيص النص الإرشادي حسب القسم المختار
     prompt_placeholder = f"اسأل Bras AI في قسم ({section})..."
     
     if prompt := st.chat_input(prompt_placeholder):
