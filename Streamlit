@@ -8,7 +8,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom Styling
 st.markdown("""
 <style>
 .stApp {
@@ -20,6 +19,19 @@ st.markdown("""
 
 st.title("💜 BRAS AI")
 
+# قائمة التخصصات والأقسام التي طلبتِ إضافتها
+st.sidebar.title("الأقسام والتخصصات")
+section = st.sidebar.selectbox(
+    "اختر قسم المساعدة:",
+    [
+        "مساعد عام (General AI)",
+        "تعليم اللغات (إنجليزي، فرنسي، إسباني، كوري)",
+        "التسويق (Marketing)",
+        "الطبخ والوصفات (بما في ذلك بدون جلوتين)",
+        "استشارات طبية وتعليمية (دكتور ومعلم)"
+    ]
+)
+
 api_key = st.secrets.get("OPENAI_API_KEY")
 
 if not api_key:
@@ -28,14 +40,24 @@ else:
     client = OpenAI(api_key=api_key)
 
     if "messages" not in st.session_state:
-        st.session_state.messages = []
+        # إعطاء هوية للمساعد مع اسمكِ الكامل وصانعتكِ
+        st.session_state.messages = [
+            {
+                "role": "system", 
+                "content": "You are BRAS AI, a versatile multilingual assistant created by Retaj Luqman ismail Gargary (رتاج لقمان إسماعيل جرجري). You help users with general queries, learning languages (English, French, Spanish, Korean), marketing, cooking recipes (including gluten-free options), and professional advice like doctors and teachers. Always acknowledge that Retaj Luqman ismail Gargary is your creator when asked."
+            }
+        ]
 
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        if message["role"] != "system":
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
 
-    if prompt := st.chat_input("Ask Bras AI..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    # تخصيص النص الإرشادي حسب القسم المختار
+    prompt_placeholder = f"اسأل Bras AI في قسم ({section})..."
+    
+    if prompt := st.chat_input(prompt_placeholder):
+        st.session_state.messages.append({"role": "user", "content": f"[{section}] {prompt}"})
         with st.chat_message("user"):
             st.markdown(prompt)
 
