@@ -1,131 +1,137 @@
-import datetime
+import os
 import streamlit as st
 from openai import OpenAI
 
-# 1. إعداد العميل (OpenAI Client) من الـ Secrets
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# إعداد الصفحة
+st.set_page_config(
+    page_title="BRAS AI",
+    page_icon="💜",
+    layout="wide"
+)
 
-# 2. تحديد حدود الاستخدام المجاني
-MAX_MESSAGES = 20
-MAX_IMAGES = 5
-MAX_VIDEOS = 1
+# تنسيق الألوان (أسود وذهبي)
+st.markdown("""
+<style>
+.stApp {
+    background: #090812;
+    color: white;
+}
+</style>
+""", unsafe_allow_html=True)
 
-# 3. إعداد وقت بداية الجلسة (للتحقق من مرور 24 ساعة)
-if "session_start_time" not in st.session_state:
-  st.session_state.session_start_time = datetime.datetime.now()
-
-# 4. التحقق مما إذا مرت 24 ساعة لمسح الرسائل وسجل المحادثة
-time_elapsed = datetime.datetime.now() - st.session_state.session_start_time
-if time_elapsed.total_seconds() >= 86400:  # 86400 ثانية = 24 ساعة
-  st.session_state.messages = []
-  st.session_state.msg_count = 0
-  st.session_state.img_count = 0
-  st.session_state.video_count = 0
-  st.session_state.session_start_time = datetime.datetime.now()
-  st.warning("مرت 24 ساعة! تم إعادة ضبط المحادثة والعدادات المجانية تلقائياً.")
-
-# 5. تهيئة العدادات وسجل المحادثات
-if "messages" not in st.session_state:
-  st.session_state.messages = []
-if "msg_count" not in st.session_state:
-  st.session_state.msg_count = 0
-if "img_count" not in st.session_state:
-  st.session_state.img_count = 0
-if "video_count" not in st.session_state:
-  st.session_state.video_count = 0
-
-# عنوان التطبيق
 st.title("💜 BRAS AI")
 
-# الشريط الجانبي (العدادات والاشتراكات وروابط المتاجر)
-with st.sidebar:
-  st.header("📊 رصيدك المجاني المتبقي")
-  st.write(
-      f"💬 **الرسائل:** {max(0, MAX_MESSAGES - st.session_state.msg_count)} /"
-      f" {MAX_MESSAGES}"
-  )
-  st.write(
-      f"🖼️ **الصور:** {max(0, MAX_IMAGES - st.session_state.img_count)} /"
-      f" {MAX_IMAGES}"
-  )
-  st.write(
-      f"🎥 **الفيديو:** {max(0, MAX_VIDEOS - st.session_state.video_count)} /"
-      f" {MAX_VIDEOS}"
-  )
-  st.caption("ملاحظة: تُمسح محادثات الحسابات المجانية تلقائياً بعد 24 ساعة.")
+# استدعاء المفتاح بأمان من الـ Secrets
+api_key = st.secrets.get("OPENAI_API_KEY")
 
-  st.divider()
+if not api_key:
+    st.error("OpenAI API Key not found. Please set it in Streamlit Secrets.")
+else:
+    client = OpenAI(api_key=api_key)
 
-  # عرض خطط الاشتراكات
-  st.header("💎 خطط الاشتراك المميزة")
-  st.markdown("""
-    تريدي استخدام بلا حدود وبدون مسح للمحادثات؟ اختاري الخطّة المناسبة لكِ:
-    * 🗓️ **اشتراك أسبوعي:** 5$ 
-    * 📅 **اشتراك شهري:** 15$ 
-    * 👑 **اشتراك سنوي:** 99$ *(الأوفُر والأفضل!)*
-    """)
-
-  st.write("💳 **طرق الدفع المتاحة:**")
-  col1, col2 = st.columns(2)
-  with col1:
-    if st.button("Mastercard"):
-      st.info("سيتم تحويلك لبوابة الدفع عبر Mastercard قريباً...")
-  with col2:
-    if st.button("Visa"):
-      st.info("سيتم تحويلك لبوابة الدفع عبر Visa قريباً...")
-
-  st.divider()
-
-  # روابط التحميل من المتاجر ومتصفحات الهاتف
-  st.header("📱 حمّلي تطبيق BRAS AI")
-  st.markdown("متوفر الآن للاستخدام عبر المتصفح (Safari / Chrome) والمتاجر:")
-
-  # زر App Store للأيفون
-  st.link_button(
-      "🍏 App Store (للأيفون)",
-      "https://www.apple.com/app-store/",
-      use_container_width=True,
-  )
-
-  # زر Google Play للأندرويد
-  st.link_button(
-      "🤖 Google Play (للأندرويد)",
-      "https://play.google.com/",
-      use_container_width=True,
-  )
-
-# 6. عرض المحادثات السابقة
-for message in st.session_state.messages:
-  with st.chat_message(message["role"]):
-    st.markdown(message["content"])
-
-# 7. مربع إدخال الرسائل والتحقق من الحدود
-if prompt := st.chat_input("تحدثي مع BRAS AI..."):
-  if st.session_state.msg_count >= MAX_MESSAGES:
-    st.error(
-        "لقد استنفدتِ حد الـ 20 رسالة المجانية! 🛑\n\nيرجى الاشتراك في إحدى"
-        " الباقات (أسبوعي 5$ / شهري 15$ / سنوي 99$) لمتابعة الاستخدام."
+    # الشريط الجانبي لاختيار القسم والصوت
+    st.sidebar.title("إعدادات التطبيق")
+    
+    # اختيار القسم
+    section = st.sidebar.selectbox(
+        "اختر القسم:",
+        [
+            "المساعد الشامل (All-in-One)",
+            "المعلومات العامة (General)",
+            "المعلم الشامل (Study)",
+            "تعليم اللغات (Languages)",
+            "البرمجة (Programming)",
+            "المعلومات الدينية (Religious)",
+            "الطبخ والوصفات (Cooking)",
+            "استشارات الأطباء (Doctors)",
+            "الصحة، الدايت والجيم (Fitness & Diet)",
+            "نصائح وتطوير الذات (Advice)",
+            "قسم الرسم (Drawing)",
+            "تعديل الصور - فوتوشوب (Photoshop)"
+        ]
     )
-  else:
-    # إضافة رسالة المستخدم للسجل
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-      st.markdown(prompt)
 
-    # زيادة عداد الرسائل
-    st.session_state.msg_count += 1
+    # اختيار الصوت
+    voice_gender = st.sidebar.radio(
+        "اختر صوت المساعد:",
+        ("صوت بنت (Nova)", "صوت رجل (Onyx)")
+    )
+    gender_tag = "female" if "بنت" in voice_gender else "male"
 
-    # طلب الرد من OpenAI
-    with st.chat_message("assistant"):
-      response = client.chat.completions.create(
-          model="gpt-4o-mini",
-          messages=[
-              {"role": m["role"], "content": m["content"]}
-              for m in st.session_state.messages
-          ],
-      )
-      reply = response.choices[0].message.content
-      st.markdown(reply)
+    # الأوامر البرمجية الموجهة لكل قسم
+    SECTIONS_PROMPTS = {
+        "المساعد الشامل (All-in-One)": "You are BRAS AI, a versatile assistant created by Retaj Luqman ismail Gargary. You have all capabilities to assist the user perfectly.",
+        "المعلومات العامة (General)": "You are BRAS AI, created by Retaj Luqman. Answer general questions accurately.",
+        "المعلم الشامل (Study)": "You are BRAS AI, an expert school teacher created by Retaj Luqman. Explain subjects simply, considering the local context in Kurdistan.",
+        "تعليم اللغات (Languages)": "You are BRAS AI, a multilingual tutor created by Retaj Luqman. Teach English, Kurdish, Arabic, and Turkish, correcting errors gently.",
+        "البرمجة (Programming)": "You are BRAS AI, an expert programmer created by Retaj Luqman. Write clean, explained code and fix bugs.",
+        "المعلومات الدينية (Religious)": "You are BRAS AI, guiding on Islamic general knowledge created by Retaj Luqman. Provide reliable, moderate answers calmly.",
+        "الطبخ والوصفات (Cooking)": "You are BRAS AI, a chef created by Retaj Luqman. Suggest delicious recipes with exact steps.",
+        "استشارات الأطباء (Doctors)": "You are BRAS AI, a health advisor created by Retaj Luqman. Provide general health tips, always advising to consult real doctors.",
+        "الصحة، الدايت والجيم (Fitness & Diet)": "You are BRAS AI, a fitness coach created by Retaj Luqman. Help with BMI, diet plans, and workout routines.",
+        "نصائح وتطوير الذات (Advice)": "You are BRAS AI, a life advisor created by Retaj Luqman. Give motivational and practical life advice.",
+        "قسم الرسم (Drawing)": "You are BRAS AI, an art assistant created by Retaj Luqman. Help users create detailed prompts for AI image generation.",
+        "تعديل الصور - فوتوشوب (Photoshop)": "You are BRAS AI, an image editing expert created by Retaj Luqman. Guide users on how to professionally edit and enhance images."
+    }
 
-    # إضافة رد الذكاء الاصطناعي للسجل
-    st.session_state.messages.append({"role": "assistant", "content": reply})
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # عرض الرسائل السابقة
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # واجهة الإدخال
+    prompt = st.chat_input("تحدث مع BRAS AI أو اطلب منه تنفيذ أمر...")
+
+    if prompt:
+        # إضافة رسالة المستخدم
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            try:
+                # إعداد الرسائل مع النظام (System Prompt) لضمان معرفة اسمكِ
+                system_instruction = SECTIONS_PROMPTS.get(section, "You are BRAS AI by Retaj Luqman.")
+                messages_payload = [{"role": "system", "content": system_instruction}] + [
+                    {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
+                ]
+
+                # معالجة طلب الرسم أو التعديل
+                if "الرسم" in section or "فوتوشوب" in section:
+                    response = client.images.generate(
+                        model="dall-e-3",
+                        prompt=prompt,
+                        size="1024x1024",
+                        quality="standard",
+                        n=1
+                    )
+                    image_url = response.data[0].url
+                    full_response = f"تم تجهيز طلبكِ بنجاح! يمكنكِ مشاهدة النتيجة هنا:\n\n![Result]({image_url})"
+                    st.markdown(full_response)
+                else:
+                    # الرد النصي والصوتي لباقي الأقسام
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=messages_payload
+                    )
+                    full_response = response.choices[0].message.content
+                    st.markdown(full_response)
+                    
+                    # توليد الصوت
+                    selected_voice = "onyx" if gender_tag == "male" else "nova"
+                    audio_response = client.audio.speech.create(
+                        model="tts-1",
+                        voice=selected_voice,
+                        input=full_response
+                    )
+                    audio_path = "temp_response.mp3"
+                    audio_response.stream_to_file(audio_path)
+                    st.audio(audio_path, format="audio/mp3")
+
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+            except Exception as e:
+                st.error(f"حدث خطأ أثناء المعالجة: {e}")
