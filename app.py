@@ -8,51 +8,107 @@ st.set_page_config(
     layout="wide"
 )
 
-# تخصيص الألوان (ثيم أسود وخلفيات مربعات بنفسجية أنيقة)
-st.markdown("""
+# إدارة الحالة لتخزين الإعدادات
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = "ريتاج لقمان"
+    st.session_state.user_email = "retaj@brasai.com"
+    st.session_state.theme = "داكن (Dark)"
+    st.session_state.voice = "صوت بنت (Nova)"
+    st.session_state.language = "العربية"
+    st.session_state.selected_section = None
+    st.session_state.niko_mode = False
+    st.session_state.messages = []
+
+# تحديد الألوان بناءً على الثيم المختار
+bg_color = "#0d0614" if "داكن" in st.session_state.theme else "#f4edf7"
+text_color = "#e0d8f0" if "داكن" in st.session_state.theme else "#1a1026"
+card_bg = "#1a1026" if "داكن" in st.session_state.theme else "#ffffff"
+border_color = "#9b5de5"
+accent_color = "#9b5de5"
+
+st.markdown(f"""
 <style>
-.stApp {
-    background-color: #0d0614;
-    color: #e0d8f0;
-}
-.main-title {
+.stApp {{
+    background-color: {bg_color};
+    color: {text_color};
+}}
+.main-title {{
     text-align: center;
-    color: #9b5de5;
+    color: {accent_color};
     font-weight: bold;
     font-size: 3rem;
-    margin-bottom: 30px;
-}
-.grid-container {
+    margin-bottom: 20px;
+}}
+.user-info {{
+    background-color: {card_bg};
+    padding: 15px;
+    border-radius: 15px;
+    border: 1px solid {border_color};
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(155, 93, 229, 0.2);
+}}
+.grid-container {{
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 20px;
     padding: 10px;
-}
-.stButton>button {
+}}
+.stButton>button {{
     width: 100%;
     height: 110px;
-    background-color: #1a1026;
-    color: #dfb2f4;
-    border: 2px solid #9b5de5;
+    background-color: {card_bg};
+    color: {text_color};
+    border: 2px solid {border_color};
     border-radius: 20px;
     font-size: 1.1rem;
     font-weight: bold;
     transition: 0.3s;
     box-shadow: 0 4px 15px rgba(155, 93, 229, 0.3);
-}
-.stButton>button:hover {
-    background-color: #38135e;
+}}
+.stButton>button:hover {{
+    background-color: {accent_color};
     color: white;
     border-color: #f15bb5;
     box-shadow: 0 6px 25px rgba(241, 91, 181, 0.5);
     transform: translateY(-4px);
-}
+}}
+.niko-circle {{
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #9b5de5, #38135e, #0d0614);
+    margin: 30px auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+    text-align: center;
+    box-shadow: 0 0 60px #9b5de5, inset 0 0 30px #f15bb5;
+    animation: pulse 2s infinite;
+}}
+@keyframes pulse {{
+    0% {{ transform: scale(1); box-shadow: 0 0 40px #9b5de5; }}
+    50% {{ transform: scale(1.08); box-shadow: 0 0 80px #f15bb5; }}
+    100% {{ transform: scale(1); box-shadow: 0 0 40px #9b5de5; }}
+}}
+.settings-panel {{
+    background-color: {card_bg};
+    padding: 20px;
+    border-radius: 20px;
+    border: 2px solid {border_color};
+    margin-top: 20px;
+}}
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='main-title'>💜 BRAS AI 💜</h1>", unsafe_allow_html=True)
 
-# استدعاء مفتاح OpenAI من الـ Secrets بأمان
 api_key = st.secrets.get("OPENAI_API_KEY")
 
 if not api_key:
@@ -60,90 +116,148 @@ if not api_key:
 else:
     client = OpenAI(api_key=api_key)
 
-    # قائمة الأقسام مع الإيموجي والأوامر البرمجية الموجهة باسمكِ
-    SECTIONS = {
-        "المساعد الشامل": ("🤖", "You are BRAS AI, a versatile assistant created by Retaj Luqman ismail Gargary. Assist perfectly across all domains."),
-        "المعلومات العامة": ("🌍", "You are BRAS AI, created by Retaj Luqman. Provide accurate, engaging general knowledge."),
-        "المعلم الشامل": ("📚", "You are BRAS AI, an expert teacher created by Retaj Luqman. Explain subjects simply, considering Kurdistan educational context."),
-        "تعليم اللغات": ("🗣️", "You are BRAS AI, a multilingual tutor created by Retaj Luqman. Teach English, Kurdish, Arabic, and Turkish gently."),
-        "البرمجة": ("💻", "You are BRAS AI, an expert programmer created by Retaj Luqman. Write clean, well-explained code and debug."),
-        "المعلومات الدينية": ("🕌", "You are BRAS AI, guiding on Islamic general knowledge created by Retaj Luqman. Provide reliable, moderate, and calm answers."),
-        "الطبخ والوصفات": ("🍳", "You are BRAS AI, a master chef created by Retaj Luqman. Suggest delicious recipes with precise steps."),
-        "استشارات الأطباء": ("🩺", "You are BRAS AI, a health advisor created by Retaj Luqman. Provide general health tips and strictly advise consulting real doctors."),
-        "الصحة، الدايت والجيم": ("💪", "You are BRAS AI, a fitness coach created by Retaj Luqman. Help with BMI, diet plans, and workout routines."),
-        "نصائح وتطوير الذات": ("💡", "You are BRAS AI, a life advisor created by Retaj Luqman. Give motivational, positive, and practical life advice."),
-        "قسم الرسم": ("🎨", "You are BRAS AI, an art assistant created by Retaj Luqman. Generate detailed prompts for AI image generation."),
-        "تعديل الصور - فوتوشوب": ("✨", "You are BRAS AI, an image editing expert created by Retaj Luqman. Guide users on professional image enhancement.")
-    }
-
-    if "selected_section" not in st.session_state:
-        st.session_state.selected_section = None
-
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    # الحالة الأولى: إذا لم يتم اختيار قسم، نعرض واجهة المربعات الرئيسية
-    if st.session_state.selected_section is None:
-        st.markdown("<p style='text-align: center; color: #dfb2f4; font-size: 1.2rem; margin-bottom: 25px;'>اخترِ القسم المناسب لبدء الإبداع:</p>", unsafe_allow_html=True)
-        
-        cols = st.columns(3)
-        section_items = list(SECTIONS.items())
-        
-        for index, (sec_name, (emoji, prompt)) in enumerate(section_items):
-            col = cols[index % 3]
-            if col.button(f"{emoji}\n\n{sec_name}"):
-                st.session_state.selected_section = sec_name
+    # 1. شاشة تسجيل الدخول
+    if not st.session_state.logged_in:
+        st.markdown("<h3 style='text-align: center;'>🔐 تسجيل الدخول إلى منصتكِ الذكية</h3>", unsafe_allow_html=True)
+        with st.form("login_form"):
+            email = st.text_input(" البريد الإلكتروني:", value=st.session_state.user_email)
+            password = st.text_input(" كلمة المرور:", type="password", value="••••••••")
+            submit_button = st.form_submit_button("دخول المنصة")
+            if submit_button:
+                st.session_state.logged_in = True
                 st.rerun()
-                
-        st.markdown("<br><hr style='border-color: #38135e;'>", unsafe_allow_html=True)
-        st.caption("✨ تم تصميم التطبيق خصيصاً لتلبية إبداعاتكِ ورؤيتكِ التقنية الرائعة.")
-
-    # الحالة الثانية: عند اختيار قسم، تفتح صفحة المحادثة الخاصة به
     else:
-        sec_name = st.session_state.selected_section
-        emoji, system_prompt = SECTIONS[sec_name]
-        
-        col_back, col_title = st.columns([1, 6])
-        if col_back.button("⬅️ الرئيسية"):
-            st.session_state.selected_section = None
-            st.session_state.messages = []
-            st.rerun()
+        # الشريط العلوي لمعلومات الحساب
+        st.markdown(f"""
+        <div class='user-info'>
+            <span>👤 الحساب: <b>{st.session_state.username}</b> ({st.session_state.user_email}) | 🌐 اللغة: {st.session_state.language}</span>
+            <span>🎨 الثيم: {st.session_state.theme} | 🎙️ الصوت: {st.session_state.voice}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # القائمة الجانبية للتحكم بالأوضاع (الرئيسية، الإعدادات، المساعد الكامل)
+        nav_mode = st.sidebar.radio(
+            "📍 تنقلي في منصتكِ:",
+            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🔮 وضع المساعد الكامل (Niko Mode)")
+        )
+
+        if "🏠 الشبكة الرئيسية" in nav_mode:
+            st.session_state.niko_mode = False
             
-        col_title.markdown(f"<h3 style='color: #9b5de5;'>{emoji} {sec_name}</h3>", unsafe_allow_html=True)
-        st.markdown("<hr style='border-color: #38135e; margin-top: 0px;'>", unsafe_allow_html=True)
+            # قائمة الأقسام الـ 12
+            SECTIONS = {
+                "المساعد الشامل": ("🤖", "You are BRAS AI, a versatile assistant created by Retaj Luqman ismail Gargary."),
+                "المعلومات العامة": ("🌍", "You are BRAS AI, created by Retaj Luqman."),
+                "المعلم الشامل": ("📚", "You are BRAS AI, an expert school teacher."),
+                "تعليم اللغات": ("🗣️", "You are BRAS AI, a multilingual tutor."),
+                "البرمجة": ("💻", "You are BRAS AI, an expert programmer."),
+                "المعلومات الدينية": ("🕌", "You are BRAS AI, guiding on Islamic knowledge."),
+                "الطبخ والوصفات": ("🍳", "You are BRAS AI, a master chef."),
+                "استشارات الأطباء": ("🩺", "You are BRAS AI, a health advisor."),
+                "الصحة، الدايت والجيم": ("💪", "You are BRAS AI, a fitness coach."),
+                "نصائح وتطوير الذات": ("💡", "You are BRAS AI, a life advisor."),
+                "قسم الرسم": ("🎨", "You are BRAS AI, an art assistant."),
+                "تعديل الصور - فوتوشوب": ("✨", "You are BRAS AI, an image editing expert.")
+            }
 
-        # عرض الرسائل السابقة داخل المحادثة
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-
-        # خانة إدخال الرسائل
-        prompt = st.chat_input(f"تحدثي مع {sec_name}...")
-
-        if prompt:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-
-            with st.chat_message("assistant"):
-                try:
-                    messages_payload = [{"role": "system", "content": system_prompt}] + [
-                        {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
-                    ]
-
-                    # إذا كان القسم متعلقاً بالرسم أو الفوتوشوب، نستخدم توليد الصور
-                    if "الرسم" in sec_name or "فوتوشوب" in sec_name:
-                        response = client.images.generate(
-                            model="dall-e-3", prompt=prompt, size="1024x1024", quality="standard", n=1
-                        )
-                        image_url = response.data[0].url
-                        full_response = f"تم تجهيز طلبكِ بنجاح!:\n\n![Result]({image_url})"
-                    else:
-                        response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
-                        full_response = response.choices[0].message.content
+            if st.session_state.selected_section is None:
+                st.markdown("<h3 style='text-align: center;'>اخترِ القسم المناسب لبدء الإبداع:</h3>", unsafe_allow_html=True)
+                cols = st.columns(3)
+                section_items = list(SECTIONS.items())
+                
+                for index, (sec_name, (emoji, prompt)) in enumerate(section_items):
+                    col = cols[index % 3]
+                    if col.button(f"{emoji}\n\n{sec_name}"):
+                        st.session_state.selected_section = sec_name
+                        st.rerun()
+            else:
+                sec_name = st.session_state.selected_section
+                emoji, system_prompt = SECTIONS[sec_name]
+                
+                if st.button("⬅️ العودة للشبكة الرئيسية"):
+                    st.session_state.selected_section = None
+                    st.rerun()
                     
-                    st.markdown(full_response)
-                    st.session_state.messages.append({"role": "assistant", "content": full_response})
+                st.subheader(f"أنتِ الآن في: {emoji} {sec_name}")
 
-                except Exception as e:
-                    st.error(f"حدث خطأ أثناء المعالجة: {e}")
+                for message in st.session_state.messages:
+                    with st.chat_message(message["role"]):
+                        st.markdown(message["content"])
+
+                prompt = st.chat_input(f"تحدثي مع {sec_name}...")
+                if prompt:
+                    st.session_state.messages.append({"role": "user", "content": prompt})
+                    with st.chat_message("user"):
+                        st.markdown(prompt)
+
+                    with st.chat_message("assistant"):
+                        try:
+                            # تطبيق إعدادات الصوت المختارة في النظام
+                            selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
+                            
+                            messages_payload = [{"role": "system", "content": system_prompt}] + [
+                                {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
+                            ]
+                            
+                            if "الرسم" in sec_name or "فوتوشوب" in sec_name:
+                                response = client.images.generate(model="dall-e-3", prompt=prompt, size="1024x1024", quality="standard", n=1)
+                                full_response = f"تم تجهيز طلبكِ بنجاح!:\n\n![Result]({response.data[0].url})"
+                            else:
+                                response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
+                                full_response = response.choices[0].message.content
+                                
+                                # توليد الصوت
+                                audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=full_response)
+                                audio_resp.stream_to_file("response.mp3")
+                                st.audio("response.mp3")
+                                
+                            st.markdown(full_response)
+                            st.session_state.messages.append({"role": "assistant", "content": full_response})
+                        except Exception as e:
+                            st.error(f"حدث خطأ: {e}")
+
+        elif "⚙️ إعدادات BRAS AI والحساب" in nav_mode:
+            st.markdown("<h2 style='text-align: center;'>🎛️ لوحة تحكم وإعدادات BRAS AI</h2>", unsafe_allow_html=True)
+            with st.container():
+                st.markdown("<div class='settings-panel'>", unsafe_allow_html=True)
+                
+                st.subheader("👤 بيانات الحساب")
+                new_name = st.text_input("اسم المستخدم:", value=st.session_state.username)
+                new_email = st.text_input("البريد الإلكتروني:", value=st.session_state.user_email)
+                
+                st.subheader("🎨 مظهر التطبيق (Theme)")
+                new_theme = st.radio("اختاري مظهر المنصة:", ("داكن (Dark)", "فاتح (Light)"), index=0 if "داكن" in st.session_state.theme else 1)
+                
+                st.subheader("🎙️ إعدادات الصوت (Voice)")
+                new_voice = st.radio("اختاري صوت المساعد:", ("صوت بنت (Nova)", "صوت رجل (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
+                
+                st.subheader("🌐 تفضيلات اللغة")
+                new_lang = st.selectbox("لغة التفاعل المفضلة:", ["العربية", "Kurdish", "English", "Turkish"], index=["العربية", "Kurdish", "English", "Turkish"].index(st.session_state.language))
+                
+                if st.button("💾 حفظ كافة التعديلات وتطبيقها"):
+                    st.session_state.username = new_name
+                    st.session_state.user_email = new_email
+                    st.session_state.theme = new_theme
+                    st.session_state.voice = new_voice
+                    st.session_state.language = new_lang
+                    st.success("تم تحديث إعدادات BRAS AI بنجاح! سيتم إعادة تحميل الواجهة.")
+                    st.rerun()
+                    
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        elif "🔮 وضع المساعد الكامل (Niko Mode)" in nav_mode:
+            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🔮 محاكي المساعد التفاعلي (Niko Mode)</h2>", unsafe_allow_html=True)
+            st.markdown("<div class='niko-circle'><span>✨ BRAS AI ✨<br>ACTIVE LISTENING</span></div>", unsafe_allow_html=True)
+            st.info("🎙️ في هذا الوضع، يعمل المساعد كدائرة تفاعلية ذكية. يمكنك منحه الأوامر للتحكم بالتطبيق أو الانتقال للأقسام.")
+            
+            niko_prompt = st.chat_input("اكتبي أمراً لـ Niko...")
+            if niko_prompt:
+                with st.chat_message("user"):
+                    st.markdown(niko_prompt)
+                with st.chat_message("assistant"):
+                    if "سناب شات" in niko_prompt:
+                        st.markdown("🚀 جاري محاكاة فتح تطبيق سناب شات...")
+                    elif "إضاءة" in niko_prompt:
+                        st.markdown("💡 تم تطبيق التحكم بالإضاءة.")
+                    else:
+                        st.markdown(f"**Niko:** سمعتُ طلبكِ '{niko_prompt}'. أنا جاهز لتنفيذ أوامر التحكم في منصة BRAS AI!")
