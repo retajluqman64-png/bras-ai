@@ -1,9 +1,11 @@
 import streamlit as st
+import streamlit.components.v1 as components
+import base64
 from openai import OpenAI
 
-# إعداد الصفحة لتكون واسعة
+# إعداد الصفحة لتكون واسعة بالكامل
 st.set_page_config(
-    page_title="BRAS AI - المنصة الشاملة",
+    page_title="BRAS AI - المنصة الشاملة الذكية",
     page_icon="💜",
     layout="wide"
 )
@@ -70,12 +72,23 @@ st.markdown(f"""
     box-shadow: 0 6px 25px rgba(241, 91, 181, 0.5);
     transform: translateY(-4px);
 }}
+/* تكبير أي كاميرا افتراضية لتكون عريضة */
+[data-testid="stCameraInput"] {{
+    width: 100% !important;
+    max-width: 100% !important;
+}}
+[data-testid="stCameraInput"] video {{
+    width: 100% !important;
+    height: auto !important;
+    border-radius: 20px;
+    border: 2px solid #9b5de5;
+}}
 .secretary-circle {{
-    width: 220px;
-    height: 220px;
+    width: 200px;
+    height: 200px;
     border-radius: 50%;
     background: radial-gradient(circle, #9b5de5, #38135e, #0d0614);
-    margin: 30px auto;
+    margin: 20px auto;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -104,6 +117,69 @@ st.markdown(f"""
 st.markdown("<h1 class='main-title'>💜 BRAS AI - المنصة الشاملة الذكية 💜</h1>", unsafe_allow_html=True)
 
 api_key = st.secrets.get("OPENAI_API_KEY")
+
+# دالة مساعدة لتحويل الصور المرفوعة ليراها الذكاء الاصطناعي
+def encode_image(uploaded_file):
+    return base64.b64encode(uploaded_file.getvalue()).decode("utf-8")
+
+# مكون الكاميرا المباشرة الواسعة مع زر قلب الكاميرا الحقيقي
+def render_wide_live_camera():
+    camera_html = """
+    <div style="width: 100%; text-align: center; background: #1a1026; padding: 15px; border-radius: 20px; border: 2px solid #9b5de5;">
+        <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+            <button onclick="startCamera()" style="background: #9b5de5; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                🔴 بدء البث المباشر (Live)
+            </button>
+            <button onclick="flipCamera()" style="background: #f15bb5; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                🔄 قلب الكاميرا (أمامية / خلفية)
+            </button>
+            <button onclick="stopCamera()" style="background: #38135e; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                ⏹️ إيقاف البث
+            </button>
+        </div>
+        <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: 550px; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5;"></video>
+        <p id="camStatus" style="color: #e0d8f0; margin-top: 10px; font-family: sans-serif;">اضغطي على "بدء البث المباشر" لتشغيل الكاميرا الواسعة</p>
+    </div>
+
+    <script>
+        let currentStream = null;
+        let useFrontCamera = false;
+
+        async function startCamera() {
+            stopCamera();
+            const constraints = {
+                video: {
+                    facingMode: useFrontCamera ? "user" : "environment",
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
+                audio: false
+            };
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                const videoEl = document.getElementById('liveVideo');
+                videoEl.srcObject = currentStream;
+                document.getElementById('camStatus').innerText = useFrontCamera ? "🟢 البث مباشر الآن (الكاميرا الأمامية)" : "🟢 البث مباشر الآن (الكاميرا الخلفية الواسعة)";
+            } catch (err) {
+                document.getElementById('camStatus').innerText = "⚠️ يرجى السماح للمتصفح بالوصول إلى الكاميرا: " + err.message;
+            }
+        }
+
+        function flipCamera() {
+            useFrontCamera = !useFrontCamera;
+            startCamera();
+        }
+
+        function stopCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+                document.getElementById('camStatus').innerText = "⏹️ تم إيقاف البث المباشر";
+            }
+        }
+    </script>
+    """
+    components.html(camera_html, height=660)
 
 if not api_key:
     st.error("يرجى ضبط مفتاح OpenAI API في إعدادات Streamlit Secrets.")
@@ -139,6 +215,7 @@ else:
             SECTIONS = {
                 "المساعد الشامل": ("🤖", "You are BRAS AI, a versatile assistant created by Retaj Luqman ismail Gargary."),
                 "المعلم الشامل": ("📚", "You are BRAS AI, an expert school teacher."),
+                "قسم كرة القدم": ("⚽", "You are BRAS AI, an expert football (soccer) analyst, historian, and tactical commentator covering leagues, clubs like FC Barcelona, national teams, and live match stats."),
                 "تعليم اللغات": ("🗣️", "You are BRAS AI, a multilingual tutor."),
                 "البرمجة": ("💻", "You are BRAS AI, an expert programmer."),
                 "الطبخ والوصفات": ("🍳", "You are BRAS AI, a master chef."),
@@ -172,28 +249,57 @@ else:
                     
                 st.subheader(f"أنتِ الآن في: {emoji} {sec_name}")
 
+                # زر زائد (+) لإرفاق صورة أو فيديو أو ملف في جميع الأقسام
+                with st.expander("➕ إضافة صورة أو فيديو أو ملف للتحليل", expanded=False):
+                    attached_file = st.file_uploader(
+                        "اختاري صورة، فيديو، أو ملف من جهازكِ:",
+                        type=["png", "jpg", "jpeg", "webp", "mp4", "mov", "pdf", "txt"],
+                        key=f"uploader_{sec_name}"
+                    )
+                    if attached_file is not None:
+                        if attached_file.type.startswith("image"):
+                            st.image(attached_file, caption="الصورة المرفقة جاهزة للتحليل", width=300)
+                        elif attached_file.type.startswith("video"):
+                            st.video(attached_file)
+                        else:
+                            st.info(f"📄 تم إرفاق الملف: {attached_file.name}")
+
                 for message in st.session_state.messages:
                     with st.chat_message(message["role"]):
                         st.markdown(message["content"])
 
-                prompt = st.chat_input(f"تحدثي مع {sec_name}...")
+                prompt = st.chat_input(f"تحدثي مع {sec_name} (أو ارفعي ملفاً من علامة ➕ بالأعلى)...")
                 if prompt:
                     st.session_state.messages.append({"role": "user", "content": prompt})
                     with st.chat_message("user"):
                         st.markdown(prompt)
+                        if attached_file is not None and attached_file.type.startswith("image"):
+                            st.image(attached_file, width=250)
 
                     with st.chat_message("assistant"):
                         try:
                             selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
                             
-                            messages_payload = [{"role": "system", "content": f"{system_prompt} Respond in {st.session_state.language}."}] + [
-                                {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
-                            ]
-                            
                             if "الرسم" in sec_name or "تعديل الصور" in sec_name:
                                 response = client.images.generate(model="dall-e-3", prompt=prompt, size="1024x1024", quality="standard", n=1)
                                 full_response = f"تم تجهيز طلبكِ بنجاح!:\n\n![Result]({response.data[0].url})"
                             else:
+                                # تجهيز الرسالة مع دعم تحليل الصور المرفقة عبر علامة +
+                                user_content = [{"type": "text", "text": prompt}]
+                                if attached_file is not None:
+                                    if attached_file.type.startswith("image"):
+                                        base64_img = encode_image(attached_file)
+                                        user_content.append({
+                                            "type": "image_url",
+                                            "image_url": {"url": f"data:{attached_file.type};base64,{base64_img}"}
+                                        })
+                                    else:
+                                        user_content[0]["text"] += f"\n[المستخدم أرفق ملفاً باسم: {attached_file.name}]"
+
+                                messages_payload = [{"role": "system", "content": f"{system_prompt} Respond in {st.session_state.language}."}] + [
+                                    {"role": m["role"], "content": m["content"]} for m in st.session_state.messages[:-1]
+                                ] + [{"role": "user", "content": user_content}]
+
                                 response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
                                 full_response = response.choices[0].message.content
                                 
@@ -248,28 +354,20 @@ else:
                     st.session_state.theme = new_theme
                     st.session_state.voice = new_voice
                     st.session_state.language = new_lang
-                    st.success("تم تحديث إعدادات وإعدادات الأسعار بنجاح!")
+                    st.success("تم تحديث الإعدادات بنجاح!")
                     st.rerun()
                     
                 st.markdown("</div>", unsafe_allow_html=True)
 
         elif "🧑‍💼 وضع السكرتير الذكي والبث المباشر" in nav_mode:
-            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي، البث المباشر والكاميرا</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي، البث المباشر والكاميرا الواسعة</h2>", unsafe_allow_html=True)
             st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨<br>24/7 LIVE & CAM</span></div>", unsafe_allow_html=True)
             
-            # قسم الكاميرا المباشرة (واسعة مع خيار قلب الكاميرا)
-            st.subheader("🔴 البث المباشر والكاميرا الواسعة (Live Stream & Camera)")
+            # قسم الكاميرا المباشرة الكبيرة مع زر قلب الكاميرا
+            st.subheader("🔴 البث المباشر والكاميرا الواسعة (Live Stream & Flip Camera)")
             st.write("📡 **جدول البث المجاني:** متاح بث مباشر تفاعلي مجاني لمدة ساعتين كل 24 ساعة للمستخدمين!")
             
-            camera_on = st.checkbox("🟢 تشغيل البث والكاميرا المباشرة الآن")
-            if camera_on:
-                # خيار لتحديد الكاميرا واسعة أو قلب الكاميرا
-                cam_facing = st.radio("اختر وضع الكاميرا:", ("كاميرا خلفية واسعة (Rear Wide)", "كاميرا أمامية (Front)"), horizontal=True)
-                
-                # استخدام كاميرا إدخال المتصفح المتطورة
-                captured_image = st.camera_input("التقطي صورة مباشرة عبر كاميرا الآيباد:")
-                if captured_image:
-                    st.success("✅ تم التقاط الصورة بنجاح وجاهزة للبث أو التحليل الذكي!")
+            render_wide_live_camera()
 
             st.markdown("---")
             st.subheader("📅 جدول الامتحانات والتنبيه الصوتي التلقائي")
@@ -288,7 +386,15 @@ else:
             
             st.markdown("---")
             st.subheader("💬 تحدثي مع سكرتيركِ الشخصي:")
-            sec_prompt = st.chat_input("اطلبي منه تذكيركِ، ترتيب جدولكِ، أو بدء البث...")
+
+            with st.expander("➕ إضافة صورة أو ملف للسكرتير", expanded=False):
+                sec_file = st.file_uploader(
+                    "ارفعي صورة جدولكِ المدرسي أو أي ملف:",
+                    type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"],
+                    key="uploader_secretary"
+                )
+
+            sec_prompt = st.chat_input("اطلبي منه تذكيركِ، ترتيب جدولكِ، أو تحليل صورة...")
             if sec_prompt:
                 st.session_state.messages.append({"role": "user", "content": sec_prompt})
                 with st.chat_message("user"):
@@ -297,18 +403,24 @@ else:
                 with st.chat_message("assistant"):
                     try:
                         selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
-                        
-                        # إعداد التنبيه الصوتي التلقائي من السكرتير
                         system_instructions = f"You are Retaj's smart personal secretary assistant created by Retaj Luqman. Current tasks/schedule: {st.session_state.my_schedule}. Alert her about her exams and schedule dynamically and kindly in {st.session_state.language}."
                         
+                        user_sec_content = [{"type": "text", "text": sec_prompt}]
+                        if sec_file is not None and sec_file.type.startswith("image"):
+                            base64_sec_img = encode_image(sec_file)
+                            user_sec_content.append({
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{sec_file.type};base64,{base64_sec_img}"}
+                            })
+
                         response = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[{"role": "system", "content": system_instructions}] + 
-                                     [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                                     [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[:-1]] +
+                                     [{"role": "user", "content": user_sec_content}]
                         )
                         full_resp = response.choices[0].message.content
                         
-                        # توليد وتشغيل الصوت الذكي
                         audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=full_resp)
                         audio_resp.stream_to_file("secretary_live.mp3")
                         st.audio("secretary_live.mp3")
