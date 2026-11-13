@@ -15,7 +15,7 @@ if "logged_in" not in st.session_state:
     st.session_state.user_email = "retaj@brasai.com"
     st.session_state.theme = "داكن (Dark)"
     st.session_state.voice = "صوت بنت (Nova)"
-    st.session_state.language = "العربية"
+    st.session_state.language = "العربية (Arabic)"
     st.session_state.selected_section = None
     st.session_state.bras_mode = False
     st.session_state.messages = []
@@ -229,15 +229,14 @@ else:
                 st.subheader("🎙️ إعدادات الصوت (Voice)")
                 new_voice = st.radio("اختاري صوت المساعد:", ("صوت بنت (Nova)", "صوت رجل (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
                 
-                st.subheader("🌐 تفضيلات اللغات (أكثر من 30 لغة عالمية)")
-                # قائمة تضم أشهر 30 لغة يتم تحدثها وتعلمها عالمياً
+                st.subheader("🌐 تفضيلات اللغات (30 لغة عالمية)")
                 languages_list = [
                     "العربية (Arabic)", "Kurdish (Kurdî)", "English (الإنجليزية)", "Turkish (التركية)",
                     "French (الفرنسية)", "Spanish (الإسبانية)", "German (الألمانية)", "Italian (الإيطالية)",
                     "Japanese (اليابانية)", "Korean (الكورية)", "Chinese (الصينية)", "Russian (الروسية)",
                     "Persian (الفارسية)", "Hindi (الهندية)", "Portuguese (البرتغالية)", "Dutch (الهولندية)",
                     "Swedish (السويدية)", "Greek (اليونانية)", "Polish (البولندية)", "Romanian (الرومانية)",
-                    "Turkish (التركية)", "Urdu (الأوردو)", "Vietnamese (الفيتنامية)", "Thai (التايلاندية)",
+                    "Urdu (الأوردو)", "Vietnamese (الفيتنامية)", "Thai (التايلاندية)",
                     "Indonesian (الإندونيسية)", "Hebrew (العبرية)", "Czech (التشيكية)", "Danish (الدنماركية)",
                     "Finnish (الفنلندية)", "Hungarian (المجرية)", "Norwegian (النرويجية)", "Ukrainian (الأوكرانية)"
                 ]
@@ -248,7 +247,7 @@ else:
                         current_lang_index = idx
                         break
 
-                new_lang = st.selectbox("اختر لغة التفاعل:", languages_list, index=current_lang_index)
+                new_lang = st.selectbox("اختاري لغة التفاعل:", languages_list, index=current_lang_index)
                 
                 if st.button("💾 حفظ كافة التعديلات وتطبيقها"):
                     st.session_state.username = new_name
@@ -279,10 +278,10 @@ else:
                             model="gpt-4o",
                             messages=[{"role": "system", "content": f"You are BRAS AI assistant created by Retaj Luqman. Respond strictly in {st.session_state.language}."}] + 
                                      [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-                        ]
+                        )
                         full_resp = response.choices[0].message.content
                         
-                        # تشغيل الصوت تلقائياً بالصوت المختار
+                        # توليد وتشغيل الصوت
                         audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=full_resp)
                         audio_resp.stream_to_file("bras_mode.mp3")
                         st.audio("bras_mode.mp3")
