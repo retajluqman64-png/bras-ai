@@ -17,7 +17,7 @@ if "logged_in" not in st.session_state:
     st.session_state.voice = "صوت بنت (Nova)"
     st.session_state.language = "العربية"
     st.session_state.selected_section = None
-    st.session_state.niko_mode = False
+    st.session_state.bras_mode = False
     st.session_state.messages = []
 
 # تحديد الألوان بناءً على الثيم المختار
@@ -76,7 +76,7 @@ st.markdown(f"""
     box-shadow: 0 6px 25px rgba(241, 91, 181, 0.5);
     transform: translateY(-4px);
 }}
-.niko-circle {{
+.bras-circle {{
     width: 220px;
     height: 220px;
     border-radius: 50%;
@@ -120,8 +120,8 @@ else:
     if not st.session_state.logged_in:
         st.markdown("<h3 style='text-align: center;'>🔐 تسجيل الدخول إلى منصتكِ الذكية</h3>", unsafe_allow_html=True)
         with st.form("login_form"):
-            email = st.text_input(" البريد الإلكتروني:", value=st.session_state.user_email)
-            password = st.text_input(" كلمة المرور:", type="password", value="••••••••")
+            email = st.text_input("البريد الإلكتروني:", value=st.session_state.user_email)
+            password = st.text_input("كلمة المرور:", type="password", value="••••••••")
             submit_button = st.form_submit_button("دخول المنصة")
             if submit_button:
                 st.session_state.logged_in = True
@@ -135,16 +135,15 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # القائمة الجانبية للتحكم بالأوضاع (الرئيسية، الإعدادات، المساعد الكامل)
+        # القائمة الجانبية للتنقل
         nav_mode = st.sidebar.radio(
             "📍 تنقلي في منصتكِ:",
-            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🔮 وضع المساعد الكامل (Niko Mode)")
+            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🔮 وضع BRAS Mode (المساعد الصوتي)")
         )
 
         if "🏠 الشبكة الرئيسية" in nav_mode:
-            st.session_state.niko_mode = False
+            st.session_state.bras_mode = False
             
-            # قائمة الأقسام الـ 12
             SECTIONS = {
                 "المساعد الشامل": ("🤖", "You are BRAS AI, a versatile assistant created by Retaj Luqman ismail Gargary."),
                 "المعلومات العامة": ("🌍", "You are BRAS AI, created by Retaj Luqman."),
@@ -192,10 +191,9 @@ else:
 
                     with st.chat_message("assistant"):
                         try:
-                            # تطبيق إعدادات الصوت المختارة في النظام
                             selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
                             
-                            messages_payload = [{"role": "system", "content": system_prompt}] + [
+                            messages_payload = [{"role": "system", "content": f"{system_prompt} Respond in {st.session_state.language}."}] + [
                                 {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
                             ]
                             
@@ -206,7 +204,7 @@ else:
                                 response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
                                 full_response = response.choices[0].message.content
                                 
-                                # توليد الصوت
+                                # توليد وتشغيل الصوت
                                 audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=full_response)
                                 audio_resp.stream_to_file("response.mp3")
                                 st.audio("response.mp3")
@@ -231,8 +229,26 @@ else:
                 st.subheader("🎙️ إعدادات الصوت (Voice)")
                 new_voice = st.radio("اختاري صوت المساعد:", ("صوت بنت (Nova)", "صوت رجل (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
                 
-                st.subheader("🌐 تفضيلات اللغة")
-                new_lang = st.selectbox("لغة التفاعل المفضلة:", ["العربية", "Kurdish", "English", "Turkish"], index=["العربية", "Kurdish", "English", "Turkish"].index(st.session_state.language))
+                st.subheader("🌐 تفضيلات اللغات (أكثر من 30 لغة عالمية)")
+                # قائمة تضم أشهر 30 لغة يتم تحدثها وتعلمها عالمياً
+                languages_list = [
+                    "العربية (Arabic)", "Kurdish (Kurdî)", "English (الإنجليزية)", "Turkish (التركية)",
+                    "French (الفرنسية)", "Spanish (الإسبانية)", "German (الألمانية)", "Italian (الإيطالية)",
+                    "Japanese (اليابانية)", "Korean (الكورية)", "Chinese (الصينية)", "Russian (الروسية)",
+                    "Persian (الفارسية)", "Hindi (الهندية)", "Portuguese (البرتغالية)", "Dutch (الهولندية)",
+                    "Swedish (السويدية)", "Greek (اليونانية)", "Polish (البولندية)", "Romanian (الرومانية)",
+                    "Turkish (التركية)", "Urdu (الأوردو)", "Vietnamese (الفيتنامية)", "Thai (التايلاندية)",
+                    "Indonesian (الإندونيسية)", "Hebrew (العبرية)", "Czech (التشيكية)", "Danish (الدنماركية)",
+                    "Finnish (الفنلندية)", "Hungarian (المجرية)", "Norwegian (النرويجية)", "Ukrainian (الأوكرانية)"
+                ]
+                
+                current_lang_index = 0
+                for idx, lang in enumerate(languages_list):
+                    if st.session_state.language in lang:
+                        current_lang_index = idx
+                        break
+
+                new_lang = st.selectbox("اختر لغة التفاعل:", languages_list, index=current_lang_index)
                 
                 if st.button("💾 حفظ كافة التعديلات وتطبيقها"):
                     st.session_state.username = new_name
@@ -245,19 +261,33 @@ else:
                     
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        elif "🔮 وضع المساعد الكامل (Niko Mode)" in nav_mode:
-            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🔮 محاكي المساعد التفاعلي (Niko Mode)</h2>", unsafe_allow_html=True)
-            st.markdown("<div class='niko-circle'><span>✨ BRAS AI ✨<br>ACTIVE LISTENING</span></div>", unsafe_allow_html=True)
-            st.info("🎙️ في هذا الوضع، يعمل المساعد كدائرة تفاعلية ذكية. يمكنك منحه الأوامر للتحكم بالتطبيق أو الانتقال للأقسام.")
+        elif "🔮 وضع BRAS Mode (المساعد الصوتي)" in nav_mode:
+            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🔮 وضع BRAS Mode التفاعلي الصوتي</h2>", unsafe_allow_html=True)
+            st.markdown("<div class='bras-circle'><span>✨ BRAS MODE ✨<br>ACTIVE VOICE</span></div>", unsafe_allow_html=True)
+            st.info(f"🎙️ في وضع BRAS Mode، يتحدث إليكِ المساعد صوتياً مباشرة بلغة: {st.session_state.language}")
             
-            niko_prompt = st.chat_input("اكتبي أمراً لـ Niko...")
-            if niko_prompt:
+            bras_prompt = st.chat_input("تحدثي صوتياً أو نصياً مع BRAS Mode...")
+            if bras_prompt:
+                st.session_state.messages.append({"role": "user", "content": bras_prompt})
                 with st.chat_message("user"):
-                    st.markdown(niko_prompt)
+                    st.markdown(bras_prompt)
+                    
                 with st.chat_message("assistant"):
-                    if "سناب شات" in niko_prompt:
-                        st.markdown("🚀 جاري محاكاة فتح تطبيق سناب شات...")
-                    elif "إضاءة" in niko_prompt:
-                        st.markdown("💡 تم تطبيق التحكم بالإضاءة.")
-                    else:
-                        st.markdown(f"**Niko:** سمعتُ طلبكِ '{niko_prompt}'. أنا جاهز لتنفيذ أوامر التحكم في منصة BRAS AI!")
+                    try:
+                        selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
+                        response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[{"role": "system", "content": f"You are BRAS AI assistant created by Retaj Luqman. Respond strictly in {st.session_state.language}."}] + 
+                                     [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                        ]
+                        full_resp = response.choices[0].message.content
+                        
+                        # تشغيل الصوت تلقائياً بالصوت المختار
+                        audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=full_resp)
+                        audio_resp.stream_to_file("bras_mode.mp3")
+                        st.audio("bras_mode.mp3")
+                        
+                        st.markdown(full_resp)
+                        st.session_state.messages.append({"role": "assistant", "content": full_resp})
+                    except Exception as e:
+                        st.error(f"حدث خطأ: {e}")
