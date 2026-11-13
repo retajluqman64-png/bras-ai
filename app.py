@@ -3,12 +3,12 @@ from openai import OpenAI
 
 # إعداد الصفحة لتكون واسعة
 st.set_page_config(
-    page_title="BRAS AI",
+    page_title="BRAS AI - السكرتير الخارق والجمال",
     page_icon="💜",
     layout="wide"
 )
 
-# إدارة الحالة لتخزين الإعدادات
+# إدارة الحالة لتخزين الذاكرة والجدول
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = "ريتاج لقمان"
@@ -17,7 +17,7 @@ if "logged_in" not in st.session_state:
     st.session_state.voice = "صوت بنت (Nova)"
     st.session_state.language = "العربية (Arabic)"
     st.session_state.selected_section = None
-    st.session_state.bras_mode = False
+    st.session_state.my_schedule = []
     st.session_state.messages = []
 
 # تحديد الألوان بناءً على الثيم المختار
@@ -51,12 +51,6 @@ st.markdown(f"""
     align-items: center;
     box-shadow: 0 4px 10px rgba(155, 93, 229, 0.2);
 }}
-.grid-container {{
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 20px;
-    padding: 10px;
-}}
 .stButton>button {{
     width: 100%;
     height: 110px;
@@ -76,7 +70,7 @@ st.markdown(f"""
     box-shadow: 0 6px 25px rgba(241, 91, 181, 0.5);
     transform: translateY(-4px);
 }}
-.bras-circle {{
+.secretary-circle {{
     width: 220px;
     height: 220px;
     border-radius: 50%;
@@ -107,7 +101,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 class='main-title'>💜 BRAS AI 💜</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-title'>💜 BRAS AI - منصة الإبداع والجمال 💜</h1>", unsafe_allow_html=True)
 
 api_key = st.secrets.get("OPENAI_API_KEY")
 
@@ -138,12 +132,10 @@ else:
         # القائمة الجانبية للتنقل
         nav_mode = st.sidebar.radio(
             "📍 تنقلي في منصتكِ:",
-            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🔮 وضع BRAS Mode (المساعد الصوتي)")
+            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🧑‍💼 وضع السكرتير الشخصي والبث")
         )
 
         if "🏠 الشبكة الرئيسية" in nav_mode:
-            st.session_state.bras_mode = False
-            
             SECTIONS = {
                 "المساعد الشامل": ("🤖", "You are BRAS AI, a versatile assistant created by Retaj Luqman ismail Gargary."),
                 "المعلومات العامة": ("🌍", "You are BRAS AI, created by Retaj Luqman."),
@@ -152,11 +144,12 @@ else:
                 "البرمجة": ("💻", "You are BRAS AI, an expert programmer."),
                 "المعلومات الدينية": ("🕌", "You are BRAS AI, guiding on Islamic knowledge."),
                 "الطبخ والوصفات": ("🍳", "You are BRAS AI, a master chef."),
+                "مكياج وسكين كير": ("💄", "You are BRAS AI, an expert makeup artist and professional skincare consultant. Give fabulous beauty tips, skincare routines, and makeup ideas."),
                 "استشارات الأطباء": ("🩺", "You are BRAS AI, a health advisor."),
                 "الصحة، الدايت والجيم": ("💪", "You are BRAS AI, a fitness coach."),
                 "نصائح وتطوير الذات": ("💡", "You are BRAS AI, a life advisor."),
-                "قسم الرسم": ("🎨", "You are BRAS AI, an art assistant."),
-                "تعديل الصور - فوتوشوب": ("✨", "You are BRAS AI, an image editing expert.")
+                "قسم الرسم وتصميم الصور": ("🎨", "You are BRAS AI, an art assistant."),
+                "صانع الفيديوهات والأفكار": ("🎬", "You are BRAS AI, a video and creative ideas creator.")
             }
 
             if st.session_state.selected_section is None:
@@ -197,14 +190,15 @@ else:
                                 {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
                             ]
                             
-                            if "الرسم" in sec_name or "فوتوشوب" in sec_name:
+                            if "الرسم" in sec_name or "تعديل الصور" in sec_name or "مكياج" in sec_name and "صورة" in prompt:
                                 response = client.images.generate(model="dall-e-3", prompt=prompt, size="1024x1024", quality="standard", n=1)
                                 full_response = f"تم تجهيز طلبكِ بنجاح!:\n\n![Result]({response.data[0].url})"
+                            elif "فيديوهات" in sec_name:
+                                full_response = f"🎬 بناءً على فكرتك '{prompt}', إليكِ السيناريو الكامل وتوجيهات تصوير الفيديو الاحترافي:\n1. **المقدمة:** خطف انتباه المشاهد في أول 3 ثوانٍ.\n2. **المحتوى الرئيسي:** عرض الأفكار بأسلوب شيق.\n3. **الخاتمة:** طلب التفاعل (اشتراك/لايك).\n\nهل ترغبين بأن أولد لكِ صورة مصغرة لهذا الفيديو؟"
                             else:
                                 response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
                                 full_response = response.choices[0].message.content
                                 
-                                # توليد وتشغيل الصوت
                                 audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=full_response)
                                 audio_resp.stream_to_file("response.mp3")
                                 st.audio("response.mp3")
@@ -229,7 +223,6 @@ else:
                 st.subheader("🎙️ إعدادات الصوت (Voice)")
                 new_voice = st.radio("اختاري صوت المساعد:", ("صوت بنت (Nova)", "صوت رجل (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
                 
-                st.subheader("🌐 تفضيلات اللغات (30 لغة عالمية)")
                 languages_list = [
                     "العربية (Arabic)", "Kurdish (Kurdî)", "English (الإنجليزية)", "Turkish (التركية)",
                     "French (الفرنسية)", "Spanish (الإسبانية)", "German (الألمانية)", "Italian (الإيطالية)",
@@ -260,31 +253,53 @@ else:
                     
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        elif "🔮 وضع BRAS Mode (المساعد الصوتي)" in nav_mode:
-            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🔮 وضع BRAS Mode التفاعلي الصوتي</h2>", unsafe_allow_html=True)
-            st.markdown("<div class='bras-circle'><span>✨ BRAS MODE ✨<br>ACTIVE VOICE</span></div>", unsafe_allow_html=True)
-            st.info(f"🎙️ في وضع BRAS Mode، يتحدث إليكِ المساعد صوتياً مباشرة بلغة: {st.session_state.language}")
+        elif "🧑‍💼 وضع السكرتير الشخصي والبث" in nav_mode:
+            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي وجدول المواعيد والكاميرا</h2>", unsafe_allow_html=True)
+            st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨<br>LIVE & CAMERA</span></div>", unsafe_allow_html=True)
             
-            bras_prompt = st.chat_input("تحدثي صوتياً أو نصياً مع BRAS Mode...")
-            if bras_prompt:
-                st.session_state.messages.append({"role": "user", "content": bras_prompt})
+            st.subheader("🔴 البث المباشر وتشغيل الكاميرا (Live Camera)")
+            camera_on = st.checkbox("🟢 فتح الكاميرا المباشرة داخل التطبيق (Live Feed)")
+            if camera_on:
+                st.camera_صور = st.camera_input("التقطي صورة مباشرة عبر الكاميرا لتحليلها أو بثها:")
+                if st.camera_صور:
+                    st.success("✅ تم التقاط الصورة بنجاح بواسطة كاميرا جهازك!")
+
+            st.markdown("---")
+            st.subheader("📅 جدول الامتحانات والمهام الشخصية")
+            
+            with st.form("add_task_form"):
+                new_task = st.text_input("أدخلي امتحان أو مهمة جديدة (مثلاً: امتحان علوم يوم الأحد):")
+                add_btn = st.form_submit_button("إضافة إلى جدولي الذكي")
+                if add_btn and new_task:
+                    st.session_state.my_schedule.append(new_task)
+                    st.success("تمت إضافة المهمة إلى جدولكِ بنجاح!")
+
+            if st.session_state.my_schedule:
+                st.markdown("📌 **جدولكِ الحالي:**")
+                for idx, task in enumerate(st.session_state.my_schedule, 1):
+                    st.write(f"{idx}. 🗓️ {task}")
+            
+            st.markdown("---")
+            st.subheader("💬 تحدثي مع سكرتيركِ الشخصي:")
+            sec_prompt = st.chat_input("اطلبي منه تنظيم جدول، أو ابتكار فيديو، أو أي شيء...")
+            if sec_prompt:
+                st.session_state.messages.append({"role": "user", "content": sec_prompt})
                 with st.chat_message("user"):
-                    st.markdown(bras_prompt)
+                    st.markdown(sec_prompt)
                     
                 with st.chat_message("assistant"):
                     try:
                         selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
                         response = client.chat.completions.create(
                             model="gpt-4o",
-                            messages=[{"role": "system", "content": f"You are BRAS AI assistant created by Retaj Luqman. Respond strictly in {st.session_state.language}."}] + 
+                            messages=[{"role": "system", "content": f"You are Retaj's smart personal secretary assistant created by Retaj Luqman. Help her manage exams, schedules, and video ideas. Respond strictly in {st.session_state.language}."}] + 
                                      [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                         )
                         full_resp = response.choices[0].message.content
                         
-                        # توليد وتشغيل الصوت
                         audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=full_resp)
-                        audio_resp.stream_to_file("bras_mode.mp3")
-                        st.audio("bras_mode.mp3")
+                        audio_resp.stream_to_file("secretary.mp3")
+                        st.audio("secretary.mp3")
                         
                         st.markdown(full_resp)
                         st.session_state.messages.append({"role": "assistant", "content": full_resp})
