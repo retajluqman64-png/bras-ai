@@ -32,21 +32,21 @@ accent_color = "#9b5de5"
 st.markdown(f"""
 <style>
 .stApp {{
-    background-color: {{bg_color}};
-    color: {{text_color}};
+    background-color: {bg_color};
+    color: {text_color};
 }}
 .main-title {{
     text-align: center;
-    color: {{accent_color}};
+    color: {accent_color};
     font-weight: bold;
     font-size: 3rem;
     margin-bottom: 20px;
 }}
 .user-info {{
-    background-color: {{card_bg}};
+    background-color: {card_bg};
     padding: 15px;
     border-radius: 15px;
-    border: 1px solid {{border_color}};
+    border: 1px solid {border_color};
     margin-bottom: 20px;
     display: flex;
     justify-content: space-between;
@@ -56,9 +56,9 @@ st.markdown(f"""
 .stButton>button {{
     width: 100%;
     height: 110px;
-    background-color: {{card_bg}};
-    color: {{text_color}};
-    border: 2px solid {{border_color}};
+    background-color: {card_bg};
+    color: {text_color};
+    border: 2px solid {border_color};
     border-radius: 20px;
     font-size: 1.1rem;
     font-weight: bold;
@@ -66,22 +66,11 @@ st.markdown(f"""
     box-shadow: 0 4px 15px rgba(155, 93, 229, 0.3);
 }}
 .stButton>button:hover {{
-    background-color: {{accent_color}};
+    background-color: {accent_color};
     color: white;
     border-color: #f15bb5;
     box-shadow: 0 6px 25px rgba(241, 91, 181, 0.5);
     transform: translateY(-4px);
-}}
-/* تكبير أي كاميرا افتراضية لتكون عريضة */
-[data-testid="stCameraInput"] {{
-    width: 100% !important;
-    max-width: 100% !important;
-}}
-[data-testid="stCameraInput"] video {{
-    width: 100% !important;
-    height: auto !important;
-    border-radius: 20px;
-    border: 2px solid #9b5de5;
 }}
 .secretary-circle {{
     width: 200px;
@@ -105,10 +94,10 @@ st.markdown(f"""
     100% {{ transform: scale(1); box-shadow: 0 0 40px #9b5de5; }}
 }}
 .settings-panel {{
-    background-color: {{card_bg}};
+    background-color: {card_bg};
     padding: 20px;
     border-radius: 20px;
-    border: 2px solid {{border_color}};
+    border: 2px solid {border_color};
     margin-top: 20px;
 }}
 </style>
@@ -118,11 +107,9 @@ st.markdown("<h1 class='main-title'>💜 BRAS AI - المنصة الشاملة �
 
 api_key = st.secrets.get("OPENAI_API_KEY")
 
-# دالة مساعدة لتحويل الصور المرفوعة ليراها الذكاء الاصطناعي
 def encode_image(uploaded_file):
     return base64.b64encode(uploaded_file.getvalue()).decode("utf-8")
 
-# مكون الكاميرا المباشرة الواسعة مع ميزة عكس الصورة (إلغاء المرآة) وزر قلب الكاميرا
 def render_wide_live_camera():
     camera_html = """
     <div style="width: 100%; text-align: center; background: #1a1026; padding: 15px; border-radius: 20px; border: 2px solid #9b5de5;">
@@ -186,7 +173,6 @@ if not api_key:
 else:
     client = OpenAI(api_key=api_key)
 
-    # 1. شاشة تسجيل الدخول
     if not st.session_state.logged_in:
         st.markdown("<h3 style='text-align: center;'>🔐 تسجيل الدخول إلى منصتكِ الذكية</h3>", unsafe_allow_html=True)
         with st.form("login_form"):
@@ -197,15 +183,13 @@ else:
                 st.session_state.logged_in = True
                 st.rerun()
     else:
-        # الشريط العلوي لمعلومات الحساب
         st.markdown(f"""
         <div class='user-info'>
-            <span>👤 الحساب: <b>{{st.session_state.username}}</b> ({{st.session_state.user_email}}) | 🌐 اللغة: {{st.session_state.language}}</span>
-            <span>🎨 الثيم: {{st.session_state.theme}} | 🎙️ الصوت: {{st.session_state.voice}}</span>
+            <span>👤 الحساب: <b>{st.session_state.username}</b> ({st.session_state.user_email}) | 🌐 اللغة: {st.session_state.language}</span>
+            <span>🎨 الثيم: {st.session_state.theme} | 🎙️ الصوت: {st.session_state.voice}</span>
         </div>
         """, unsafe_allow_html=True)
 
-        # القائمة الجانبية للتنقل
         nav_mode = st.sidebar.radio(
             "📍 تنقلي في منصتكِ:",
             ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🧑‍💼 وضع السكرتير الذكي والبث المباشر")
@@ -236,7 +220,8 @@ else:
                 
                 for index, (sec_name, (emoji, prompt)) in enumerate(section_items):
                     col = cols[index % 3]
-                    if col.button(f"{{emoji}}\n\n{{sec_name}}"):
+                    # تم إضافة key فريد هنا لمنع أخطاء التكرار
+                    if col.button(f"{emoji}\n\n{sec_name}", key=f"sec_btn_{index}"):
                         st.session_state.selected_section = sec_name
                         st.rerun()
             else:
@@ -247,26 +232,24 @@ else:
                     st.session_state.selected_section = None
                     st.rerun()
                     
-                st.subheader(f"أنتِ الآن في: {{emoji}} {{sec_name}}")
+                st.subheader(f"أنتِ الآن في: {emoji} {sec_name}")
 
-                # زر زائد (+) لإرفاق صورة أو فيديو أو ملف في جميع الأقسام (بدون عرض مسبق مكرر)
                 with st.expander("➕ إضافة صورة أو فيديو أو ملف للتحليل", expanded=False):
                     attached_file = st.file_uploader(
                         "اختاري صورة، فيديو، أو ملف من جهازكِ:",
                         type=["png", "jpg", "jpeg", "webp", "mp4", "mov", "pdf", "txt"],
-                        key=f"uploader_{{sec_name}}"
+                        key=f"uploader_{sec_name}"
                     )
 
                 for message in st.session_state.messages:
                     with st.chat_message(message["role"]):
                         st.markdown(message["content"])
 
-                prompt = st.chat_input(f"تحدثي مع {{sec_name}} (أو ارفعي ملفاً من علامة ➕ بالأعلى)...")
+                prompt = st.chat_input(f"تحدثي مع {sec_name} (أو ارفعي ملفاً من علامة ➕ بالأعلى)...")
                 if prompt:
                     st.session_state.messages.append({"role": "user", "content": prompt})
                     with st.chat_message("user"):
                         st.markdown(prompt)
-                        # عرض الصورة فقط داخل فقرة رسالة المستخدم لمنع التكرار
                         if attached_file is not None and attached_file.type.startswith("image"):
                             st.image(attached_file, width=300)
                         elif attached_file is not None and attached_file.type.startswith("video"):
@@ -278,21 +261,20 @@ else:
                             
                             if "الرسم" in sec_name or "تعديل الصور" in sec_name:
                                 response = client.images.generate(model="dall-e-3", prompt=prompt, size="1024x1024", quality="standard", n=1)
-                                full_response = f"تم تجهيز طلبكِ بنجاح!:\n\n![Result]({{response.data[0].url}})"
+                                full_response = f"تم تجهيز طلبكِ بنجاح!:\n\n![Result]({response.data[0].url})"
                             else:
-                                # تجهيز الرسالة مع دعم تحليل الصور المرفقة عبر علامة +
                                 user_content = [{"type": "text", "text": prompt}]
                                 if attached_file is not None:
                                     if attached_file.type.startswith("image"):
                                         base64_img = encode_image(attached_file)
                                         user_content.append({
                                             "type": "image_url",
-                                            "image_url": {"url": f"data:{{attached_file.type}};base64,{{base64_img}}"}
+                                            "image_url": {"url": f"data:{attached_file.type};base64,{base64_img}"}
                                         })
                                     else:
-                                        user_content[0]["text"] += f"\n[المستخدم أرفق ملفاً باسم: {{attached_file.name}}]"
+                                        user_content[0]["text"] += f"\n[المستخدم أرفق ملفاً باسم: {attached_file.name}]"
 
-                                messages_payload = [{"role": "system", "content": f"{{system_prompt}} Respond in {{st.session_state.language}}."}] + [
+                                messages_payload = [{"role": "system", "content": f"{system_prompt} Respond in {st.session_state.language}."}] + [
                                     {"role": m["role"], "content": m["content"]} for m in st.session_state.messages[:-1]
                                 ] + [{"role": "user", "content": user_content}]
 
@@ -306,7 +288,7 @@ else:
                             st.markdown(full_response)
                             st.session_state.messages.append({"role": "assistant", "content": full_response})
                         except Exception as e:
-                            st.error(f"حدث خطأ: {{e}}")
+                            st.error(f"حدث خطأ: {e}")
 
         elif "⚙️ إعدادات BRAS AI والحساب" in nav_mode:
             st.markdown("<h2 style='text-align: center;'>🎛️ لوحة تحكم وإعدادات BRAS AI</h2>", unsafe_allow_html=True)
@@ -359,7 +341,6 @@ else:
             st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي، البث المباشر والكاميرا الواسعة</h2>", unsafe_allow_html=True)
             st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨<br>24/7 LIVE & CAM</span></div>", unsafe_allow_html=True)
             
-            # قسم الكاميرا المباشرة الكبيرة مع زر قلب الكاميرا
             st.subheader("🔴 البث المباشر والكاميرا الواسعة (Live Stream & Flip Camera)")
             st.write("📡 **جدول البث المجاني:** متاح بث مباشر تفاعلي مجاني لمدة ساعتين كل 24 ساعة للمستخدمين!")
             
@@ -378,7 +359,7 @@ else:
             if st.session_state.my_schedule:
                 st.markdown("📌 **جدولكِ النشط حالياً:**")
                 for idx, task in enumerate(st.session_state.my_schedule, 1):
-                    st.write(f"{{idx}}. 🗓️ {{task}}")
+                    st.write(f"{idx}. 🗓️ {task}")
             
             st.markdown("---")
             st.subheader("💬 تحدثي مع سكرتيركِ الشخصي:")
@@ -403,14 +384,14 @@ else:
                 with st.chat_message("assistant"):
                     try:
                         selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
-                        system_instructions = f"You are Retaj's smart personal secretary assistant created by Retaj Luqman. Current tasks/schedule: {{st.session_state.my_schedule}}. Alert her about her exams and schedule dynamically and kindly in {{st.session_state.language}}."
+                        system_instructions = f"You are Retaj's smart personal secretary assistant created by Retaj Luqman. Current tasks/schedule: {st.session_state.my_schedule}. Alert her about her exams and schedule dynamically and kindly in {st.session_state.language}."
                         
                         user_sec_content = [{"type": "text", "text": sec_prompt}]
                         if sec_file is not None and sec_file.type.startswith("image"):
                             base64_sec_img = encode_image(sec_file)
                             user_sec_content.append({
                                 "type": "image_url",
-                                "image_url": {"url": f"data:{{sec_file.type}};base64,{{base64_sec_img}}"}
+                                "image_url": {"url": f"data:{sec_file.type};base64,{base64_sec_img}"}
                             })
 
                         response = client.chat.completions.create(
@@ -428,4 +409,4 @@ else:
                         st.markdown(full_resp)
                         st.session_state.messages.append({"role": "assistant", "content": full_resp})
                     except Exception as e:
-                        st.error(f"حدث خطأ: {{e}}")
+                        st.error(f"حدث خطأ: {e}")
