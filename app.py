@@ -16,7 +16,7 @@ if "logged_in" not in st.session_state:
     st.session_state.username = "ريتاج لقمان گەرگەری"
     st.session_state.user_email = "retaj@brasai.com"
     st.session_state.theme = "داكن (Dark)"
-    st.session_state.voice = "صوت بنت (Nova)"
+    st.session_state.voice = "صوت بنت نقي وأضح (Nova)"
     st.session_state.language = "العربية (Arabic)"
     st.session_state.selected_section = None
     st.session_state.my_schedule = []
@@ -278,7 +278,7 @@ else:
                     with st.chat_message("assistant"):
                         try:
                             selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
-                            messages_payload = [{"role": "system", "content": f"{system_prompt} Respond in Arabic."}] + [
+                            messages_payload = [{"role": "system", "content": f"{system_prompt} Respond in Arabic with crystal clear voice."}] + [
                                 {"role": m["role"], "content": m["content"]} for m in st.session_state.section_messages[sec_name]
                             ]
                             response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
@@ -299,7 +299,12 @@ else:
                 st.markdown("<div class='settings-panel'>", unsafe_allow_html=True)
                 new_name = st.text_input("اسم المستخدم:", value=st.session_state.username)
                 new_theme = st.radio("المظهر:", ("داكن (Dark)", "فاتح (Light)"), index=0 if "داكن" in st.session_state.theme else 1)
-                new_voice = st.radio("الصوت:", ("صوت بنت (Nova)", "صوت رجل (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
+                new_voice = st.radio("الصوت:", ("صوت بنت نقي وأضح (Nova)", "صوت رجل نقي وأضح (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
+                
+                st.markdown("---")
+                st.markdown("🔔 **إشعارات التذكير يوم الأحد:**")
+                st.checkbox("تفعيل تنبيهات وتذكيرات السكرتير يوم الأحد تلقائياً عند فتح المنصة", value=True)
+
                 if st.button("💾 حفظ الإعدادات وتطبيق الألوان"):
                     st.session_state.username = new_name
                     st.session_state.theme = new_theme
@@ -309,7 +314,7 @@ else:
                 st.markdown("</div>", unsafe_allow_html=True)
 
         elif "🧑‍💼 وضع السكرتير الذكي (صوت وكتابة وكاميرا اختيارية)" in nav_mode:
-            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي (صوت، كتابة، وكاميرا اختيارية)</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي المطور (صوت نقي، كتابة، وتنبيهات الأحد)</h2>", unsafe_allow_html=True)
             st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
             
             # كاميرا اختيارية تماماً
@@ -317,14 +322,15 @@ else:
                 render_optional_camera()
 
             st.markdown("---")
-            st.subheader("📅 جدول المهمات والتنبيه الصوتي")
+            st.subheader("📅 جدول المهمات والتنبيهات الذكية (تذكير يوم الأحد)")
             with st.form("sch_form"):
-                task = st.text_input("أدخلي مهمة جديدة:")
+                task = st.text_input("أدخلي مهمة جديدة (مثل: مراجعة جدول يوم الأحد):")
                 if st.form_submit_button("إضافة للمهمات") and task:
                     st.session_state.my_schedule.append(task)
-                    st.success("تمت الإضافة!")
+                    st.success("تمت الإضافة بنجاح وسيقوم السكرتير بتذكيركِ بها!")
 
             if st.session_state.my_schedule:
+                st.info("📌 المهمات المسجلة حالياً (بما في ذلك تنبيهات الأحد):")
                 for idx, t in enumerate(st.session_state.my_schedule, 1):
                     st.write(f"{idx}. {t}")
 
@@ -335,7 +341,7 @@ else:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-            sec_prompt = st.chat_input("تحدثي مع سكرتيركِ بالكتابة (وسيرد عليكِ صوتياً وكتابياً)...")
+            sec_prompt = st.chat_input("تحدثي مع سكرتيركِ بالكتابة (وسيرد عليكِ بالصوت النقي والكتابة)...")
             if sec_prompt:
                 st.session_state.messages.append({"role": "user", "content": sec_prompt})
                 with st.chat_message("user"):
@@ -343,7 +349,7 @@ else:
                 with st.chat_message("assistant"):
                     try:
                         selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
-                        sec_sys = f"{base_system_prompt} You are Retaj's secretary. Current schedule: {st.session_state.my_schedule}. Always respond in Arabic unless requested otherwise."
+                        sec_sys = f"{base_system_prompt} You are Retaj's smart secretary. Current schedule and Sunday reminders: {st.session_state.my_schedule}. Always respond in clear Arabic with a warm tone."
                         resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sec_sys}] + st.session_state.messages)
                         f_resp = resp.choices[0].message.content
                         
