@@ -173,7 +173,7 @@ else:
     else:
         st.markdown(f"""
         <div class='user-info'>
-            <span>👤 الحساب: <b>{st.session_state.username}</b> ({st.session_state.user_email}) | 🌐 اللغة: {st.session_state.language}</span>
+            <span>👤 الحساب: <b>{st.session_state.username}</b> ({st.session_state.user_email}) | 🌐 لغة التطبيق: {st.session_state.language}</span>
             <span>🎨 الثيم: {st.session_state.theme} | 🎙️ الصوت: {st.session_state.voice}</span>
         </div>
         """, unsafe_allow_html=True)
@@ -184,8 +184,9 @@ else:
         )
 
         base_system_prompt = (
-            "You are BRAS AI, a helpful assistant created exclusively by Retaj Luqman ismail Gargary (ريتاج لقمان گەرگەری). "
-            "If anyone asks who created you or where you are from, you must proudly answer that you are from Kurdistan Iraq (كردستان العراق). "
+            f"You are BRAS AI, a helpful assistant created exclusively by Retaj Luqman ismail Gargary (ريتاج لقمان گەرگەری). "
+            f"If anyone asks who created you or where you are from, you must proudly answer that you are from Kurdistan Iraq (كردستان العراق). "
+            f"The current user preferred language setting is: {st.session_state.language}. Respond fluently in this language. "
             "Always remember previous conversations with Retaj in this session, and when she asks if you remember something she said earlier, confirm enthusiastically ('إيه أتذكر'). "
             "Pronounce the letter 'گ' (Ga) correctly and clearly."
         )
@@ -270,10 +271,9 @@ else:
                     with st.chat_message(message["role"]):
                         st.markdown(message["content"])
 
-                # إدخال صوتي مدمج في الأقسام (للمساعدة لمن لا يفضل الكتابة)
                 user_spoken_text = None
                 if not is_archived_view:
-                    audio_val = st.audio_input("🎙️ اضغطي على الميكروفون للتحدث بصوتكِ مباشرة (بدون كتابة):", key=f"mic_sec_{sec_name}")
+                    audio_val = st.audio_input("🎙️ اضغطي على الميكروفون للتحدث بصوتكِ مباشرة:", key=f"mic_sec_{sec_name}")
                     if audio_val:
                         try:
                             transcription = client.audio.transcriptions.create(
@@ -295,7 +295,7 @@ else:
                     with st.chat_message("assistant"):
                         try:
                             selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
-                            messages_payload = [{"role": "system", "content": f"{system_prompt} Respond in Arabic with crystal clear voice."}] + [
+                            messages_payload = [{"role": "system", "content": f"{system_prompt} Respond fluently in {st.session_state.language}."}] + [
                                 {"role": m["role"], "content": m["content"]} for m in st.session_state.section_messages[sec_name]
                             ]
                             response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
@@ -318,20 +318,38 @@ else:
                 new_theme = st.radio("المظهر:", ("داكن (Dark)", "فاتح (Light)"), index=0 if "داكن" in st.session_state.theme else 1)
                 new_voice = st.radio("الصوت:", ("صوت بنت نقي وواضح (Nova)", "صوت رجل نقي وواضح (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
                 
+                # قائمة تضم أكثر من 40 لغة عالمية منتشرة
+                languages_40 = [
+                    "العربية (Arabic)", "الكوردية (Kurdish Badini)", "الإنجليزية (English)", "التركية (Türkçe)",
+                    "الفرنسية (Français)", "الألمانية (Deutsch)", "الإسبانية (Español)", "الإيطالية (Italiano)",
+                    "الروسية (Русский)", "الصينية المبسطة (中文)", "اليابانية (日本語)", "الكورية (한국어)",
+                    "الفارسية (فارسی)", "الأوردو (اردو)", "الهندية (हिन्दी)", "البرتغالية (Português)",
+                    "البنغالية (বাংলা)", "البنجابية (ਪੰਜਾਬੀ)", "الإندونيسية (Bahasa Indonesia)", "الماليزية (Bahasa Melayu)",
+                    "الفيتنامية (Tiếng Việt)", "التايلاندية (ไทย)", "الهولندية (Nederlands)", "البولندية (Polski)",
+                    "الأوكرانية (Українська)", "اليونانية (Ελληνικά)", "السويدية (Svenska)", "النرويجية (Norsk)",
+                    "الدنماركية (Dansk)", "الفنلندية (Suomi)", "المجرية (Magyar)", "التشيكية (Čeština)",
+                    "الرومانية (Română)", "البلوطية/البلغارية (Български)", "السلوفاكية (Slovenčina)", "الكرواتية (Hrvatski)",
+                    "العبرية (עברית)", "الفلبينية (Tagalog)", "السواحلية (Kiswahili)", "الأمهرية (አማርኛ)"
+                ]
+                
+                current_lang_idx = languages_40.index(st.session_state.language) if st.session_state.language in languages_40 else 0
+                new_lang = st.selectbox("🌐 لغة التطبيق وتفضيل المحادثة (أكثر من 40 لغة):", languages_40, index=current_lang_idx)
+
                 st.markdown("---")
                 st.markdown("🔔 **إشعارات وتنبيهات المواعيد:**")
                 st.checkbox("تفعيل تنبيهات السكرتير للمواعيد والأيام والساعات تلقائياً عند فتح التطبيق", value=True)
 
-                if st.button("💾 حفظ الإعدادات وتطبيق الألوان"):
+                if st.button("💾 حفظ الإعدادات وتطبيق التغييرات"):
                     st.session_state.username = new_name
                     st.session_state.theme = new_theme
                     st.session_state.voice = new_voice
-                    st.success("تم الحفظ بنجاح!")
+                    st.session_state.language = new_lang
+                    st.success("تم حفظ الإعدادات وتطبيق اللغة بنجاح!")
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
         elif "🧑‍💼 وضع السكرتير الذكي (صوت، ميكروفون، وكاميرا اختيارية)" in nav_mode:
-            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي (ميكروفون مدمج وتنبيهات باليوم والساعة)</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي (متعدد اللغات، ميكروفون، وتنبيهات)</h2>", unsafe_allow_html=True)
             st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
             
             with st.expander("🎥 إظهار أو إخفاء كاميرا البث (اختياري)", expanded=False):
@@ -346,7 +364,7 @@ else:
                 with col_d:
                     task_day = st.selectbox("اختر اليوم:", ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"])
                 with col_t:
-                    task_time = st.text_input("الساعة (مثلاً: 4:00 عصراً):", value="12:00 ظهراً")
+                    task_time = st.text_input("الساعة:", value="12:00 ظهراً")
 
                 if st.form_submit_button("إضافة للمهمات مع التنبيه") and task_desc:
                     full_task_info = f"📅 يوم {task_day} الساعة {task_time} ⏰ - {task_desc}"
@@ -359,15 +377,14 @@ else:
                     st.write(f"{idx}. {t}")
 
             st.markdown("---")
-            st.subheader("🎙️ تحدثي مع سكرتيركِ بالميكروفون أو بالكتابة:")
+            st.subheader(f"🎙️ تحدثي مع سكرتيركِ بالميكروفون أو بالكتابة (باللغة: {st.session_state.language}):")
             
             for message in st.session_state.messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-            # زر الميكروفون المدمج للسكرتير الذكي
             sec_spoken_text = None
-            sec_audio_val = st.audio_input("🎙️ اضغطي على الميكروفون للتحدث مع السكرتير مباشرة (بدون كتابة):", key="mic_secretary")
+            sec_audio_val = st.audio_input("🎙️ اضغطي على الميكروفون للتحدث مع السكرتير مباشرة:", key="mic_secretary")
             if sec_audio_val:
                 try:
                     transcription = client.audio.transcriptions.create(
@@ -388,7 +405,7 @@ else:
                 with st.chat_message("assistant"):
                     try:
                         selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
-                        sec_sys = f"{base_system_prompt} You are Retaj's smart secretary. Current schedule with days and times: {st.session_state.my_schedule}. Always respond in clear Arabic with a warm tone, reminding Retaj of her exact days and hours when asked."
+                        sec_sys = f"{base_system_prompt} You are Retaj's smart secretary. Current language setting: {st.session_state.language}. Current schedule with days and times: {st.session_state.my_schedule}. Always respond fluently in {st.session_state.language} with a warm tone."
                         resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sec_sys}] + st.session_state.messages)
                         f_resp = resp.choices[0].message.content
                         
