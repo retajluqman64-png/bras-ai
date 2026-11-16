@@ -26,7 +26,7 @@ if "logged_in" not in st.session_state:
     st.session_state.current_archive_title = None
     st.session_state.messages = []
 
-# نظام ترجمة واجهة التطبيق بناءً على اللغة المختارة
+# ترجمة نصوص الواجهة والأقسام بالكامل حسب اللغة المختارة
 lang = st.session_state.language
 
 if "English" in lang:
@@ -54,7 +54,7 @@ if "English" in lang:
     t_day_label = "Select Day:"
     t_time_label = "Time (e.g., 4:00 PM):"
     t_add_task_btn = "Add Task with Alert"
-    t_task_added = "Task added successfully and will remind you!"
+    t_task_added = "Task added successfully!"
     t_schedule_list = "📌 Your Schedule & Recorded Tasks:"
     t_mic_prompt = "🎙️ Click the microphone to speak with your secretary directly:"
     t_type_prompt = "Or type to your secretary here..."
@@ -68,6 +68,23 @@ if "English" in lang:
     t_archive_header = "📚 Archives"
     t_no_archive = "No archived conversations."
     t_browse = "📖 Browse"
+    
+    SECTIONS_NAMES = {
+        "المساعد الشامل": "Comprehensive Assistant",
+        "المعلم الشامل": "School Teacher",
+        "قسم كرة القدم": "Football (FC Barcelona)",
+        "تعليم اللغات": "Languages Tutor",
+        "البرمجة": "Programming",
+        "الطبخ والوصفات": "Cooking & Recipes",
+        "مكياج وسكين كير": "Makeup & Skincare",
+        "ديزاين وملابس وشوبينغ": "Fashion & Shopping",
+        "أفكار دول وسفرات": "Travel & Trip Planner",
+        "قسم التاريخ": "History Expert",
+        "الصحة، الدايت والجيم": "Fitness & Health",
+        "نصائح وتطوير الذات": "Life Advisor",
+        "قسم الرسم وتصميم الصور": "Art & Design",
+        "صانع الفيديوهات والأفكار": "Video & Ideas Creator"
+    }
 elif "Kurdish" in lang:
     t_title = "💜 BRAS AI - سەکۆی گشتگیری هۆشمەند 💜"
     t_login_title = "🔐 چوونه‌ژووره‌وه‌ بۆ سەکۆ هۆشمەندەکەت"
@@ -107,6 +124,23 @@ elif "Kurdish" in lang:
     t_archive_header = "📚 ئەرشیف"
     t_no_archive = "هیچ گفتوگۆیەکی ئەرشیفکراو نییە."
     t_browse = "📖 پشکنین"
+
+    SECTIONS_NAMES = {
+        "المساعد الشامل": "یاریدەدەری گشتی",
+        "المعلم الشامل": "مامۆستای قوتابخانە",
+        "قسم كرة القدم": "تۆپی پێ (بارسێلۆنا)",
+        "تعليم اللغات": "فێربوونی زمانەکان",
+        "البرمجة": "بەرمەسازی",
+        "الطبخ والوصفات": "چێشتلێنان",
+        "مكياج وسكين كير": "مکیاژ و چاودێری پێست",
+        "ديزاين وملابس وشوبينغ": "فاشیۆن و بازاڕکردن",
+        "أفكار دول وسفرات": "پلانی گەشتکردن",
+        "قسم التاريخ": "مێژوونووس",
+        "الصحة، الدايت والجيم": "تەندروستی و لەشجوانی",
+        "نصائح وتطوير الذات": "پەرەپێدانی خۆی",
+        "قسم الرسم وتصميم الصور": "هونەر و دیزاین",
+        "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ"
+    }
 elif "Türkçe" in lang:
     t_title = "💜 BRAS AI - Akıllı Kapsamlı Platform 💜"
     t_login_title = "🔐 Akıllı Platformunuza Giriş Yapın"
@@ -146,6 +180,23 @@ elif "Türkçe" in lang:
     t_archive_header = "📚 Arşiv"
     t_no_archive = "Arşivlenmiş sohbet yok."
     t_browse = "📖 Gözat"
+
+    SECTIONS_NAMES = {
+        "المساعد الشامل": "Genel Asistan",
+        "المعلم الشامل": "Okul Öğretmeni",
+        "قسم كرة القدم": "Futbol (FC Barcelona)",
+        "تعليم اللغات": "Dil Eğitimi",
+        "البرمجة": "Programlama",
+        "الطبخ والوصفات": "Yemek Tarifleri",
+        "مكياج وسكين كير": "Makyaj ve Cilt Bakımı",
+        "ديزاين وملابس وشوبينغ": "Moda ve Alışveriş",
+        "أفكار دول وسفرات": "Seyahat Planlayıcı",
+        "قسم التاريخ": "Tarih Uzmanı",
+        "الصحة، الدايت والجيم": "Sağlık ve Fitness",
+        "نصائح وتطوير الذات": "Kişisel Gelişim",
+        "قسم الرسم وتصميم الصور": "Sanat ve Tasarım",
+        "صانع الفيديوهات والأفكار": "Video ve Fikir Üreticisi"
+    }
 else:
     t_title = "💜 BRAS AI - المنصة الشاملة الذكية 💜"
     t_login_title = "🔐 تسجيل الدخول إلى منصتكِ الذكية"
@@ -185,6 +236,23 @@ else:
     t_archive_header = "📚 الأرشيف"
     t_no_archive = "لا توجد محادثات مؤرشفة."
     t_browse = "📖 استعراض"
+
+    SECTIONS_NAMES = {
+        "المساعد الشامل": "المساعد الشامل",
+        "المعلم الشامل": "المعلم الشامل",
+        "قسم كرة القدم": "قسم كرة القدم",
+        "تعليم اللغات": "تعليم اللغات",
+        "البرمجة": "البرمجة",
+        "الطبخ والوصفات": "الطبخ والوصفات",
+        "مكياج وسكين كير": "مكياج وسكين كير",
+        "ديزاين وملابس وشوبينغ": "ديزاين وملابس وشوبينغ",
+        "أفكار دول وسفرات": "أفكار دول وسفرات",
+        "قسم التاريخ": "قسم التاريخ",
+        "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
+        "نصائح وتطوير الذات": "نصائح وتطوير الذات",
+        "قسم الرسم وتصميم الصور": "قسم الرسم وتصميم الصور",
+        "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار"
+    }
 
 # تحديد الألوان الذكية حسب اختيار الثيم (داكن / فاتح)
 is_dark = "داكن" in st.session_state.theme or "Dark" in st.session_state.theme
@@ -282,14 +350,14 @@ def render_optional_camera():
     <div style="width: 100%; text-align: center; background: #1a1026; padding: 15px; border-radius: 20px; border: 2px solid #9b5de5;">
         <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
             <button onclick="startCamera()" style="background: #9b5de5; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
-                🔴 Camera On / فتح الكاميرا
+                🔴 Camera On
             </button>
             <button onclick="stopCamera()" style="background: #38135e; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
-                ⏹️ Stop Camera / إيقاف الكاميرا
+                ⏹️ Stop Camera
             </button>
         </div>
         <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: 400px; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5; transform: scaleX(-1);"></video>
-        <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">Optional Camera / الكاميرا اختيارية تماماً</p>
+        <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">Optional Camera</p>
     </div>
 
     <script>
@@ -351,7 +419,7 @@ else:
             "Pronounce the letter 'گ' (Ga) correctly and clearly."
         )
 
-        SECTIONS = {
+        BASE_SECTIONS = {
             "المساعد الشامل": ("🤖", f"{base_system_prompt} You are a versatile assistant."),
             "المعلم الشامل": ("📚", f"{base_system_prompt} You are an expert school teacher."),
             "قسم كرة القدم": ("⚽", f"{base_system_prompt} You are an expert football analyst covering FC Barcelona."),
@@ -367,6 +435,12 @@ else:
             "قسم الرسم وتصميم الصور": ("🎨", f"{base_system_prompt} You are an art assistant."),
             "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are a video and creative ideas creator.")
         }
+
+        # بناء الأقسام مع الأسماء المترجمة
+        SECTIONS = {}
+        for orig_key, (emoji, prompt) in BASE_SECTIONS.items():
+            translated_name = SECTIONS_NAMES.get(orig_key, orig_key)
+            SECTIONS[translated_name] = (emoji, prompt)
 
         if t_sec_main in nav_mode:
             if st.session_state.selected_section is None:
