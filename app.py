@@ -70,6 +70,7 @@ if "English" in lang:
     t_no_archive = "No archived conversations."
     t_browse = "📖 Browse"
     
+    art_sec_key = "AI Art & Image Design"
     SECTIONS_NAMES = {
         "المساعد الشامل": "Comprehensive Assistant",
         "المعلم الشامل": "School Teacher",
@@ -83,7 +84,7 @@ if "English" in lang:
         "قسم التاريخ": "History Expert",
         "الصحة، الدايت والجيم": "Fitness & Health",
         "نصائح وتطوير الذات": "Life Advisor",
-        "قسم الرسم وتصميم الصور": "AI Art & Image Design",
+        art_sec_key: "AI Art & Image Design",
         "صانع الفيديوهات والأفكار": "Video & Ideas Creator (AI Video Engine)"
     }
 elif "Kurdish" in lang:
@@ -126,6 +127,7 @@ elif "Kurdish" in lang:
     t_no_archive = "هیچ گفتوگۆیەکی ئەرشیفکراو نییە."
     t_browse = "📖 پشکنین"
 
+    art_sec_key = "هونەر و دیزاینی وێنە (AI)"
     SECTIONS_NAMES = {
         "المساعد الشامل": "یاریدەدەری گشتی",
         "المعلم الشامل": "مامۆستای قوتابخانە",
@@ -139,7 +141,7 @@ elif "Kurdish" in lang:
         "قسم التاريخ": "مێژوونووس",
         "الصحة، الدايت والجيم": "تەندروستی و لەشجوانی",
         "نصائح وتطوير الذات": "پەرەپێدانی خۆی",
-        "قسم الرسم وتصميم الصور": "هونەر و دیزاینی وێنە (AI)",
+        art_sec_key: "هونەر و دیزاینی وێنە (AI)",
         "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ (مۆدێلی AI)"
     }
 elif "Türkçe" in lang:
@@ -182,6 +184,7 @@ elif "Türkçe" in lang:
     t_no_archive = "Arşivlenmiş sohbet yok."
     t_browse = "📖 Gözat"
 
+    art_sec_key = "Yapay Zeka Resim Tasarımı"
     SECTIONS_NAMES = {
         "المساعد الشامل": "Genel Asistan",
         "المعلم الشامل": "Okul Öğretmeni",
@@ -195,7 +198,7 @@ elif "Türkçe" in lang:
         "قسم التاريخ": "Tarih Uzmanı",
         "الصحة، الدايت والجيم": "Sağlık ve Fitness",
         "نصائح وتطوير الذات": "Kişisel Gelişim",
-        "قسم الرسم وتصميم الصور": "Yapay Zeka Resim Tasarımı",
+        art_sec_key: "Yapay Zeka Resim Tasarımı",
         "صانع الفيديوهات والأفكار": "Video ve Fikir Üreticisi (AI Video)"
     }
 else:
@@ -238,6 +241,7 @@ else:
     t_no_archive = "لا توجد محادثات مؤرشفة."
     t_browse = "📖 استعراض"
 
+    art_sec_key = "قسم الرسم وتصميم الصور"
     SECTIONS_NAMES = {
         "المساعد الشامل": "المساعد الشامل",
         "المعلم الشامل": "المعلم الشامل",
@@ -251,7 +255,7 @@ else:
         "قسم التاريخ": "قسم التاريخ",
         "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
         "نصائح وتطوير الذات": "نصائح وتطوير الذات",
-        "قسم الرسم وتصميم الصور": "قسم الرسم وتصميم الصور",
+        art_sec_key: "قسم الرسم وتصميم الصور",
         "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار (مولد الفيديوهات الذكي)"
     }
 
@@ -433,7 +437,7 @@ else:
             "قسم التاريخ": ("📜", f"{base_system_prompt} You are a historian expert."),
             "الصحة، الدايت والجيم": ("💪", f"{base_system_prompt} You are a fitness coach."),
             "نصائح وتطوير الذات": ("💡", f"{base_system_prompt} You are a life advisor."),
-            "قسم الرسم وتصميم الصور": ("🎨", f"{base_system_prompt} You are an expert AI image generator and designer."),
+            art_sec_key: ("🎨", f"{base_system_prompt} You are an expert AI image generator and designer."),
             "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are an advanced AI video producer and script/idea generator, creating professional video storyboards and voice scripts.")
         }
 
@@ -491,8 +495,8 @@ else:
                 with st.expander(t_file_upload, expanded=False):
                     attached_file = st.file_uploader("File:", type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"], key=f"up_{sec_name}")
 
-                # ميزة توليد الصور التلقائية بمعالجة ذكية للأخطاء وتوافق النماذج
-                is_art_section = "الرسم" in sec_name or "Art" in sec_name or "Tasarımı" in sec_name or "هونەر" in sec_name
+                # ميزة توليد الصور التلقائية بمعالجة ذكية
+                is_art_section = sec_name == art_sec_key or "الرسم" in sec_name or "Art" in sec_name or "Tasarımı" in sec_name or "هونەر" in sec_name
                 if is_art_section and not is_archived_view:
                     st.markdown("---")
                     st.markdown("### 🎨 توليد وتصميم الصور بالذكاء الاصطناعي")
@@ -501,7 +505,6 @@ else:
                         if img_prompt_input:
                             with st.spinner("جاري رسم وتصميم الصورة بواسطة براس... ✨"):
                                 image_success = False
-                                # محاولة استخدام دال-إي 3 أولاً، وإذا لم يتوفر يتم التحويل التلقائي لدال-إي 2
                                 for model_name in ["dall-e-3", "dall-e-2"]:
                                     try:
                                         img_response = client.images.generate(
@@ -519,7 +522,7 @@ else:
                                     except Exception as e:
                                         continue
                                 if not image_success:
-                                    st.error("عذراً، مفتاح الـ API الحالي لا يدعم توليد الصور المباشر. تأكدي من تفعيل صلاحيات الصور في حساب OpenAI الخاص بكِ.")
+                                    st.error("ملاحظة: مفتاح الـ API الحالي يتطلب شحن رصيد خاص بالصور أو تفعيل فئة الاستخدام (Tier 1) في لوحة تحكم OpenAI لتوليد الصور مباشرة.")
                         else:
                             st.warning("يرجى كتابة وصف الصورة أولاً.")
                     st.markdown("---")
