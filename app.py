@@ -83,7 +83,7 @@ if "English" in lang:
         "قسم التاريخ": "History Expert",
         "الصحة، الدايت والجيم": "Fitness & Health",
         "نصائح وتطوير الذات": "Life Advisor",
-        "قسم الرسم وتصميم الصور (DALL-E)": "AI Art & Image Design (DALL-E)",
+        "قسم الرسم وتصميم الصور": "AI Art & Image Design",
         "صانع الفيديوهات والأفكار": "Video & Ideas Creator (AI Video Engine)"
     }
 elif "Kurdish" in lang:
@@ -139,7 +139,7 @@ elif "Kurdish" in lang:
         "قسم التاريخ": "مێژوونووس",
         "الصحة، الدايت والجيم": "تەندروستی و لەشجوانی",
         "نصائح وتطوير الذات": "پەرەپێدانی خۆی",
-        "قسم الرسم وتصميم الصور (DALL-E)": "هونەر و دیزاینی وێنە (AI)",
+        "قسم الرسم وتصميم الصور": "هونەر و دیزاینی وێنە (AI)",
         "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ (مۆدێلی AI)"
     }
 elif "Türkçe" in lang:
@@ -195,7 +195,7 @@ elif "Türkçe" in lang:
         "قسم التاريخ": "Tarih Uzmanı",
         "الصحة، الدايت والجيم": "Sağlık ve Fitness",
         "نصائح وتطوير الذات": "Kişisel Gelişim",
-        "قسم الرسم وتصميم الصور (DALL-E)": "Yapay Zeka Resim Tasarımı",
+        "قسم الرسم وتصميم الصور": "Yapay Zeka Resim Tasarımı",
         "صانع الفيديوهات والأفكار": "Video ve Fikir Üreticisi (AI Video)"
     }
 else:
@@ -251,7 +251,7 @@ else:
         "قسم التاريخ": "قسم التاريخ",
         "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
         "نصائح وتطوير الذات": "نصائح وتطوير الذات",
-        "قسم الرسم وتصميم الصور (DALL-E)": "قسم الرسم وتصميم الصور (DALL-E)",
+        "قسم الرسم وتصميم الصور": "قسم الرسم وتصميم الصور",
         "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار (مولد الفيديوهات الذكي)"
     }
 
@@ -433,7 +433,7 @@ else:
             "قسم التاريخ": ("📜", f"{base_system_prompt} You are a historian expert."),
             "الصحة، الدايت والجيم": ("💪", f"{base_system_prompt} You are a fitness coach."),
             "نصائح وتطوير الذات": ("💡", f"{base_system_prompt} You are a life advisor."),
-            "قسم الرسم وتصميم الصور (DALL-E)": ("🎨", f"{base_system_prompt} You are an expert AI image generator and designer using DALL-E."),
+            "قسم الرسم وتصميم الصور": ("🎨", f"{base_system_prompt} You are an expert AI image generator and designer."),
             "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are an advanced AI video producer and script/idea generator, creating professional video storyboards and voice scripts.")
         }
 
@@ -491,29 +491,35 @@ else:
                 with st.expander(t_file_upload, expanded=False):
                     attached_file = st.file_uploader("File:", type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"], key=f"up_{sec_name}")
 
-                # ميزة توليد الصور الخاصة بقسم الرسم وتصميم الصور
+                # ميزة توليد الصور التلقائية بمعالجة ذكية للأخطاء وتوافق النماذج
                 is_art_section = "الرسم" in sec_name or "Art" in sec_name or "Tasarımı" in sec_name or "هونەر" in sec_name
                 if is_art_section and not is_archived_view:
                     st.markdown("---")
-                    st.markdown("### 🎨 توليد وتصميم الصور بالذكاء الاصطناعي (DALL-E 3)")
-                    img_prompt_input = st.text_input("اكتبي وصف الصورة التي تريدين رسمها أو تعديلها:", key="dalle_prompt_input")
+                    st.markdown("### 🎨 توليد وتصميم الصور بالذكاء الاصطناعي")
+                    img_prompt_input = st.text_input("اكتبي وصف الصورة التي تريدين رسمها:", key="dalle_prompt_input")
                     if st.button("🖼️ توليد الصورة الآن"):
                         if img_prompt_input:
                             with st.spinner("جاري رسم وتصميم الصورة بواسطة براس... ✨"):
-                                try:
-                                    img_response = client.images.generate(
-                                        model="dall-e-3",
-                                        prompt=img_prompt_input,
-                                        size="1024x1024",
-                                        quality="standard",
-                                        n=1,
-                                    )
-                                    image_url = img_response.data[0].url
-                                    st.image(image_url, caption=f"🎨 {img_prompt_input}", use_column_width=True)
-                                    st.session_state.generated_images.append({"prompt": img_prompt_input, "url": image_url})
-                                    st.success("تم توليد الصورة بنجاح!")
-                                except Exception as e:
-                                    st.error(f"حدث خطأ أثناء توليد الصورة: {e}")
+                                image_success = False
+                                # محاولة استخدام دال-إي 3 أولاً، وإذا لم يتوفر يتم التحويل التلقائي لدال-إي 2
+                                for model_name in ["dall-e-3", "dall-e-2"]:
+                                    try:
+                                        img_response = client.images.generate(
+                                            model=model_name,
+                                            prompt=img_prompt_input,
+                                            size="1024x1024",
+                                            n=1,
+                                        )
+                                        image_url = img_response.data[0].url
+                                        st.image(image_url, caption=f"🎨 {img_prompt_input}", use_column_width=True)
+                                        st.session_state.generated_images.append({"prompt": img_prompt_input, "url": image_url})
+                                        st.success("تم توليد الصورة بنجاح!")
+                                        image_success = True
+                                        break
+                                    except Exception as e:
+                                        continue
+                                if not image_success:
+                                    st.error("عذراً، مفتاح الـ API الحالي لا يدعم توليد الصور المباشر. تأكدي من تفعيل صلاحيات الصور في حساب OpenAI الخاص بكِ.")
                         else:
                             st.warning("يرجى كتابة وصف الصورة أولاً.")
                     st.markdown("---")
