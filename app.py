@@ -116,19 +116,19 @@ st.markdown("<h1 class='main-title'>💜 BRAS AI - المنصة الشاملة �
 
 api_key = st.secrets.get("OPENAI_API_KEY")
 
-def render_simple_camera():
+def render_optional_camera():
     camera_html = """
     <div style="width: 100%; text-align: center; background: #1a1026; padding: 15px; border-radius: 20px; border: 2px solid #9b5de5;">
         <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
             <button onclick="startCamera()" style="background: #9b5de5; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
-                🔴 تشغيل الكاميرا والبث
+                🔴 فتح الكاميرا (اختياري)
             </button>
             <button onclick="stopCamera()" style="background: #38135e; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
                 ⏹️ إيقاف الكاميرا
             </button>
         </div>
-        <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: 450px; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5; transform: scaleX(-1);"></video>
-        <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">اضغطي على "تشغيل الكاميرا والبث" عند الحاجة</p>
+        <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: 400px; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5; transform: scaleX(-1);"></video>
+        <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">الكاميرا اختيارية تماماً، يمكنك إبقاؤها مغلقة واستخدام الصوت والكتابة براحتك</p>
     </div>
 
     <script>
@@ -138,9 +138,9 @@ def render_simple_camera():
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('liveVideo').srcObject = currentStream;
-                document.getElementById('camStatus').innerText = "🟢 الكاميرا والبث يعملان الآن";
+                document.getElementById('camStatus').innerText = "🟢 الكاميرا تعمل الآن";
             } catch (err) {
-                document.getElementById('camStatus').innerText = "⚠️ يرجى السماح بالوصول للكاميرا";
+                document.getElementById('camStatus').innerText = "⚠️ يرجى السماح بالوصول للكاميرا إذا رغبتِ بتشغيلها";
             }
         }
         function stopCamera() {
@@ -148,12 +148,12 @@ def render_simple_camera():
                 currentStream.getTracks().forEach(track => track.stop());
                 currentStream = null;
                 document.getElementById('liveVideo').srcObject = null;
-                document.getElementById('camStatus').innerText = "⏹️ تم إيقاف الكاميرا";
+                document.getElementById('camStatus').innerText = "⏹️ تم إيقاف الكاميرا وبقي السكرتير جاهزاً للصوت والكتابة";
             }
         }
     </script>
     """
-    components.html(camera_html, height=560)
+    components.html(camera_html, height=520)
 
 if not api_key:
     st.error("يرجى ضبط مفتاح OpenAI API في إعدادات Streamlit Secrets.")
@@ -179,7 +179,7 @@ else:
 
         nav_mode = st.sidebar.radio(
             "📍 تنقلي في منصتكِ:",
-            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🧑‍💼 وضع السكرتير الذكي (صوت وكاميرا)", "📚 أرشيف المحادثات المحفوظة")
+            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🧑‍💼 وضع السكرتير الذكي (صوت وكتابة وكاميرا اختيارية)", "📚 أرشيف المحادثات المحفوظة")
         )
 
         base_system_prompt = (
@@ -300,21 +300,21 @@ else:
                 new_name = st.text_input("اسم المستخدم:", value=st.session_state.username)
                 new_theme = st.radio("المظهر:", ("داكن (Dark)", "فاتح (Light)"), index=0 if "داكن" in st.session_state.theme else 1)
                 new_voice = st.radio("الصوت:", ("صوت بنت (Nova)", "صوت رجل (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
-                if st.button("💾 حفظ الإعدادات"):
+                if st.button("💾 حفظ الإعدادات وتطبيق الألوان"):
                     st.session_state.username = new_name
                     st.session_state.theme = new_theme
                     st.session_state.voice = new_voice
-                    st.success("تم الحفظ وتطبيق الألوان بنجاح!")
+                    st.success("تم الحفظ بنجاح!")
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        elif "🧑‍💼 وضع السكرتير الذكي (صوت وكاميرا)" in nav_mode:
-            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 وضع السكرتير الذكي (محادثة صوتية وكاميرا)</h2>", unsafe_allow_html=True)
+        elif "🧑‍💼 وضع السكرتير الذكي (صوت وكتابة وكاميرا اختيارية)" in nav_mode:
+            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي (صوت، كتابة، وكاميرا اختيارية)</h2>", unsafe_allow_html=True)
             st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
             
-            # قسم الكاميرا (اختياري: تفتحيها أو تبقيها مغلقة)
-            with st.expander("🎥 عرض أو إخفاء كاميرا البث المباشر", expanded=False):
-                render_simple_camera()
+            # كاميرا اختيارية تماماً
+            with st.expander("🎥 إظهار أو إخفاء كاميرا البث (اختياري)", expanded=False):
+                render_optional_camera()
 
             st.markdown("---")
             st.subheader("📅 جدول المهمات والتنبيه الصوتي")
@@ -328,8 +328,14 @@ else:
                 for idx, t in enumerate(st.session_state.my_schedule, 1):
                     st.write(f"{idx}. {t}")
 
-            st.subheader("💬 محادثة السكرتير الصوتية والكتابية:")
-            sec_prompt = st.chat_input("تحدثي مع سكرتيركِ بالصوت والصورة أو بالكتابة...")
+            st.markdown("---")
+            st.subheader("💬 محادثة السكرتير الصوتية والكتابية الفورية:")
+            
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            sec_prompt = st.chat_input("تحدثي مع سكرتيركِ بالكتابة (وسيرد عليكِ صوتياً وكتابياً)...")
             if sec_prompt:
                 st.session_state.messages.append({"role": "user", "content": sec_prompt})
                 with st.chat_message("user"):
@@ -337,7 +343,7 @@ else:
                 with st.chat_message("assistant"):
                     try:
                         selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
-                        sec_sys = f"{base_system_prompt} You are Retaj's secretary. Current schedule: {st.session_state.my_schedule}."
+                        sec_sys = f"{base_system_prompt} You are Retaj's secretary. Current schedule: {st.session_state.my_schedule}. Always respond in Arabic unless requested otherwise."
                         resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sec_sys}] + st.session_state.messages)
                         f_resp = resp.choices[0].message.content
                         
