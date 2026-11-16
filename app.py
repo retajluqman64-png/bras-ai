@@ -83,7 +83,7 @@ if "English" in lang:
         "الصحة، الدايت والجيم": "Fitness & Health",
         "نصائح وتطوير الذات": "Life Advisor",
         "قسم الرسم وتصميم الصور": "Art & Design",
-        "صانع الفيديوهات والأفكار": "Video & Ideas Creator"
+        "صانع الفيديوهات والأفكار": "Video & Ideas Creator (AI Video Engine)"
     }
 elif "Kurdish" in lang:
     t_title = "💜 BRAS AI - سەکۆی گشتگیری هۆشمەند 💜"
@@ -139,7 +139,7 @@ elif "Kurdish" in lang:
         "الصحة، الدايت والجيم": "تەندروستی و لەشجوانی",
         "نصائح وتطوير الذات": "پەرەپێدانی خۆی",
         "قسم الرسم وتصميم الصور": "هونەر و دیزاین",
-        "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ"
+        "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ (مۆدێلی AI)"
     }
 elif "Türkçe" in lang:
     t_title = "💜 BRAS AI - Akıllı Kapsamlı Platform 💜"
@@ -195,7 +195,7 @@ elif "Türkçe" in lang:
         "الصحة، الدايت والجيم": "Sağlık ve Fitness",
         "نصائح وتطوير الذات": "Kişisel Gelişim",
         "قسم الرسم وتصميم الصور": "Sanat ve Tasarım",
-        "صانع الفيديوهات والأفكار": "Video ve Fikir Üreticisi"
+        "صانع الفيديوهات والأفكار": "Video ve Fikir Üreticisi (AI Video)"
     }
 else:
     t_title = "💜 BRAS AI - المنصة الشاملة الذكية 💜"
@@ -251,7 +251,7 @@ else:
         "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
         "نصائح وتطوير الذات": "نصائح وتطوير الذات",
         "قسم الرسم وتصميم الصور": "قسم الرسم وتصميم الصور",
-        "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار"
+        "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار (مولد الفيديوهات الذكي)"
     }
 
 # تحديد الألوان الذكية حسب اختيار الثيم (داكن / فاتح)
@@ -433,7 +433,7 @@ else:
             "الصحة، الدايت والجيم": ("💪", f"{base_system_prompt} You are a fitness coach."),
             "نصائح وتطوير الذات": ("💡", f"{base_system_prompt} You are a life advisor."),
             "قسم الرسم وتصميم الصور": ("🎨", f"{base_system_prompt} You are an art assistant."),
-            "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are a video and creative ideas creator.")
+            "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are an advanced AI video producer and script/idea generator, creating professional video storyboards and voice scripts.")
         }
 
         # بناء الأقسام مع الأسماء المترجمة
