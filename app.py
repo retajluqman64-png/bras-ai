@@ -1,6 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import base64
+from datetime import datetime
 from openai import OpenAI
 
 # إعداد الصفحة لتكون واسعة بالكامل
@@ -16,7 +17,7 @@ if "logged_in" not in st.session_state:
     st.session_state.username = "ريتاج لقمان گەرگەری"
     st.session_state.user_email = "retaj@brasai.com"
     st.session_state.theme = "داكن (Dark)"
-    st.session_state.voice = "صوت بنت نقي وأضح (Nova)"
+    st.session_state.voice = "صوت بنت نقي وواضح (Nova)"
     st.session_state.language = "العربية (Arabic)"
     st.session_state.selected_section = None
     st.session_state.my_schedule = []
@@ -128,7 +129,7 @@ def render_optional_camera():
             </button>
         </div>
         <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: 400px; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5; transform: scaleX(-1);"></video>
-        <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">الكاميرا اختيارية تماماً، يمكنك إبقاؤها مغلقة واستخدام الصوت والكتابة براحتك</p>
+        <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">الكاميرا اختيارية تماماً، يمكنك إبقاؤها مغلقة واستخدام الميكروفون والكتابة براحتك</p>
     </div>
 
     <script>
@@ -179,7 +180,7 @@ else:
 
         nav_mode = st.sidebar.radio(
             "📍 تنقلي في منصتكِ:",
-            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🧑‍💼 وضع السكرتير الذكي (صوت وكتابة وكاميرا اختيارية)", "📚 أرشيف المحادثات المحفوظة")
+            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🧑‍💼 وضع السكرتير الذكي (صوت، ميكروفون، وكاميرا اختيارية)", "📚 أرشيف المحادثات المحفوظة")
         )
 
         base_system_prompt = (
@@ -269,11 +270,27 @@ else:
                     with st.chat_message(message["role"]):
                         st.markdown(message["content"])
 
-                prompt = st.chat_input(f"تحدثي مع {sec_name}...")
-                if prompt and not is_archived_view:
-                    st.session_state.section_messages[sec_name].append({"role": "user", "content": prompt})
+                # إدخال صوتي مدمج في الأقسام (للمساعدة لمن لا يفضل الكتابة)
+                user_spoken_text = None
+                if not is_archived_view:
+                    audio_val = st.audio_input("🎙️ اضغطي على الميكروفون للتحدث بصوتكِ مباشرة (بدون كتابة):", key=f"mic_sec_{sec_name}")
+                    if audio_val:
+                        try:
+                            transcription = client.audio.transcriptions.create(
+                                model="whisper-1",
+                                file=audio_val
+                            )
+                            user_spoken_text = transcription.text
+                        except Exception as e:
+                            st.error(f"خطأ في التعرف على الصوت: {e}")
+
+                typed_prompt = st.chat_input(f"أو اكتبي رسالتكِ هنا لـ {sec_name}...")
+                final_prompt = user_spoken_text if user_spoken_text else typed_prompt
+
+                if final_prompt and not is_archived_view:
+                    st.session_state.section_messages[sec_name].append({"role": "user", "content": final_prompt})
                     with st.chat_message("user"):
-                        st.markdown(prompt)
+                        st.markdown(final_prompt)
 
                     with st.chat_message("assistant"):
                         try:
@@ -299,11 +316,11 @@ else:
                 st.markdown("<div class='settings-panel'>", unsafe_allow_html=True)
                 new_name = st.text_input("اسم المستخدم:", value=st.session_state.username)
                 new_theme = st.radio("المظهر:", ("داكن (Dark)", "فاتح (Light)"), index=0 if "داكن" in st.session_state.theme else 1)
-                new_voice = st.radio("الصوت:", ("صوت بنت نقي وأضح (Nova)", "صوت رجل نقي وأضح (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
+                new_voice = st.radio("الصوت:", ("صوت بنت نقي وواضح (Nova)", "صوت رجل نقي وواضح (Onyx)"), index=0 if "بنت" in st.session_state.voice else 1)
                 
                 st.markdown("---")
-                st.markdown("🔔 **إشعارات التذكير يوم الأحد:**")
-                st.checkbox("تفعيل تنبيهات وتذكيرات السكرتير يوم الأحد تلقائياً عند فتح المنصة", value=True)
+                st.markdown("🔔 **إشعارات وتنبيهات المواعيد:**")
+                st.checkbox("تفعيل تنبيهات السكرتير للمواعيد والأيام والساعات تلقائياً عند فتح التطبيق", value=True)
 
                 if st.button("💾 حفظ الإعدادات وتطبيق الألوان"):
                     st.session_state.username = new_name
@@ -313,43 +330,65 @@ else:
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        elif "🧑‍💼 وضع السكرتير الذكي (صوت وكتابة وكاميرا اختيارية)" in nav_mode:
-            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي المطور (صوت نقي، كتابة، وتنبيهات الأحد)</h2>", unsafe_allow_html=True)
+        elif "🧑‍💼 وضع السكرتير الذكي (صوت، ميكروفون، وكاميرا اختيارية)" in nav_mode:
+            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي (ميكروفون مدمج وتنبيهات باليوم والساعة)</h2>", unsafe_allow_html=True)
             st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
             
-            # كاميرا اختيارية تماماً
             with st.expander("🎥 إظهار أو إخفاء كاميرا البث (اختياري)", expanded=False):
                 render_optional_camera()
 
             st.markdown("---")
-            st.subheader("📅 جدول المهمات والتنبيهات الذكية (تذكير يوم الأحد)")
+            st.subheader("📅 جدول المهمات مع تحديد اليوم والساعة")
+            
             with st.form("sch_form"):
-                task = st.text_input("أدخلي مهمة جديدة (مثل: مراجعة جدول يوم الأحد):")
-                if st.form_submit_button("إضافة للمهمات") and task:
-                    st.session_state.my_schedule.append(task)
-                    st.success("تمت الإضافة بنجاح وسيقوم السكرتير بتذكيركِ بها!")
+                task_desc = st.text_input("اكتبي المهمة (مثلاً: امتحان رياضيات أو لقاء العائلة):")
+                col_d, col_t = st.columns(2)
+                with col_d:
+                    task_day = st.selectbox("اختر اليوم:", ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"])
+                with col_t:
+                    task_time = st.text_input("الساعة (مثلاً: 4:00 عصراً):", value="12:00 ظهراً")
+
+                if st.form_submit_button("إضافة للمهمات مع التنبيه") and task_desc:
+                    full_task_info = f"📅 يوم {task_day} الساعة {task_time} ⏰ - {task_desc}"
+                    st.session_state.my_schedule.append(full_task_info)
+                    st.success("تمت إضافة المهمة بنجاح وسيتم تذكيركِ بها فوراً!")
 
             if st.session_state.my_schedule:
-                st.info("📌 المهمات المسجلة حالياً (بما في ذلك تنبيهات الأحد):")
+                st.info("📌 جدول مهماتكِ والمواعيد المسجلة:")
                 for idx, t in enumerate(st.session_state.my_schedule, 1):
                     st.write(f"{idx}. {t}")
 
             st.markdown("---")
-            st.subheader("💬 محادثة السكرتير الصوتية والكتابية الفورية:")
+            st.subheader("🎙️ تحدثي مع سكرتيركِ بالميكروفون أو بالكتابة:")
             
             for message in st.session_state.messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-            sec_prompt = st.chat_input("تحدثي مع سكرتيركِ بالكتابة (وسيرد عليكِ بالصوت النقي والكتابة)...")
-            if sec_prompt:
-                st.session_state.messages.append({"role": "user", "content": sec_prompt})
+            # زر الميكروفون المدمج للسكرتير الذكي
+            sec_spoken_text = None
+            sec_audio_val = st.audio_input("🎙️ اضغطي على الميكروفون للتحدث مع السكرتير مباشرة (بدون كتابة):", key="mic_secretary")
+            if sec_audio_val:
+                try:
+                    transcription = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=sec_audio_val
+                    )
+                    sec_spoken_text = transcription.text
+                except Exception as e:
+                    st.error(f"خطأ في التعرف على الصوت: {e}")
+
+            sec_typed_prompt = st.chat_input("أو اكتبي لسكرتيركِ هنا...")
+            final_sec_prompt = sec_spoken_text if sec_spoken_text else sec_typed_prompt
+
+            if final_sec_prompt:
+                st.session_state.messages.append({"role": "user", "content": final_sec_prompt})
                 with st.chat_message("user"):
-                    st.markdown(sec_prompt)
+                    st.markdown(final_sec_prompt)
                 with st.chat_message("assistant"):
                     try:
                         selected_voice_api = "onyx" if "رجل" in st.session_state.voice else "nova"
-                        sec_sys = f"{base_system_prompt} You are Retaj's smart secretary. Current schedule and Sunday reminders: {st.session_state.my_schedule}. Always respond in clear Arabic with a warm tone."
+                        sec_sys = f"{base_system_prompt} You are Retaj's smart secretary. Current schedule with days and times: {st.session_state.my_schedule}. Always respond in clear Arabic with a warm tone, reminding Retaj of her exact days and hours when asked."
                         resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sec_sys}] + st.session_state.messages)
                         f_resp = resp.choices[0].message.content
                         
