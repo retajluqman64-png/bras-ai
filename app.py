@@ -25,10 +25,11 @@ if "logged_in" not in st.session_state:
     st.session_state.current_archive_title = None
     st.session_state.messages = []
 
-# تحديد الألوان بناءً على الثيم المختار
-bg_color = "#0d0614" if "داكن" in st.session_state.theme else "#f4edf7"
-text_color = "#e0d8f0" if "داكن" in st.session_state.theme else "#1a1026"
-card_bg = "#1a1026" if "داكن" in st.session_state.theme else "#ffffff"
+# تحديد الألوان الذكية حسب اختيار الثيم (داكن / فاتح)
+is_dark = "داكن" in st.session_state.theme
+bg_color = "#0d0614" if is_dark else "#fcf8ff"
+text_color = "#ffffff" if is_dark else "#111111"
+card_bg = "#1a1026" if is_dark else "#ffffff"
 border_color = "#9b5de5"
 accent_color = "#9b5de5"
 
@@ -47,6 +48,7 @@ st.markdown(f"""
 }}
 .user-info {{
     background-color: {card_bg};
+    color: {text_color};
     padding: 15px;
     border-radius: 15px;
     border: 1px solid {border_color};
@@ -70,7 +72,7 @@ st.markdown(f"""
 }}
 .stButton>button:hover {{
     background-color: {accent_color};
-    color: white;
+    color: #ffffff;
     border-color: #f15bb5;
     box-shadow: 0 6px 25px rgba(241, 91, 181, 0.5);
     transform: translateY(-4px);
@@ -98,10 +100,14 @@ st.markdown(f"""
 }}
 .settings-panel {{
     background-color: {card_bg};
+    color: {text_color};
     padding: 20px;
     border-radius: 20px;
     border: 2px solid {border_color};
     margin-top: 20px;
+}}
+p, span, label, h1, h2, h3, h4 {{
+    color: {text_color} !important;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -115,14 +121,14 @@ def render_simple_camera():
     <div style="width: 100%; text-align: center; background: #1a1026; padding: 15px; border-radius: 20px; border: 2px solid #9b5de5;">
         <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
             <button onclick="startCamera()" style="background: #9b5de5; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
-                🔴 بدء البث (مع الصوت)
+                🔴 تشغيل الكاميرا والبث
             </button>
             <button onclick="stopCamera()" style="background: #38135e; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
-                ⏹️ إيقاف البث
+                ⏹️ إيقاف الكاميرا
             </button>
         </div>
         <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: 450px; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5; transform: scaleX(-1);"></video>
-        <p id="camStatus" style="color: #e0d8f0; margin-top: 10px; font-family: sans-serif;">اضغطي على "بدء البث" لتشغيل الكاميرا والميكروفون</p>
+        <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">اضغطي على "تشغيل الكاميرا والبث" عند الحاجة</p>
     </div>
 
     <script>
@@ -132,9 +138,9 @@ def render_simple_camera():
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('liveVideo').srcObject = currentStream;
-                document.getElementById('camStatus').innerText = "🟢 الكاميرا والبث يعملان الآن بالصوت والصورة";
+                document.getElementById('camStatus').innerText = "🟢 الكاميرا والبث يعملان الآن";
             } catch (err) {
-                document.getElementById('camStatus').innerText = "⚠️ يرجى السماح بالوصول للكاميرا والميكروفون";
+                document.getElementById('camStatus').innerText = "⚠️ يرجى السماح بالوصول للكاميرا";
             }
         }
         function stopCamera() {
@@ -142,7 +148,7 @@ def render_simple_camera():
                 currentStream.getTracks().forEach(track => track.stop());
                 currentStream = null;
                 document.getElementById('liveVideo').srcObject = null;
-                document.getElementById('camStatus').innerText = "⏹️ تم إيقاف البث";
+                document.getElementById('camStatus').innerText = "⏹️ تم إيقاف الكاميرا";
             }
         }
     </script>
@@ -173,10 +179,9 @@ else:
 
         nav_mode = st.sidebar.radio(
             "📍 تنقلي في منصتكِ:",
-            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🧑‍💼 وضع السكرتير الذكي والبث المباشر", "📚 أرشيف المحادثات المحفوظة")
+            ("🏠 الشبكة الرئيسية (الأقسام)", "⚙️ إعدادات BRAS AI والحساب", "🧑‍💼 وضع السكرتير الذكي (صوت وكاميرا)", "📚 أرشيف المحادثات المحفوظة")
         )
 
-        # القواعد والتعليمات الثابتة لجميع الأقسام
         base_system_prompt = (
             "You are BRAS AI, a helpful assistant created exclusively by Retaj Luqman ismail Gargary (ريتاج لقمان گەرگەری). "
             "If anyone asks who created you or where you are from, you must proudly answer that you are from Kurdistan Iraq (كردستان العراق). "
@@ -299,14 +304,17 @@ else:
                     st.session_state.username = new_name
                     st.session_state.theme = new_theme
                     st.session_state.voice = new_voice
-                    st.success("تم الحفظ!")
+                    st.success("تم الحفظ وتطبيق الألوان بنجاح!")
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        elif "🧑‍💼 وضع السكرتير الذكي والبث المباشر" in nav_mode:
-            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 السكرتير الذكي والبث المباشر</h2>", unsafe_allow_html=True)
+        elif "🧑‍💼 وضع السكرتير الذكي (صوت وكاميرا)" in nav_mode:
+            st.markdown("<h2 style='text-align: center; color: #9b5de5;'>🧑‍💼 وضع السكرتير الذكي (محادثة صوتية وكاميرا)</h2>", unsafe_allow_html=True)
             st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
-            render_simple_camera()
+            
+            # قسم الكاميرا (اختياري: تفتحيها أو تبقيها مغلقة)
+            with st.expander("🎥 عرض أو إخفاء كاميرا البث المباشر", expanded=False):
+                render_simple_camera()
 
             st.markdown("---")
             st.subheader("📅 جدول المهمات والتنبيه الصوتي")
@@ -320,8 +328,8 @@ else:
                 for idx, t in enumerate(st.session_state.my_schedule, 1):
                     st.write(f"{idx}. {t}")
 
-            st.subheader("💬 محادثة السكرتير:")
-            sec_prompt = st.chat_input("اطلبي من السكرتير ما شئتِ...")
+            st.subheader("💬 محادثة السكرتير الصوتية والكتابية:")
+            sec_prompt = st.chat_input("تحدثي مع سكرتيركِ بالصوت والصورة أو بالكتابة...")
             if sec_prompt:
                 st.session_state.messages.append({"role": "user", "content": sec_prompt})
                 with st.chat_message("user"):
