@@ -25,7 +25,7 @@ if "logged_in" not in st.session_state:
     st.session_state.archives = []
     st.session_state.current_archive_title = None
     st.session_state.messages = []
-    st.session_state.generated_images = []
+    st.session_state.generated_prompts = []
 
 # ترجمة نصوص الواجهة والأقسام بالكامل حسب اللغة المختارة
 lang = st.session_state.language
@@ -105,7 +105,7 @@ elif "Kurdish" in lang:
     t_settings_header = "⚙️ ڕێکخستنەکان"
     t_username = "ناوی بەکارهێنەر:"
     t_save = "پاشەکەوتکردنی ڕێکخستنەکان"
-    t_saved_ok = "ڕێکخستنەکان بە سەرکەوتوویی پاشەکەوت کران!"
+    t_saved_ok = "ڕێکخستنەکان بە سەرکەوتوویی پاشەکەوت کرan!"
     t_secretary_title = "🧑‍💼 ئەمینداری هۆشمەند (فرەزمان، مایکرۆفۆن و ئاگادارکردنەوە)"
     t_schedule_title = "📅 خشتەی ئەرکەکان بە دیاریکردنی ڕۆژ و کات"
     t_task_input = "ئەرکێک بنووسە:"
@@ -437,7 +437,7 @@ else:
             "قسم التاريخ": ("📜", f"{base_system_prompt} You are a historian expert."),
             "الصحة، الدايت والجيم": ("💪", f"{base_system_prompt} You are a fitness coach."),
             "نصائح وتطوير الذات": ("💡", f"{base_system_prompt} You are a life advisor."),
-            art_sec_key: ("🎨", f"{base_system_prompt} You are an expert AI image generator and designer."),
+            art_sec_key: ("🎨", f"{base_system_prompt} You are an expert AI image prompt engineer and visual design consultant."),
             "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are an advanced AI video producer and script/idea generator, creating professional video storyboards and voice scripts.")
         }
 
@@ -495,36 +495,32 @@ else:
                 with st.expander(t_file_upload, expanded=False):
                     attached_file = st.file_uploader("File:", type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"], key=f"up_{sec_name}")
 
-                # ميزة توليد الصور التلقائية بمعالجة ذكية
+                # قسم هندسة الأوصاف البصرية الذكية (بدون أي أخطاء أو رسوم)
                 is_art_section = sec_name == art_sec_key or "الرسم" in sec_name or "Art" in sec_name or "Tasarımı" in sec_name or "هونەر" in sec_name
                 if is_art_section and not is_archived_view:
                     st.markdown("---")
-                    st.markdown("### 🎨 توليد وتصميم الصور بالذكاء الاصطناعي")
-                    img_prompt_input = st.text_input("اكتبي وصف الصورة التي تريدين رسمها:", key="dalle_prompt_input")
-                    if st.button("🖼️ توليد الصورة الآن"):
-                        if img_prompt_input:
-                            with st.spinner("جاري رسم وتصميم الصورة بواسطة براس... ✨"):
-                                image_success = False
-                                for model_name in ["dall-e-3", "dall-e-2"]:
-                                    try:
-                                        img_response = client.images.generate(
-                                            model=model_name,
-                                            prompt=img_prompt_input,
-                                            size="1024x1024",
-                                            n=1,
-                                        )
-                                        image_url = img_response.data[0].url
-                                        st.image(image_url, caption=f"🎨 {img_prompt_input}", use_column_width=True)
-                                        st.session_state.generated_images.append({"prompt": img_prompt_input, "url": image_url})
-                                        st.success("تم توليد الصورة بنجاح!")
-                                        image_success = True
-                                        break
-                                    except Exception as e:
-                                        continue
-                                if not image_success:
-                                    st.error("ملاحظة: مفتاح الـ API الحالي يتطلب شحن رصيد خاص بالصور أو تفعيل فئة الاستخدام (Tier 1) في لوحة تحكم OpenAI لتوليد الصور مباشرة.")
+                    st.markdown("### 🎨 مبتكر ومصمم الأوصاف البصرية الذكية (AI Prompt Generator)")
+                    st.info("💡 اكتبي فكرة الصورة التي تخطر ببالكِ، وسيقوم براس بتصميم وصياغة أوصاف احترافية جاهزة لاستخدامها في أي برنامج رسومي مجاناً وبدون أي تكلفة أو أخطاء!")
+                    
+                    art_prompt_input = st.text_input("اكتبي فكرتكِ (مثلاً: صورة تجمع بين اسم براس وريتاج بتصميم مستقبلبلي):", key="ai_art_prompt_input")
+                    if st.button("✨ ابتكار ووصف التصميم الاحترافي"):
+                        if art_prompt_input:
+                            with st.spinner("جاري ابتكار أوصاف وتصاميم بصرية مبهرة... ✨"):
+                                try:
+                                    prompt_payload = [
+                                        {"role": "system", "content": "You are an expert AI art prompt engineer. Given the user's idea, write 3 professional, highly detailed English prompts for image generation (like DALL-E or Midjourney), along with creative design advice in Arabic."},
+                                        {"role": "user", "content": art_prompt_input}
+                                    ]
+                                    art_res = client.chat.completions.create(model="gpt-4o", messages=prompt_payload)
+                                    design_output = art_res.choices[0].message.content
+                                    
+                                    st.success("تم ابتكار التصميم بنجاح! تفضلي الأوصاف والأفكار:")
+                                    st.markdown(design_output)
+                                    st.session_state.generated_prompts.append({"idea": art_prompt_input, "result": design_output})
+                                except Exception as e:
+                                    st.error(f"حدث خطأ: {e}")
                         else:
-                            st.warning("يرجى كتابة وصف الصورة أولاً.")
+                            st.warning("يرجى كتابة فكرة الصورة أولاً.")
                     st.markdown("---")
 
                 if is_archived_view:
