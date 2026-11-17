@@ -1,319 +1,690 @@
 import streamlit as st
+import streamlit.components.v1 as components
+import base64
 from datetime import datetime
+from openai import OpenAI
 
-# إعداد الصفحة وتفعيل الاتجاه من اليمين لليسار
-st.set_page_config(page_title="BRAS AI | براس", page_icon="🎓", layout="wide")
+# إعداد الصفحة لتكون واسعة بالكامل
+st.set_page_config(
+    page_title="BRAS AI - المنصة الشاملة الذكية",
+    page_icon="💜",
+    layout="wide"
+)
 
-# تهيئة الذاكرة والتخزين المؤقت
-if "activated" not in st.session_state:
-    st.session_state.activated = False
-if "theme_mode" not in st.session_state:
-    st.session_state.theme_mode = "فاتح (أبيض وأزرق)"
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = [
-        {"role": "assistant", "content": "أهلاً بكِ يا رتوجه! 🌸 أنا براس، رفيقك الذكي. أنا هنا لأشرح لكِ أي مادة، أحل لكِ المسائل، وأبسط لكِ المنهج خطوة بخطوة. تفضلي، ما هو الدرس الذي تريدين أن نشرحه الآن؟ 🌟"}
-    ]
-if "saved_lessons" not in st.session_state:
-    st.session_state.saved_lessons = []
-if "my_grades" not in st.session_state:
-    st.session_state.my_grades = []
-if "student_data" not in st.session_state:
-    st.session_state.student_data = {"name": "", "grade": "الصف السابع الأساسي", "school": "", "lang": "کوردی بادینی"}
+# إدارة الحالة لتخزين الذاكرة والجدول وتوليد الصور
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = "ريتاج لقمان گەرگەری"
+    st.session_state.user_email = "retaj@brasai.com"
+    st.session_state.theme = "داكن (Dark)"
+    st.session_state.voice = "صوت بنت نقي وواضح (Nova)"
+    st.session_state.language = "العربية (Arabic)"
+    st.session_state.selected_section = None
+    st.session_state.my_schedule = []
+    st.session_state.section_messages = {}
+    st.session_state.archives = []
+    st.session_state.current_archive_title = None
+    st.session_state.messages = []
+    st.session_state.generated_prompts = []
 
-# نظام الألوان (فاتح / غامق - مخصص ومريح للعين)
-if st.session_state.theme_mode == "فاتح (أبيض وأزرق)":
-    bg_main = "#FFFFFF"
-    text_main = "#000000"
-    sidebar_bg = "#E3F2FD"
-    card_bg = "#F5F9FF"
-    border_c = "#90CAF9"
-    btn_bg = "#1E88E5"
-    btn_txt = "#FFFFFF"
+# ترجمة نصوص الواجهة والأقسام بالكامل حسب اللغة المختارة
+lang = st.session_state.language
+
+if "English" in lang:
+    t_title = "💜 BRAS AI - Smart Comprehensive Platform 💜"
+    t_login_title = "🔐 Login to Your Smart Platform"
+    t_email = "Email:"
+    t_password = "Password:"
+    t_login_btn = "Login"
+    t_nav = "Navigate Your Platform:"
+    t_sec_main = "🏠 Main Grid (Sections)"
+    t_sec_settings = "⚙️ BRAS AI & Account Settings"
+    t_sec_secretary = "🧑‍💼 Smart Secretary (Voice, Mic & Optional Camera)"
+    t_sec_archive = "📚 Saved Archives"
+    t_account = "Account"
+    t_lang_label = "App Language"
+    t_theme = "Theme"
+    t_voice = "Voice"
+    t_settings_header = "⚙️ Settings"
+    t_username = "Username:"
+    t_save = "Save Settings & Apply Changes"
+    t_saved_ok = "Settings saved and language applied successfully!"
+    t_secretary_title = "🧑‍💼 Smart Secretary (Multilingual, Mic & Alerts)"
+    t_schedule_title = "📅 Schedule with Day & Time"
+    t_task_input = "Enter task (e.g., Math exam):"
+    t_day_label = "Select Day:"
+    t_time_label = "Time (e.g., 4:00 PM):"
+    t_add_task_btn = "Add Task with Alert"
+    t_task_added = "Task added successfully!"
+    t_schedule_list = "📌 Your Schedule & Recorded Tasks:"
+    t_mic_prompt = "🎙️ Click the microphone to speak with your secretary directly:"
+    t_type_prompt = "Or type to your secretary here..."
+    t_choose_sec = "Choose the right section to start creating:"
+    t_back_grid = "⬅️ Back to Grid"
+    t_new_chat = "✨ New Chat"
+    t_archive_btn = "💾 Save & Archive"
+    t_archived_ok = "Conversation archived successfully!"
+    t_exit_arch = "↩️ Exit Archive"
+    t_file_upload = "➕ Add File or Image"
+    t_archive_header = "📚 Archives"
+    t_no_archive = "No archived conversations."
+    t_browse = "📖 Browse"
+    
+    art_sec_key = "AI Art & Image Design"
+    SECTIONS_NAMES = {
+        "المساعد الشامل": "Comprehensive Assistant",
+        "المعلم الشامل": "School Teacher",
+        "قسم كرة القدم": "Football (FC Barcelona)",
+        "تعليم اللغات": "Languages Tutor",
+        "البرمجة": "Programming",
+        "الطبخ والوصفات": "Cooking & Recipes",
+        "مكياج وسكين كير": "Makeup & Skincare",
+        "ديزاين وملابس وشوبينغ": "Fashion & Shopping",
+        "أفكار دول وسفرات": "Travel & Trip Planner",
+        "قسم التاريخ": "History Expert",
+        "الصحة، الدايت والجيم": "Fitness & Health",
+        "نصائح وتطوير الذات": "Life Advisor",
+        art_sec_key: "AI Art & Image Design",
+        "صانع الفيديوهات والأفكار": "Video & Ideas Creator (AI Video Engine)"
+    }
+elif "Kurdish" in lang:
+    t_title = "💜 BRAS AI - سەکۆی گشتگیری هۆشمەند 💜"
+    t_login_title = "🔐 چوونه‌ژووره‌وه‌ بۆ سەکۆ هۆشمەندەکەت"
+    t_email = "ئیمەیڵ:"
+    t_password = "وشەی نهێنی:"
+    t_login_btn = "چوونه‌ژووره‌وه‌"
+    t_nav = "گه‌شت بكه‌ له‌ سەکۆکەت:"
+    t_sec_main = "🏠 تۆڕی سەرەکی (بەشەکان)"
+    t_sec_settings = "⚙️ ڕێکخستنەکانی BRAS AI"
+    t_sec_secretary = "🧑‍💼 ئەمینداری هۆشمەند (دەنگ، مایکرۆفۆن و کامێرا)"
+    t_sec_archive = "📚 ئەرشیفی گفتوگۆکان"
+    t_account = "هەژمار"
+    t_lang_label = "زمانی بەرنامە"
+    t_theme = "ڕوکار"
+    t_voice = "دەنگ"
+    t_settings_header = "⚙️ ڕێکخستنەکان"
+    t_username = "ناوی بەکارهێنەر:"
+    t_save = "پاشەکەوتکردنی ڕێکخستنەکان"
+    t_saved_ok = "ڕێکخستنەکان بە سەرکەوتوویی پاشەکەوت کرan!"
+    t_secretary_title = "🧑‍💼 ئەمینداری هۆشمەند (فرەزمان، مایکرۆفۆن و ئاگادارکردنەوە)"
+    t_schedule_title = "📅 خشتەی ئەرکەکان بە دیاریکردنی ڕۆژ و کات"
+    t_task_input = "ئەرکێک بنووسە:"
+    t_day_label = "ڕۆژ هەڵبژێرە:"
+    t_time_label = "کات:"
+    t_add_task_btn = "زیادکردنی ئەرک"
+    t_task_added = "ئەرکەکە بە سەرکەوتوویی زیادکرا!"
+    t_schedule_list = "📌 خشتەی ئەرکە تۆمارکراوەکانت:"
+    t_mic_prompt = "🎙️ کلیک لەسەر مایکرۆفۆن بکە بۆ قسەکردن:"
+    t_type_prompt = "یان لێرە بنووسە..."
+    t_choose_sec = "بەشی گونجاو هەڵبژێرە بۆ دەستپێکردن:"
+    t_back_grid = "⬅️ گەڕانەوە بۆ تۆڕ"
+    t_new_chat = "✨ گفتوگۆی نوێ"
+    t_archive_btn = "💾 پاشەکەوت و ئەرشیف"
+    t_archived_ok = "گفتوگۆکە ئەرشیف کرا!"
+    t_exit_arch = "↩️ دەرچوون لە ئەرشیف"
+    t_file_upload = "➕ زیادکردنی فایل یان وێنە"
+    t_archive_header = "📚 ئەرشیف"
+    t_no_archive = "هیچ گفتوگۆیەکی ئەرشیفکراو نییە."
+    t_browse = "📖 پشکنین"
+
+    art_sec_key = "هونەر و دیزاینی وێنە (AI)"
+    SECTIONS_NAMES = {
+        "المساعد الشامل": "یاریدەدەری گشتی",
+        "المعلم الشامل": "مامۆستای قوتابخانە",
+        "قسم كرة القدم": "تۆپی پێ (بارسێلۆنا)",
+        "تعليم اللغات": "فێربوونی زمانەکان",
+        "البرمجة": "بەرمەسازی",
+        "الطبخ والوصفات": "چێشتلێنان",
+        "مكياج وسكين كير": "مکیاژ و چاودێری پێست",
+        "ديزاين وملابس وشوبينغ": "فاشیۆن و بازاڕکردن",
+        "أفكار دول وسفرات": "پلانی گەشتکردن",
+        "قسم التاريخ": "مێژوونووس",
+        "الصحة، الدايت والجيم": "تەندروستی و لەشجوانی",
+        "نصائح وتطوير الذات": "پەرەپێدانی خۆی",
+        art_sec_key: "هونەر و دیزاینی وێنە (AI)",
+        "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ (مۆدێلی AI)"
+    }
+elif "Türkçe" in lang:
+    t_title = "💜 BRAS AI - Akıllı Kapsamlı Platform 💜"
+    t_login_title = "🔐 Akıllı Platformunuza Giriş Yapın"
+    t_email = "E-posta:"
+    t_password = "Şifre:"
+    t_login_btn = "Giriş Yap"
+    t_nav = "Platformda Gezin:"
+    t_sec_main = "🏠 Ana Izgara (Bölümler)"
+    t_sec_settings = "⚙️ BRAS AI ve Hesap Ayarları"
+    t_sec_secretary = "🧑‍💼 Akıllı Sekreter (Ses, Mikrofon ve Kamera)"
+    t_sec_archive = "📚 Kayıtlı Arşivler"
+    t_account = "Hesap"
+    t_lang_label = "Uygulama Dili"
+    t_theme = "Tema"
+    t_voice = "Ses"
+    t_settings_header = "⚙️ Ayarlar"
+    t_username = "Kullanıcı Adı:"
+    t_save = "Ayarları Kaydet ve Uygula"
+    t_saved_ok = "Ayarlar başarıyla kaydedildi!"
+    t_secretary_title = "🧑‍💼 Akıllı Sekreter (Çok Dilli, Mikrofon ve Uyarılar)"
+    t_schedule_title = "📅 Gün ve Saat İçeren Görev Programı"
+    t_task_input = "Bir görev girin:"
+    t_day_label = "Gün Seçin:"
+    t_time_label = "Saat:"
+    t_add_task_btn = "Görevi Ekle"
+    t_task_added = "Görev başarıyla eklendi!"
+    t_schedule_list = "📌 Kayıtlı Görevleriniz:"
+    t_mic_prompt = "🎙️ Sekreterinizle konuşmak için mikrofona tıklayın:"
+    t_type_prompt = "Veya buraya yazın..."
+    t_choose_sec = "Başlamak için uygun bölümü seçin:"
+    t_back_grid = "⬅️ Izgaraya Dön"
+    t_new_chat = "✨ Yeni Sohbet"
+    t_archive_btn = "💾 Kaydet ve Arşivle"
+    t_archived_ok = "Sohbet arşivlendi!"
+    t_exit_arch = "↩️ Arşivden Çık"
+    t_file_upload = "➕ Dosya veya Resim Ekle"
+    t_archive_header = "📚 Arşiv"
+    t_no_archive = "Arşivlenmiş sohbet yok."
+    t_browse = "📖 Gözat"
+
+    art_sec_key = "Yapay Zeka Resim Tasarımı"
+    SECTIONS_NAMES = {
+        "المساعد الشامل": "Genel Asistan",
+        "المعلم الشامل": "Okul Öğretmeni",
+        "قسم كرة القدم": "Futbol (FC Barcelona)",
+        "تعليم اللغات": "Dil Eğitimi",
+        "البرمجة": "Programlama",
+        "الطبخ والوصفات": "Yemek Tarifleri",
+        "مكياج وسكين كير": "Makyaj ve Cilt Bakımı",
+        "ديزاين وملابس وشوبينغ": "Moda ve Alışveriş",
+        "أفكار دول وسفرات": "Seyahat Planlayıcı",
+        "قسم التاريخ": "Tarih Uzmanı",
+        "الصحة، الدايت والجيم": "Sağlık ve Fitness",
+        "نصائح وتطوير الذات": "Kişisel Gelişim",
+        art_sec_key: "Yapay Zeka Resim Tasarımı",
+        "صانع الفيديوهات والأفكار": "Video ve Fikir Üreticisi (AI Video)"
+    }
 else:
-    bg_main = "#0A0E17"
-    text_main = "#F0F8FF"
-    sidebar_bg = "#0D1B2A"
-    card_bg = "#112240"
-    border_c = "#1E3A8A"
-    btn_bg = "#2563EB"
-    btn_txt = "#FFFFFF"
+    t_title = "💜 BRAS AI - المنصة الشاملة الذكية 💜"
+    t_login_title = "🔐 تسجيل الدخول إلى منصتكِ الذكية"
+    t_email = "البريد الإلكتروني:"
+    t_password = "كلمة المرور:"
+    t_login_btn = "دخول المنصة"
+    t_nav = "📍 تنقلي في منصتكِ:"
+    t_sec_main = "🏠 الشبكة الرئيسية (الأقسام)"
+    t_sec_settings = "⚙️ إعدادات BRAS AI والحساب"
+    t_sec_secretary = "🧑‍💼 وضع السكرتير الذكي (صوت، ميكروفون، وكاميرا اختيارية)"
+    t_sec_archive = "📚 أرشيف المحادثات المحفوظة"
+    t_account = "الحساب"
+    t_lang_label = "🌐 لغة التطبيق وتفضيل المحادثة (أكثر من 40 لغة):"
+    t_theme = "المظهر:"
+    t_voice = "الصوت:"
+    t_settings_header = "🎛️ الإعدادات"
+    t_username = "اسم المستخدم:"
+    t_save = "💾 حفظ الإعدادات وتطبيق التغييرات"
+    t_saved_ok = "تم حفظ الإعدادات وتطبيق اللغة بنجاح!"
+    t_secretary_title = "🧑‍💼 السكرتير الذكي (متعدد اللغات، ميكروفون، وتنبيهات)"
+    t_schedule_title = "📅 جدول المهمات مع تحديد اليوم والساعة"
+    t_task_input = "اكتبي المهمة (مثلاً: امتحان رياضيات أو لقاء العائلة):"
+    t_day_label = "اختر اليوم:"
+    t_time_label = "الساعة:"
+    t_add_task_btn = "إضافة للمهمات مع التنبيه"
+    t_task_added = "تمت إضافة المهمة بنجاح وسيتم تذكيركِ بها فوراً!"
+    t_schedule_list = "📌 جدول مهماتكِ والمواعيد المسجلة:"
+    t_mic_prompt = "🎙️ اضغطي على الميكروفون للتحدث مع السكرتير مباشرة:"
+    t_type_prompt = "أو اكتبي لسكرتيركِ هنا..."
+    t_choose_sec = "اخترِ القسم المناسب لبدء الإبداع:"
+    t_back_grid = "⬅️ العودة للشبكة"
+    t_new_chat = "✨ محادثة جديدة"
+    t_archive_btn = "💾 حفظ وأرشفة"
+    t_archived_ok = "تمت أرشفة المحادثة بنجاح!"
+    t_exit_arch = "↩️ الخروج من الأرشيف"
+    t_file_upload = "➕ إضافة ملف أو صورة"
+    t_archive_header = "📚 الأرشيف"
+    t_no_archive = "لا توجد محادثات مؤرشفة."
+    t_browse = "📖 استعراض"
+
+    art_sec_key = "قسم الرسم وتصميم الصور"
+    SECTIONS_NAMES = {
+        "المساعد الشامل": "المساعد الشامل",
+        "المعلم الشامل": "المعلم الشامل",
+        "قسم كرة القدم": "قسم كرة القدم",
+        "تعليم اللغات": "تعليم اللغات",
+        "البرمجة": "البرمجة",
+        "الطبخ والوصفات": "الطبخ والوصفات",
+        "مكياج وسكين كير": "مكياج وسكين كير",
+        "ديزاين وملابس وشوبينغ": "ديزاين وملابس وشوبينغ",
+        "أفكار دول وسفرات": "أفكار دول وسفرات",
+        "قسم التاريخ": "قسم التاريخ",
+        "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
+        "نصائح وتطوير الذات": "نصائح وتطوير الذات",
+        art_sec_key: "قسم الرسم وتصميم الصور",
+        "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار (مولد الفيديوهات الذكي)"
+    }
+
+# تحديد الألوان الذكية حسب اختيار الثيم (داكن / فاتح)
+is_dark = "داكن" in st.session_state.theme or "Dark" in st.session_state.theme
+bg_color = "#0d0614" if is_dark else "#fcf8ff"
+text_color = "#ffffff" if is_dark else "#111111"
+card_bg = "#1a1026" if is_dark else "#ffffff"
+border_color = "#9b5de5"
+accent_color = "#9b5de5"
 
 st.markdown(f"""
 <style>
-    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
-        background-color: {bg_main} !important;
-        color: {text_main} !important;
-        direction: rtl;
-        text-align: right;
-    }}
-    [data-testid="stSidebar"] {{
-        background-color: {sidebar_bg} !important;
-        direction: rtl;
-        text-align: right;
-    }}
-    h1, h2, h3, h4, p, span, label, li, .stMarkdown {{
-        color: {text_main} !important;
-    }}
-    .stButton > button {{
-        background-color: {btn_bg} !important;
-        color: {btn_txt} !important;
-        border-radius: 12px !important;
-        font-weight: bold !important;
-        width: 100%;
-        border: 1px solid {border_c} !important;
-    }}
-    .box-card {{
-        background-color: {card_bg};
-        border: 2px solid {border_c};
-        padding: 20px;
-        border-radius: 15px;
-        margin-bottom: 15px;
-    }}
+.stApp {{
+    background-color: {bg_color};
+    color: {text_color};
+}}
+.main-title {{
+    text-align: center;
+    color: {accent_color};
+    font-weight: bold;
+    font-size: 3rem;
+    margin-bottom: 20px;
+}}
+.user-info {{
+    background-color: {card_bg};
+    color: {text_color};
+    padding: 15px;
+    border-radius: 15px;
+    border: 1px solid {border_color};
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(155, 93, 229, 0.2);
+}}
+.stButton>button {{
+    width: 100%;
+    height: 110px;
+    background-color: {card_bg};
+    color: {text_color};
+    border: 2px solid {border_color};
+    border-radius: 20px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    transition: 0.3s;
+    box-shadow: 0 4px 15px rgba(155, 93, 229, 0.3);
+}}
+.stButton>button:hover {{
+    background-color: {accent_color};
+    color: #ffffff;
+    border-color: #f15bb5;
+    box-shadow: 0 6px 25px rgba(241, 91, 181, 0.5);
+    transform: translateY(-4px);
+}}
+.secretary-circle {{
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #9b5de5, #38135e, #0d0614);
+    margin: 20px auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+    text-align: center;
+    box-shadow: 0 0 60px #9b5de5, inset 0 0 30px #f15bb5;
+    animation: pulse 2s infinite;
+}}
+@keyframes pulse {{
+    0% {{ transform: scale(1); box-shadow: 0 0 40px #9b5de5; }}
+    50% {{ transform: scale(1.08); box-shadow: 0 0 80px #f15bb5; }}
+    100% {{ transform: scale(1); box-shadow: 0 0 40px #9b5de5; }}
+}}
+.settings-panel {{
+    background-color: {card_bg};
+    color: {text_color};
+    padding: 20px;
+    border-radius: 20px;
+    border: 2px solid {border_color};
+    margin-top: 20px;
+}}
+p, span, label, h1, h2, h3, h4 {{
+    color: {text_color} !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
-# زر تغيير المظهر (Dark / Light Mode) في الأعلى
-col_m1, col_m2 = st.columns([5, 1])
-with col_m2:
-    new_theme = st.selectbox("🎨 المظهر:", ["فاتح (أبيض وأزرق)", "غامق (Dark Mode)"], key="theme_selector")
-    if new_theme != st.session_state.theme_mode:
-        st.session_state.theme_mode = new_theme
-        st.rerun()
+st.markdown(f"<h1 class='main-title'>{t_title}</h1>", unsafe_allow_html=True)
 
-# ========================================================
-# شاشة البداية والاشتراك ببطاقة كي كارد
-# ========================================================
-if not st.session_state.activated:
-    st.title("🎓 تطبيق براس الذكي (BRAS AI)")
-    st.subheader("المنصة التعليمية الشاملة لطلاب إقليم كوردستان - مناهج 2026")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("""
-        <div class="box-card">
-            <h3>📜 شروط الاستخدام والأسعار</h3>
-            <ul>
-                <li>الحساب مخصص لطالب واحد فقط.</li>
-                <li>يشمل جميع الصفوف ومناهج 2026 المحدثة.</li>
-                <li><b>سعر الكورس الواحد:</b> 15 دولار.</li>
-                <li><b>سعر الكورسين (سنة كاملة):</b> 30 دولار.</li>
-            </ul>
+api_key = st.secrets.get("OPENAI_API_KEY")
+
+def render_optional_camera():
+    camera_html = """
+    <div style="width: 100%; text-align: center; background: #1a1026; padding: 15px; border-radius: 20px; border: 2px solid #9b5de5;">
+        <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+            <button onclick="startCamera()" style="background: #9b5de5; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                🔴 Camera On
+            </button>
+            <button onclick="stopCamera()" style="background: #38135e; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                ⏹️ Stop Camera
+            </button>
         </div>
-        """, unsafe_allow_html=True)
-        
-    with col2:
-        st.markdown("""
-        <div class="box-card">
-            <h3>💳 طريقة الدفع (بطاقة كي كارد Qi Card فقط)</h3>
-            <p>1. قم بتحويل المبلغ إلى رقم بطاقة الكي كارد:</p>
-            <h4><code>4921 - XXXX - XXXX - XXXX</code></h4>
-            <p>2. أرسل صورة وصل التحويل للإدارة لاستلام كود الدخول.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        activation_code = st.text_input("🔑 أدخل كود التفعيل هنا:", type="password", placeholder="اكتب رقم 2026 للتجربة")
-        if st.button("دخول إلى التطبيق 🚀"):
-            if activation_code == "2026":
-                st.session_state.activated = True
+        <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: 400px; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5; transform: scaleX(-1);"></video>
+        <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">Optional Camera</p>
+    </div>
+
+    <script>
+        let currentStream = null;
+        async function startCamera() {
+            stopCamera();
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('liveVideo').srcObject = currentStream;
+                document.getElementById('camStatus').innerText = "🟢 Camera Active";
+            } catch (err) {
+                document.getElementById('camStatus').innerText = "⚠️ Please allow camera access";
+            }
+        }
+        function stopCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+                document.getElementById('liveVideo').srcObject = null;
+                document.getElementById('camStatus').innerText = "⏹️ Camera Stopped";
+            }
+        }
+    </script>
+    """
+    components.html(camera_html, height=520)
+
+if not api_key:
+    st.error("يرجى ضبط مفتاح OpenAI API في إعدادات Streamlit Secrets.")
+else:
+    client = OpenAI(api_key=api_key)
+
+    if not st.session_state.logged_in:
+        st.markdown(f"<h3 style='text-align: center;'>{t_login_title}</h3>", unsafe_allow_html=True)
+        with st.form("login_form"):
+            email = st.text_input(t_email, value=st.session_state.user_email)
+            password = st.text_input(t_password, type="password", value="••••••••")
+            submit_button = st.form_submit_button(t_login_btn)
+            if submit_button:
+                st.session_state.logged_in = True
                 st.rerun()
+    else:
+        st.markdown(f"""
+        <div class='user-info'>
+            <span>👤 {t_account}: <b>{st.session_state.username}</b> ({st.session_state.user_email}) | 🌐 Lang: {st.session_state.language}</span>
+            <span>🎨 Theme: {st.session_state.theme} | 🎙️ Voice: {st.session_state.voice}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        nav_mode = st.sidebar.radio(
+            t_nav,
+            (t_sec_main, t_sec_settings, t_sec_secretary, t_sec_archive)
+        )
+
+        base_system_prompt = (
+            f"You are BRAS AI, a helpful assistant created exclusively by Retaj Luqman ismail Gargary (ريتاج لقمان گەرگەری). "
+            f"If anyone asks who created you or where you are from, you must proudly answer that you are from Kurdistan Iraq (كردستان العراق). "
+            f"The current user language setting is: {st.session_state.language}. Respond fluently in this language. "
+            "Always remember previous conversations with Retaj in this session, and when she asks if you remember something she said earlier, confirm enthusiastically ('إيه أتذكر'). "
+            "Pronounce the letter 'گ' (Ga) correctly and clearly."
+        )
+
+        BASE_SECTIONS = {
+            "المساعد الشامل": ("🤖", f"{base_system_prompt} You are a versatile assistant."),
+            "المعلم الشامل": ("📚", f"{base_system_prompt} You are an expert school teacher."),
+            "قسم كرة القدم": ("⚽", f"{base_system_prompt} You are an expert football analyst covering FC Barcelona."),
+            "تعليم اللغات": ("🗣️", f"{base_system_prompt} You are a multilingual tutor."),
+            "البرمجة": ("💻", f"{base_system_prompt} You are an expert programmer."),
+            "الطبخ والوصفات": ("🍳", f"{base_system_prompt} You are a master chef."),
+            "مكياج وسكين كير": ("💄", f"{base_system_prompt} You are an expert makeup artist and skincare consultant."),
+            "ديزاين وملابس وشوبينغ": ("🛍️", f"{base_system_prompt} You are a fashion designer and shopping advisor."),
+            "أفكار دول وسفرات": ("✈️", f"{base_system_prompt} You are a travel planner expert."),
+            "قسم التاريخ": ("📜", f"{base_system_prompt} You are a historian expert."),
+            "الصحة، الدايت والجيم": ("💪", f"{base_system_prompt} You are a fitness coach."),
+            "نصائح وتطوير الذات": ("💡", f"{base_system_prompt} You are a life advisor."),
+            art_sec_key: ("🎨", f"{base_system_prompt} You are an expert AI image prompt engineer and visual design consultant."),
+            "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are an advanced AI video producer and script/idea generator, creating professional video storyboards and voice scripts.")
+        }
+
+        # بناء الأقسام مع الأسماء المترجمة
+        SECTIONS = {}
+        for orig_key, (emoji, prompt) in BASE_SECTIONS.items():
+            translated_name = SECTIONS_NAMES.get(orig_key, orig_key)
+            SECTIONS[translated_name] = (emoji, prompt)
+
+        if t_sec_main in nav_mode:
+            if st.session_state.selected_section is None:
+                st.markdown(f"<h3 style='text-align: center;'>{t_choose_sec}</h3>", unsafe_allow_html=True)
+                cols = st.columns(3)
+                section_items = list(SECTIONS.items())
+                
+                for index, (sec_name, (emoji, prompt)) in enumerate(section_items):
+                    col = cols[index % 3]
+                    if col.button(f"{emoji}\n\n{sec_name}", key=f"sec_btn_{index}"):
+                        st.session_state.selected_section = sec_name
+                        st.session_state.current_archive_title = None
+                        st.rerun()
             else:
-                st.error("⚠️ كود غير صحيح. (اكتب 2026 للتجربة)")
-    st.stop()
+                sec_name = st.session_state.selected_section
+                emoji, system_prompt = SECTIONS[sec_name]
+                is_archived_view = st.session_state.current_archive_title is not None
+                
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.subheader(f"{sec_name} {emoji}")
+                with col2:
+                    if st.button(t_back_grid):
+                        st.session_state.selected_section = None
+                        st.session_state.current_archive_title = None
+                        st.rerun()
+                        
+                if not is_archived_view:
+                    col_new, col_arc = st.columns(2)
+                    if col_new.button(t_new_chat):
+                        st.session_state.section_messages[sec_name] = []
+                        st.rerun()
+                    if col_arc.button(t_archive_btn):
+                        if sec_name in st.session_state.section_messages and len(st.session_state.section_messages[sec_name]) > 0:
+                            archive_title = f"{sec_name} - {st.session_state.section_messages[sec_name][0]['content'][:25]}..."
+                            st.session_state.archives.append({
+                                "title": archive_title,
+                                "section": sec_name,
+                                "messages": list(st.session_state.section_messages[sec_name])
+                            })
+                            st.success(t_archived_ok)
+                else:
+                    if st.button(t_exit_arch):
+                        st.session_state.current_archive_title = None
+                        st.rerun()
 
-# ========================================================
-# القائمة الجانبية للتطبيق
-# ========================================================
-with st.sidebar:
-    st.title("🎓 BRAS AI")
-    st.session_state.student_data["lang"] = st.selectbox("🌐 لغة الشرح:", ["کوردی بادینی", "کوردی سۆرانی", "العربية"])
-    st.divider()
-    
-    menu_choice = st.radio("📌 الأقسام الرئيسية:", [
-        "💬 المساعد الذكي (براس)",
-        "📚 مكتبة الكتب و PDF (2026)",
-        "🎯 كويزات جميع المواد والنتائج",
-        "🎥 يوتيوب، قوتابخانەکەم وهەڵسەنگاندن",
-        "🗂️ الدردشات المحفوظة",
-        "👤 معلومات الطالب والحساب"
-    ])
+                with st.expander(t_file_upload, expanded=False):
+                    attached_file = st.file_uploader("File:", type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"], key=f"up_{sec_name}")
 
-# ========================================================
-# 1. المساعد الذكي (براس - شرح حقيقي واحترافي بدون إزعاج الروابط)
-# ========================================================
-if menu_choice == "💬 المساعد الذكي (براس)":
-    c_t, c_b = st.columns([3, 1])
-    with c_t:
-        st.header(f"💬 اسأل براس ({st.session_state.student_data['lang']})")
-    with c_b:
-        if st.button("➕ دردشة جديدة"):
-            if st.session_state.chat_history:
-                st.session_state.saved_lessons.append({
-                    "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "chats": list(st.session_state.chat_history)
-                })
-                st.session_state.chat_history = []
-                st.success("تم حفظ الدردشة السابقة!")
-                st.rerun()
+                # قسم هندسة الأوصاف البصرية الذكية (بدون أي أخطاء أو رسوم)
+                is_art_section = sec_name == art_sec_key or "الرسم" in sec_name or "Art" in sec_name or "Tasarımı" in sec_name or "هونەر" in sec_name
+                if is_art_section and not is_archived_view:
+                    st.markdown("---")
+                    st.markdown("### 🎨 مبتكر ومصمم الأوصاف البصرية الذكية (AI Prompt Generator)")
+                    st.info("💡 اكتبي فكرة الصورة التي تخطر ببالكِ، وسيقوم براس بتصميم وصياغة أوصاف احترافية جاهزة لاستخدامها في أي برنامج رسومي مجاناً وبدون أي تكلفة أو أخطاء!")
+                    
+                    art_prompt_input = st.text_input("اكتبي فكرتكِ (مثلاً: صورة تجمع بين اسم براس وريتاج بتصميم مستقبلبلي):", key="ai_art_prompt_input")
+                    if st.button("✨ ابتكار ووصف التصميم الاحترافي"):
+                        if art_prompt_input:
+                            with st.spinner("جاري ابتكار أوصاف وتصاميم بصرية مبهرة... ✨"):
+                                try:
+                                    prompt_payload = [
+                                        {"role": "system", "content": "You are an expert AI art prompt engineer. Given the user's idea, write 3 professional, highly detailed English prompts for image generation (like DALL-E or Midjourney), along with creative design advice in Arabic."},
+                                        {"role": "user", "content": art_prompt_input}
+                                    ]
+                                    art_res = client.chat.completions.create(model="gpt-4o", messages=prompt_payload)
+                                    design_output = art_res.choices[0].message.content
+                                    
+                                    st.success("تم ابتكار التصميم بنجاح! تفضلي الأوصاف والأفكار:")
+                                    st.markdown(design_output)
+                                    st.session_state.generated_prompts.append({"idea": art_prompt_input, "result": design_output})
+                                except Exception as e:
+                                    st.error(f"حدث خطأ: {e}")
+                        else:
+                            st.warning("يرجى كتابة فكرة الصورة أولاً.")
+                    st.markdown("---")
 
-    with st.expander("🎙️ أدوات الصوت، رفع الصور، مشاركة الشاشة"):
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            st.audio_input("🎤 تسجيل سؤال صوتي")
-        with col_b:
-            st.file_uploader("📷 رفع صورة سؤال أو صفحة كتاب", type=["png", "jpg", "jpeg"])
-        with col_c:
-            st.checkbox("🔊 تفعيل الرد الصوتي", value=True)
-            st.button("📤 مشاركة الإجابة")
+                if is_archived_view:
+                    active_messages = []
+                    for arch in st.session_state.archives:
+                        if arch["title"] == st.session_state.current_archive_title:
+                            active_messages = arch["messages"]
+                            break
+                else:
+                    if sec_name not in st.session_state.section_messages:
+                        st.session_state.section_messages[sec_name] = []
+                    active_messages = st.session_state.section_messages[sec_name]
 
-    for message in st.session_state.chat_history:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
+                for message in active_messages:
+                    with st.chat_message(message["role"]):
+                        st.markdown(message["content"])
 
-    user_q = st.chat_input("اكتب سؤالك أو اطلب شرح درس...")
-    if user_q:
-        st.session_state.chat_history.append({"role": "user", "content": user_q})
-        q_lower = user_q.lower()
-        
-        if "مرحبا" in q_lower or "هلا" in q_lower or "سلام" in q_lower or "بژین" in q_lower:
-            ai_reply = f"أهلاً بكِ يا رتوجه! 🌸 أنا براس، رفيقك الذكي. أنا هنا لأشرح لكِ أي مادة، أحل لكِ المسائل، وأبسط لكِ المنهج خطوة بخطوة. تفضلي، ما هو السؤال أو الدرس الذي تريدين أن نشرحه الآن؟"
-        else:
-            ai_reply = f"""**شرح براس المفصل والواضح ({st.session_state.student_data['lang']}):**\n
-بخصوص سؤالك أو درس (**{user_q}**)، إليكِ الشرح المبسط حسب منهج 2026:
+                user_spoken_text = None
+                if not is_archived_view:
+                    audio_val = st.audio_input("🎙️ Mic Input:", key=f"mic_sec_{sec_name}")
+                    if audio_val:
+                        try:
+                            transcription = client.audio.transcriptions.create(model="whisper-1", file=audio_val)
+                            user_spoken_text = transcription.text
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
-1. **الفكرة الأساسية:** يعتمد هذا الموضوع على فهم القاعدة الجوهرية وتطبيقها بأبسط طريقة ممكنة.
-2. **الخطوات والحل:** 
-   - الخطوة الأولى: تحديد المعطيات والمطلوب بدقة.
-   - الخطوة الثانية: تطبيق القانون أو القاعدة العلمية المناسبة للدرس.
-   - الخطوة الأخيرة: الوصول للنتيجة الصحيحة ومراجعتها.
+                typed_prompt = st.chat_input("Type here...")
+                final_prompt = user_spoken_text if user_spoken_text else typed_prompt
 
-💡 *هل تحتاجين إلى مثال إضافي أو توضيح أكثر لهذه النقطة؟ أنا جاهز لأشرحه لكِ بطريقة أخرى!*"""
+                if final_prompt and not is_archived_view:
+                    st.session_state.section_messages[sec_name].append({"role": "user", "content": final_prompt})
+                    with st.chat_message("user"):
+                        st.markdown(final_prompt)
+
+                    with st.chat_message("assistant"):
+                        try:
+                            selected_voice_api = "onyx" if "رجل" in st.session_state.voice or "Onyx" in st.session_state.voice else "nova"
+                            messages_payload = [{"role": "system", "content": f"{system_prompt} Respond fluently in {st.session_state.language}."}] + [
+                                {"role": m["role"], "content": m["content"]} for m in st.session_state.section_messages[sec_name]
+                            ]
+                            response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
+                            full_response = response.choices[0].message.content
+                            
+                            audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=full_response)
+                            audio_resp.stream_to_file("resp.mp3")
+                            st.audio("resp.mp3")
+                            
+                            st.markdown(full_response)
+                            st.session_state.section_messages[sec_name].append({"role": "assistant", "content": full_response})
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+        elif t_sec_settings in nav_mode:
+            st.markdown(f"<h2 style='text-align: center;'>{t_settings_header}</h2>", unsafe_allow_html=True)
+            with st.container():
+                st.markdown("<div class='settings-panel'>", unsafe_allow_html=True)
+                new_name = st.text_input(t_username, value=st.session_state.username)
+                new_theme = st.radio(t_theme, ("داكن (Dark)", "فاتح (Light)"), index=0 if "داكن" in st.session_state.theme or "Dark" in st.session_state.theme else 1)
+                new_voice = st.radio(t_voice, ("صوت بنت نقي وواضح (Nova)", "صوت رجل نقي وواضح (Onyx)"), index=0 if "بنت" in st.session_state.voice or "Nova" in st.session_state.voice else 1)
+                
+                languages_40 = [
+                    "العربية (Arabic)", "الإنجليزية (English)", "الكوردية (Kurdish Badini)", "التركية (Türkçe)",
+                    "الفرنسية (Français)", "الألمانية (Deutsch)", "الإسبانية (Español)", "الإيطالية (Italiano)",
+                    "الروسية (Русский)", "الصينية المبسطة (中文)", "اليابانية (日本語)", "الكورية (한국어)",
+                    "الفارسية (فارسی)", "الأوردو (اردو)", "الهندية (हिन्दी)", "البرتغالية (Português)",
+                    "البنغالية (বাংলা)", "البنجابية (ਪੰਜਾਬੀ)", "الإندونيسية (Bahasa Indonesia)", "الماليزية (Bahasa Melayu)",
+                    "الفيتنامية (Tiếng Việt)", "التايلاندية (ไทย)", "الهولندية (Nederlands)", "البولندية (Polski)",
+                    "الأوكرانية (Українська)", "اليونانية (Ελληνικά)", "السويدية (Svenska)", "النرويجية (Norsk)",
+                    "الدنماركية (Dansk)", "الفنلندية (Suomi)", "المجرية (Magyar)", "التشيكية (Čeština)",
+                    "الرومانية (Română)", "البلغارية (Български)", "السلوفاكية (Slovenčina)", "الكرواتية (Hrvatski)",
+                    "العبرية (עברית)", "الفلبينية (Tagalog)", "السواحلية (Kiswahili)", "الأمهرية (አማርኛ)"
+                ]
+                
+                current_lang_idx = languages_40.index(st.session_state.language) if st.session_state.language in languages_40 else 0
+                new_lang = st.selectbox(t_lang_label, languages_40, index=current_lang_idx)
+
+                st.markdown("---")
+                st.checkbox("Enable notifications on app open", value=True)
+
+                if st.button(t_save):
+                    st.session_state.username = new_name
+                    st.session_state.theme = new_theme
+                    st.session_state.voice = new_voice
+                    st.session_state.language = new_lang
+                    st.success(t_saved_ok)
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        elif t_sec_secretary in nav_mode:
+            st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_secretary_title}</h2>", unsafe_allow_html=True)
+            st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
             
-        st.session_state.chat_history.append({"role": "assistant", "content": ai_reply})
-        st.rerun()
+            with st.expander("🎥 Camera / الكاميرا", expanded=False):
+                render_optional_camera()
 
-# ========================================================
-# 2. مكتبة الكتب و PDF (2026)
-# ========================================================
-elif menu_choice == "📚 مكتبة الكتب و PDF (2026)":
-    st.header("📚 مكتبة كتب إقليم كوردستان الرسمية (طبعة 2026)")
-    st.write("اختر الكتاب المطلوب لتصفحه أو تحميله بصيغة PDF مباشرة:")
-    
-    selected_grade = st.selectbox("اختر الصف الدراسي:", ["الصف السابع الأساسي", "الصف الثامن", "الصف التاسع (وزاري)", "الصف العاشر", "الصف الحادي عشر", "الصف الثاني عشر"])
-    
-    col_b1, col_b2, col_b3 = st.columns(3)
-    
-    with col_b1:
-        st.markdown("""
-        <div class="box-card" style="text-align: center;">
-            <h3>💻 Computer</h3>
-            <p><b>المنهج الجديد (English)</b></p>
-            <p>طبعة 2026 الرسمية</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.link_button("📖 تصفح وقراءة كتاب الحاسوب PDF", "https://gov.krd")
-        
-    with col_b2:
-        st.markdown("""
-        <div class="box-card" style="text-align: center;">
-            <h3>📐 الرياضيات</h3>
-            <p><b>Mathematics</b></p>
-            <p>المناهج المحدثة 2026</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.link_button("📖 تصفح وقراءة كتاب الرياضيات PDF", "https://gov.krd")
-        
-    with col_b3:
-        st.markdown("""
-        <div class="box-card" style="text-align: center;">
-            <h3>🧪 العلوم العامة</h3>
-            <p><b>Science & Chemistry</b></p>
-            <p>طبعة 2026</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.link_button("📖 تصفح وقراءة كتاب العلوم PDF", "https://gov.krd")
+            st.markdown("---")
+            st.subheader(t_schedule_title)
+            
+            with st.form("sch_form"):
+                task_desc = st.text_input(t_task_input)
+                col_d, col_t = st.columns(2)
+                with col_d:
+                    task_day = st.selectbox(t_day_label, ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"])
+                with col_t:
+                    task_time = st.text_input(t_time_label, value="12:00")
 
-# ========================================================
-# 3. كويزات جميع المواد والنتائج
-# ========================================================
-elif menu_choice == "🎯 كويزات جميع المواد والنتائج":
-    st.header("🎯 قسم الكويزات الشامل لجميع المواد")
-    
-    quiz_subject = st.selectbox("اختر المادة للاختبار:", ["Computer 2026", "الرياضيات", "العلوم", "اللغة الإنجليزية", "اللغة الكوردية"])
-    
-    if quiz_subject == "Computer 2026":
-        q_ans = st.radio("سؤال 1: ما هي لغة برمجة وتدريس منهج الحاسوب الجديد في كوردستان 2026؟", ["اللغة الإنجليزية (English)", "اللغة العربية فقط"])
-        if st.button("إنهاء واحتساب النتيجة 📊"):
-            score = 100 if q_ans == "اللغة الإنجليزية (English)" else 0
-            st.session_state.my_grades.append({"التاريخ": datetime.now().strftime("%Y-%m-%d"), "المادة": quiz_subject, "الدرجة": f"{score}/100", "النسبة": f"{score}%"})
-            st.success(f"ممتاز! درجتك في {quiz_subject} هي: {score} من 100 (النسبة: {score}%)")
-    else:
-        q_ans2 = st.radio("سؤال تجريبي في المادة المختارة:", ["الإجابة الصحيحة الأولى", "الإجابة الثانية الخاطئة"])
-        if st.button("إنهاء واحتساب النتيجة 📊"):
-            score = 100 if q_ans2 == "الإجابة الصحيحة الأولى" else 0
-            st.session_state.my_grades.append({"التاريخ": datetime.now().strftime("%Y-%m-%d"), "المادة": quiz_subject, "الدرجة": f"{score}/100", "النسبة": f"{score}%"})
-            st.success(f"درجتك في {quiz_subject} هي: {score} من 100")
+                if st.form_submit_button(t_add_task_btn) and task_desc:
+                    full_task_info = f"📅 {task_day} - {task_time} ⏰ - {task_desc}"
+                    st.session_state.my_schedule.append(full_task_info)
+                    st.success(t_task_added)
 
-    st.divider()
-    st.subheader("🏆 سجل درجاتك ونتائجك المحفوظة:")
-    if st.session_state.my_grades:
-        st.table(st.session_state.my_grades)
-    else:
-        st.info("لم تقم بأي اختبار بعد. ابدأ الحل وسجل درجتك هنا!")
+            if st.session_state.my_schedule:
+                st.info(t_schedule_list)
+                for idx, t in enumerate(st.session_state.my_schedule, 1):
+                    st.write(f"{idx}. {t}")
 
-# ========================================================
-# 4. يوتيوب، قوتابخانەکەم وهەڵسەنگاندن
-# ========================================================
-elif menu_choice == "🎥 يوتيوب، قوتابخانەکەم وهەڵسەنگاندن":
-    st.header("🎥 الروابط الرسمية وبوابة الطالب")
-    
-    c_l, c_r = st.columns(2)
-    with c_l:
-        st.markdown("""
-        <div class="box-card">
-            <h3>📊 الدخول إلى قوتابخانەکەم (Qutabxanakam) و هەڵسەنگاندن</h3>
-            <p>اضغط للانتقال السريع لبوابات الوزارة لمتابعة الدرجات والتقييمات:</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.link_button("🔗 فتح موقع / تطبيق قوتابخانەکەم", "https://www.youtube.com")
-        st.link_button("🔗 فتح بوابة هەڵسەنگاندن الرسمية", "https://www.youtube.com")
-        
-    with c_r:
-        st.markdown("""
-        <div class="box-card">
-            <h3>🎥 مكتبة فيديوهات يوتيوب التعليمية</h3>
-            <p>شروحات إضافية لجميع مواد إقليم كوردستان عبر القنوات التعليمية المعتمدة.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.link_button("📺 الانتقال إلى يوتيوب التعليمي", "https://youtube.com")
+            st.markdown("---")
+            st.subheader(t_mic_prompt)
+            
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
 
-# ========================================================
-# 5. الدردشات المحفوظة
-# ========================================================
-elif menu_choice == "🗂️ الدردشات المحفوظة":
-    st.header("🗂️ سجل الدردشات والدروس السابقة")
-    if not st.session_state.saved_lessons:
-        st.write("لا توجد دروس محفوظة حالياً. عند الضغط على زر (دردشة جديدة) سيتم حفظ المحادثة السابقة هنا تلقائياً.")
-    else:
-        for item in st.session_state.saved_lessons:
-            with st.expander(f"📁 درس بتاريخ: {item['time']}"):
-                for m in item["chats"]:
-                    st.write(f"**{m['role']}:** {m['content']}")
+            sec_spoken_text = None
+            sec_audio_val = st.audio_input("🎙️ Mic:", key="mic_secretary")
+            if sec_audio_val:
+                try:
+                    transcription = client.audio.transcriptions.create(model="whisper-1", file=sec_audio_val)
+                    sec_spoken_text = transcription.text
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
-# ========================================================
-# 6. معلومات الطالب والحساب
-# ========================================================
-elif menu_choice == "👤 معلومات الطالب والحساب":
-    st.header("👤 الملف الشخصي للطالب والحساب")
-    col_s, col_acc = st.columns(2)
-    with col_s:
-        st.subheader("🎒 معلومات الطالب (منفصلة عن الحساب)")
-        st.session_state.student_data["name"] = st.text_input("اسم الطالب:", st.session_state.student_data["name"])
-        st.session_state.student_data["grade"] = st.selectbox("الصف الدراسي:", ["الصف السابع الأساسي", "الصف الثامن", "الصف التاسع", "الصف العاشر", "الصف الحادي عشر", "الصف الثاني عشر"])
-        st.session_state.student_data["school"] = st.text_input("اسم المدرسة / المحافظة:", st.session_state.student_data["school"])
-        if st.button("حفظ بيانات الطالب 💾"):
-            st.success("تم حفظ بيانات الطالب بنجاح!")
-    with col_acc:
-        st.subheader("💳 تفاصيل اشتراك كي كارد")
-        st.write("**حالة الحساب:** مفعل ونشط ✅")
-        st.write("**الباقة:** كورس واحد (15$) أو كورسين (30$)")
-        st.write("**طريقة الدفع:** تحويل مباشر عبر Qi Card")
+            sec_typed_prompt = st.chat_input(t_type_prompt)
+            final_sec_prompt = sec_spoken_text if sec_spoken_text else sec_typed_prompt
+
+            if final_sec_prompt:
+                st.session_state.messages.append({"role": "user", "content": final_sec_prompt})
+                with st.chat_message("user"):
+                    st.markdown(final_sec_prompt)
+                with st.chat_message("assistant"):
+                    try:
+                        selected_voice_api = "onyx" if "رجل" in st.session_state.voice or "Onyx" in st.session_state.voice else "nova"
+                        sec_sys = f"{base_system_prompt} You are Retaj's smart secretary. Current language setting: {st.session_state.language}. Current schedule: {st.session_state.my_schedule}. Always respond fluently in {st.session_state.language}."
+                        resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sec_sys}] + st.session_state.messages)
+                        f_resp = resp.choices[0].message.content
+                        
+                        audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=f_resp)
+                        audio_resp.stream_to_file("sec.mp3")
+                        st.audio("sec.mp3")
+                        
+                        st.markdown(f_resp)
+                        st.session_state.messages.append({"role": "assistant", "content": f_resp})
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+        elif t_sec_archive in nav_mode:
+            st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_archive_header}</h2>", unsafe_allow_html=True)
+            if not st.session_state.archives:
+                st.info(t_no_archive)
+            else:
+                for idx, arch in enumerate(st.session_state.archives):
+                    with st.expander(f"📁 {arch['title']}"):
+                        if st.button(t_browse, key=f"arch_{idx}"):
+                            st.session_state.selected_section = arch["section"]
+                            st.session_state.current_archive_title = arch["title"]
+                            st.rerun()
