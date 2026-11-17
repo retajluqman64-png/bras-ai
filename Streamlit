@@ -1,137 +1,260 @@
-import os
 import streamlit as st
-from openai import OpenAI
+from datetime import datetime
 
-# إعداد الصفحة
-st.set_page_config(
-    page_title="BRAS AI",
-    page_icon="💜",
-    layout="wide"
-)
+# 1. إعدادات الصفحة الأساسية
+st.set_page_config(page_title="BRAS AI | براس", page_icon="🎓", layout="wide")
 
-# تنسيق الألوان (أسود وذهبي)
-st.markdown("""
-<style>
-.stApp {
-    background: #090812;
-    color: white;
-}
-</style>
-""", unsafe_allow_html=True)
+# 2. تهيئة الذاكرة لحفظ الدردشات، الدرجات، وبيانات الطالب
+if "activated" not in st.session_state:
+    st.session_state.activated = False
+if "theme" not in st.session_state:
+    st.session_state.theme = "فاتح (أبيض وأزرق)"
+if "current_chat" not in st.session_state:
+    st.session_state.current_chat = []
+if "saved_chats" not in st.session_state:
+    st.session_state.saved_chats = []
+if "grades" not in st.session_state:
+    st.session_state.grades = []
+if "student_info" not in st.session_state:
+    st.session_state.student_info = {"name": "طالب مجتهد", "grade": "الصف السابع", "lang": "کوردی بادینی"}
 
-st.title("💜 BRAS AI")
+# 3. نظام الألوان الديناميكي (فاتح / غامق)
+def apply_theme(theme_choice):
+    if theme_choice == "فاتح (أبيض وأزرق)":
+        st.markdown("""
+        <style>
+        .stApp { background-color: #FFFFFF; color: #000000; }
+        [data-testid="stSidebar"] { background-color: #E3F2FD; color: #000000; }
+        h1, h2, h3, p, span, label, div { color: #000000 !important; }
+        .stButton>button { background-color: #2196F3; color: #FFFFFF !important; border-radius: 10px; border: none; font-weight: bold; }
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <style>
+        .stApp { background-color: #0A0E17; color: #FFFFFF; }
+        [data-testid="stSidebar"] { background-color: #0D1B2A; color: #FFFFFF; }
+        h1, h2, h3, p, span, label, div { color: #E0F2FE !important; }
+        .stButton>button { background-color: #1E3A8A; color: #FFFFFF !important; border-radius: 10px; border: 1px solid #3B82F6; font-weight: bold; }
+        </style>
+        """, unsafe_allow_html=True)
 
-# استدعاء المفتاح بأمان من الـ Secrets
-api_key = st.secrets.get("OPENAI_API_KEY")
+apply_theme(st.session_state.theme)
 
-if not api_key:
-    st.error("OpenAI API Key not found. Please set it in Streamlit Secrets.")
-else:
-    client = OpenAI(api_key=api_key)
-
-    # الشريط الجانبي لاختيار القسم والصوت
-    st.sidebar.title("إعدادات التطبيق")
+# ==========================================
+# شاشة البداية: الشروط + الأسعار + الدفع كي كارد
+# ==========================================
+if not st.session_state.activated:
+    st.title("🎓 أهلاً بك في تطبيق براس (BRAS AI)")
+    st.subheader("رفيقك الذكي لمنهج إقليم كوردستان 2026")
     
-    # اختيار القسم
-    section = st.sidebar.selectbox(
-        "اختر القسم:",
-        [
-            "المساعد الشامل (All-in-One)",
-            "المعلومات العامة (General)",
-            "المعلم الشامل (Study)",
-            "تعليم اللغات (Languages)",
-            "البرمجة (Programming)",
-            "المعلومات الدينية (Religious)",
-            "الطبخ والوصفات (Cooking)",
-            "استشارات الأطباء (Doctors)",
-            "الصحة، الدايت والجيم (Fitness & Diet)",
-            "نصائح وتطوير الذات (Advice)",
-            "قسم الرسم (Drawing)",
-            "تعديل الصور - فوتوشوب (Photoshop)"
-        ]
-    )
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info("### 📜 شروط الاستخدام والخصوصية\n"
+                "- الحساب مخصص لطالب واحد فقط ولا يُسمح بمشاركته.\n"
+                "- جميع المناهج محدثة حسب طبعة وزارة التربية 2026.\n"
+                "- يلتزم الطالب باستخدام المساعد للأغراض الدراسية فقط.")
+        
+        st.success("### 💳 باقات الاشتراك\n"
+                   "- **كورس واحد (فصل دراسي):** 15 دولار فقط.\n"
+                   "- **كورسين (سنة كاملة):** 30 دولار فقط.")
 
-    # اختيار الصوت
-    voice_gender = st.sidebar.radio(
-        "اختر صوت المساعد:",
-        ("صوت بنت (Nova)", "صوت رجل (Onyx)")
-    )
-    gender_tag = "female" if "بنت" in voice_gender else "male"
+    with col2:
+        st.warning("### 🏦 طريقة الدفع (كي كارد Qi Card فقط)\n"
+                   "1. حوّل مبلغ الاشتراك إلى رقم بطاقة الكي كارد التالي:\n"
+                   "   **`XXXX - XXXX - XXXX - XXXX`**\n"
+                   "2. أرسل صورة وصل التحويل عبر تيليغرام/واتساب الإدارة.\n"
+                   "3. أدخل **كود التفعيل** الذي يصلك في الخانة أدناه:")
+        
+        code_input = st.text_input("أدخل كود التفعيل هنا:", type="password", placeholder="مثال: BRAS2026")
+        if st.button("تفعيل الحساب والدخول 🚀"):
+            if code_input in ["BRAS2026", "1234"]:  # أكواد تجريبية يمكنك تغييرها
+                st.session_state.activated = True
+                st.rerun()
+            else:
+                st.error("⚠️ كود التفعيل غير صحيح، تأكد من إرسال وصل الكي كارد أولاً.")
+    st.stop()
 
-    # الأوامر البرمجية الموجهة لكل قسم
-    SECTIONS_PROMPTS = {
-        "المساعد الشامل (All-in-One)": "You are BRAS AI, a versatile assistant created by Retaj Luqman ismail Gargary. You have all capabilities to assist the user perfectly.",
-        "المعلومات العامة (General)": "You are BRAS AI, created by Retaj Luqman. Answer general questions accurately.",
-        "المعلم الشامل (Study)": "You are BRAS AI, an expert school teacher created by Retaj Luqman. Explain subjects simply, considering the local context in Kurdistan.",
-        "تعليم اللغات (Languages)": "You are BRAS AI, a multilingual tutor created by Retaj Luqman. Teach English, Kurdish, Arabic, and Turkish, correcting errors gently.",
-        "البرمجة (Programming)": "You are BRAS AI, an expert programmer created by Retaj Luqman. Write clean, explained code and fix bugs.",
-        "المعلومات الدينية (Religious)": "You are BRAS AI, guiding on Islamic general knowledge created by Retaj Luqman. Provide reliable, moderate answers calmly.",
-        "الطبخ والوصفات (Cooking)": "You are BRAS AI, a chef created by Retaj Luqman. Suggest delicious recipes with exact steps.",
-        "استشارات الأطباء (Doctors)": "You are BRAS AI, a health advisor created by Retaj Luqman. Provide general health tips, always advising to consult real doctors.",
-        "الصحة، الدايت والجيم (Fitness & Diet)": "You are BRAS AI, a fitness coach created by Retaj Luqman. Help with BMI, diet plans, and workout routines.",
-        "نصائح وتطوير الذات (Advice)": "You are BRAS AI, a life advisor created by Retaj Luqman. Give motivational and practical life advice.",
-        "قسم الرسم (Drawing)": "You are BRAS AI, an art assistant created by Retaj Luqman. Help users create detailed prompts for AI image generation.",
-        "تعديل الصور - فوتوشوب (Photoshop)": "You are BRAS AI, an image editing expert created by Retaj Luqman. Guide users on how to professionally edit and enhance images."
-    }
+# ==========================================
+# داخل التطبيق بعد التفعيل
+# ==========================================
+with st.sidebar:
+    st.title("🎓 BRAS AI")
+    
+    # زر تغيير المظهر (فاتح / غامق)
+    st.session_state.theme = st.radio("🎨 مظهر التطبيق:", ["فاتح (أبيض وأزرق)", "غامق (أسود وأزرق غامق)"])
+    
+    # اختيار اللغة
+    lang = st.selectbox("🌐 لغة التطبيق والشرح:", ["کوردی بادینی", "کوردی سۆرانی", "العربية"])
+    st.session_state.student_info["lang"] = lang
+    
+    st.divider()
+    
+    # القائمة الرئيسية للأقسام
+    menu = st.radio("📌 الأقسام الرئيسية:", [
+        "💬 المساعد الذكي (براس)",
+        "📚 كتب 2026 والحاسوب الجديد",
+        "📝 بنك الأسئلة والوزاري",
+        "🎯 قسم الكويزات والدرجات",
+        "🎥 يوتيوب وبوابة الطالب (هەڵسەنگاندن)",
+        "🗂️ سجل الدردشات السابقة",
+        "👤 معلومات الطالب والحساب"
+    ])
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# ------------------------------------------
+# 1. قسم المساعد الذكي (براس)
+# ------------------------------------------
+if menu == "💬 المساعد الذكي (براس)":
+    col_head, col_new = st.columns([4, 1])
+    with col_head:
+        st.header(f"💬 اسأل براس ({st.session_state.student_info['lang']})")
+    with col_new:
+        if st.button("➕ دردشة جديدة"):
+            if st.session_state.current_chat:
+                st.session_state.saved_chats.append({
+                    "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "messages": list(st.session_state.current_chat)
+                })
+                st.session_state.current_chat = []
+                st.success("تم حفظ الدرس السابق في سجل الدردشات!")
+                st.rerun()
 
-    # عرض الرسائل السابقة
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # أدوات التفاعل المتقدمة (صوت، مشاركة شاشة/صورة، مشاركة رابط)
+    with st.expander("🎙️ أدوات الصوت ومشاركة الشاشة والملفات"):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            audio_val = st.audio_input("🎤 تسجيل سؤال صوتي")
+        with c2:
+            screen_file = st.file_uploader("🖥️ مشاركة لقطة شاشة أو صفحة كتاب", type=["png", "jpg", "pdf"])
+        with c3:
+            voice_reply = st.checkbox("🔊 تفعيل الرد الصوتي من براس", value=True)
+            st.button("📤 مشاركة الدرس")
 
-    # واجهة الإدخال
-    prompt = st.chat_input("تحدث مع BRAS AI أو اطلب منه تنفيذ أمر...")
+    # عرض رسائل الدردشة الحالية
+    for msg in st.session_state.current_chat:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
 
-    if prompt:
-        # إضافة رسالة المستخدم
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # مربع الكتابة
+    user_prompt = st.chat_input("اكتب سؤالك هنا أو اطلب شرح درس...")
+    if user_prompt:
+        st.session_state.current_chat.append({"role": "user", "content": user_prompt})
+        # رد تجريبي (سيتم ربطه بـ API الذكاء الاصطناعي)
+        ai_response = f"**شرح براس ({lang}):**\nأهلاً بك يا {st.session_state.student_info['name']}! هذا شرح مبسط ومفصل لسؤالك حول: *{user_prompt}* حسب منهج 2026.\n\n🎥 **فيديو مقترح:** [اضغط هنا لمشاهدة شرح الدرس على يوتيوب](https://youtube.com)"
+        st.session_state.current_chat.append({"role": "assistant", "content": ai_response})
+        st.rerun()
 
-        with st.chat_message("assistant"):
-            try:
-                # إعداد الرسائل مع النظام (System Prompt) لضمان معرفة اسمكِ
-                system_instruction = SECTIONS_PROMPTS.get(section, "You are BRAS AI by Retaj Luqman.")
-                messages_payload = [{"role": "system", "content": system_instruction}] + [
-                    {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
-                ]
+# ------------------------------------------
+# 2. مكتبة كتب 2026 والحاسوب الجديد
+# ------------------------------------------
+elif menu == "📚 كتب 2026 والحاسوب الجديد":
+    st.header("📚 مكتبة المناهج الدراسية - طبعة 2026")
+    selected_grade = st.selectbox("اختر الصف الدراسي:", [
+        "الصف الأول الابتدائي", "الصف الثاني", "الصف الثالث", "الصف الرابع", "الصف الخامس", "الصف السادس",
+        "الصف السابع الأساسي", "الصف الثامن", "الصف التاسع (وزاري)",
+        "الصف العاشر", "الصف الحادي عشر", "الصف الثاني عشر (وزاري)"
+    ], index=6)
+    
+    st.info("💻 **قسم خاص: منهج الحاسوب الجديد 2026 (Computer Science - English)**\nيشمل ترجمة المصطلحات، شرح الأكواد، وتلخيص الفصول باللغتين الكوردية والعربية.")
+    
+    subjects = ["Computer (المنهج الجديد بالإنجليزي)", "الرياضيات", "العلوم / الكيمياء / الفيزياء", "اللغة الإنجليزية", "اللغة الكوردية", "اللغة العربية", "الاجتماعيات"]
+    chosen_sub = st.selectbox("اختر المادة:", subjects)
+    
+    st.text_area(f"📖 نص الكتاب القابل للنسخ ({chosen_sub} - {selected_grade}):", 
+                 "هنا يظهر نص الكتاب الرسمي لطبعة 2026 جاهزاً للنسخ أو التلخيص المباشر عبر براس...", height=200)
 
-                # معالجة طلب الرسم أو التعديل
-                if "الرسم" in section or "فوتوشوب" in section:
-                    response = client.images.generate(
-                        model="dall-e-3",
-                        prompt=prompt,
-                        size="1024x1024",
-                        quality="standard",
-                        n=1
-                    )
-                    image_url = response.data[0].url
-                    full_response = f"تم تجهيز طلبكِ بنجاح! يمكنكِ مشاهدة النتيجة هنا:\n\n![Result]({image_url})"
-                    st.markdown(full_response)
-                else:
-                    # الرد النصي والصوتي لباقي الأقسام
-                    response = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=messages_payload
-                    )
-                    full_response = response.choices[0].message.content
-                    st.markdown(full_response)
-                    
-                    # توليد الصوت
-                    selected_voice = "onyx" if gender_tag == "male" else "nova"
-                    audio_response = client.audio.speech.create(
-                        model="tts-1",
-                        voice=selected_voice,
-                        input=full_response
-                    )
-                    audio_path = "temp_response.mp3"
-                    audio_response.stream_to_file(audio_path)
-                    st.audio(audio_path, format="audio/mp3")
+# ------------------------------------------
+# 3. بنك الأسئلة والامتحانات الوزارية
+# ------------------------------------------
+elif menu == "📝 بنك الأسئلة والوزاري":
+    st.header("📝 بنك الأسئلة والامتحانات")
+    tab1, tab2 = st.tabs(["🤖 أسئلة يصنعها براس", "🏫 أسئلة المدارس والوزاري (السنوات السابقة)"])
+    
+    with tab1:
+        topic = st.text_input("اكتب اسم الفصل أو الموضوع ليصنع لك براس أسئلة متوقعة:")
+        if st.button("توليد أسئلة الآن ✨"):
+            st.write(f"1. س1: عرف المفاهيم الأساسية في موضوع **{topic}**؟\n2. س2: قارن بين...")
+            
+    with tab2:
+        st.subheader("أرشيف أسئلة المدارس والامتحانات الوزارية")
+        st.selectbox("اختر السنة:", ["2025 - 2026", "2024 - 2025", "2023 - 2024"])
+        st.write("📄 نموذج أسئلة نصف السنة - مادة الحاسوب (المنهج الإنجليزي) [تحميل / نسخ]")
+        st.write("📄 نموذج الأسئلة الوزارية الدور الأول [تحميل / نسخ]")
 
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
+# ------------------------------------------
+# 4. قسم الكويزات والدرجات
+# ------------------------------------------
+elif menu == "🎯 قسم الكويزات والدرجات":
+    st.header("🎯 الاختبارات السريعة (Quizzes) وسجل الدرجات")
+    
+    st.subheader("اختبار تجريبي سريع:")
+    q1 = st.radio("السؤال الأول: ما هي لغة منهج الحاسوب الجديد في كوردستان 2026؟", ["اللغة الإنجليزية", "اللغة الفرنسية"])
+    if st.button("تسليم الإجابة وحساب النسبة 📊"):
+        score = 100 if q1 == "اللغة الإنجليزية" else 0
+        st.session_state.grades.append({
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "subject": "Computer 2026",
+            "score": f"{score}%"
+        })
+        st.success(f"درجتك هي: {score} من 100 (النسبة: {score}%)")
+        
+    st.divider()
+    st.subheader("🏆 سجل درجاتك المحفوظة:")
+    if st.session_state.grades:
+        st.table(st.session_state.grades)
+    else:
+        st.write("لا توجد درجات مسجلة بعد، ابدأ أول كويز!")
 
-            except Exception as e:
-                st.error(f"حدث خطأ أثناء المعالجة: {e}")
+# ------------------------------------------
+# 5. روابط اليوتيوب وبوابة الطالب والعطل
+# ------------------------------------------
+elif menu == "🎥 يوتيوب وبوابة الطالب (هەڵسەنگاندن)":
+    st.header("🎥 شروحات اليوتيوب وبوابة الطالب الرسمية")
+    
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.subheader("📲 دليل فتح الدرجات (هەڵسەنگاندن و قوتابخانەکەم)")
+        st.markdown("""
+        1. افتح تطبيق **قوتابخانەکەم (Qutabxanakam)** أو موقع **هەڵسەنگاندن**.
+        2. أدخل **كود الطالب (Student ID)** وكلمة المرور المستلمة من إدارة مدرستك.
+        3. اختر السنة الدراسية **2026** لعرض درجات الشهر الأول ونصف السنة.
+        """)
+        st.link_button("🔗 الانتقال إلى بوابة قوتابخانەکەم", "https://www.youtube.com")
+        
+    with col_b:
+        st.subheader("📅 أخبار العطل وجداول الامتحانات المدرسية")
+        st.info("📢 **آخر التحديثات:**\n- جدول امتحانات نصف السنة سيُعلن قريباً حسب تقويم وزارة التربية.\n- لا توجد عطلة رسمية هذا الأسبوع.")
+
+# ------------------------------------------
+# 6. سجل الدردشات السابقة
+# ------------------------------------------
+elif menu == "🗂️ سجل الدردشات السابقة":
+    st.header("🗂️ الدروس والدردشات المحفوظة")
+    if not st.session_state.saved_chats:
+        st.write("عند الضغط على زر (دردشة جديدة)، ستُحفظ دروسك السابقة هنا للرجوع إليها في أي وقت.")
+    else:
+        for idx, chat in enumerate(st.session_state.saved_chats):
+            with st.expander(f"📁 درس محفوظ بتاريخ: {chat['time']}"):
+                for m in chat["messages"]:
+                    st.write(f"**{m['role']}:** {m['content']}")
+
+# ------------------------------------------
+# 7. معلومات الطالب (منفصلة عن الحساب)
+# ------------------------------------------
+elif menu == "👤 معلومات الطالب والحساب":
+    st.header("👤 الملف الشخصي للطالب")
+    col_st, col_ac = st.columns(2)
+    
+    with col_st:
+        st.subheader("🎒 المعلومات الدراسية للطالب")
+        st.session_state.student_info["name"] = st.text_input("اسم الطالب:", st.session_state.student_info["name"])
+        st.session_state.student_info["grade"] = st.selectbox("الصف الدراسي:", ["الصف السابع", "الصف الثامن", "الصف التاسع", "الصف العاشر", "الصف الحادي عشر", "الصف الثاني عشر"])
+        st.text_input("اسم المدرسة / المحافظة:", "دهوك - إقليم كوردستان")
+        if st.button("حفظ معلومات الطالب 💾"):
+            st.success("تم تحديث بيانات الطالب بنجاح!")
+            
+    with col_ac:
+        st.subheader("🔐 معلومات الاشتراك والدفع")
+        st.write("**حالة الاشتراك:** نشط ✅")
+        st.write("**الباقة:** كورس واحد (15$)")
+        st.write("**طريقة الدفع المسجلة:** Qi Card (كي كارد)")
