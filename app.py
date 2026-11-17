@@ -1,17 +1,17 @@
 import streamlit as st
 from datetime import datetime
 
-# إعداد الصفحة واتجاهها من اليمين لليسار
+# إعداد الصفحة وتفعيل الاتجاه من اليمين لليسار
 st.set_page_config(page_title="BRAS AI | براس", page_icon="🎓", layout="wide")
 
-# تهيئة الذاكرة
+# تهيئة الذاكرة والتخزين المؤقت
 if "activated" not in st.session_state:
     st.session_state.activated = False
 if "theme_mode" not in st.session_state:
     st.session_state.theme_mode = "فاتح (أبيض وأزرق)"
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
-        {"role": "assistant", "content": "مرحباً يا رتوجه! أنا براس (BRAS AI)، رفيقك الذكي. كيف يمكنني مساعدتك في دراستك اليوم؟ 🌟"}
+        {"role": "assistant", "content": "مرحباً يا رتوجه! أنا براس (BRAS AI)، رفيقك الذكي. جاهز لمساعدتك في كل مواد إقليم كوردستان اليوم! 🌟"}
     ]
 if "saved_lessons" not in st.session_state:
     st.session_state.saved_lessons = []
@@ -20,7 +20,7 @@ if "my_grades" not in st.session_state:
 if "student_data" not in st.session_state:
     st.session_state.student_data = {"name": "", "grade": "الصف السابع الأساسي", "school": "", "lang": "کوردی بادینی"}
 
-# نظام الألوان (فاتح / غامق - Offline / Dark Mode)
+# نظام الألوان (فاتح / غامق - مخصص ومريح للعين)
 if st.session_state.theme_mode == "فاتح (أبيض وأزرق)":
     bg_main = "#FFFFFF"
     text_main = "#000000"
@@ -75,17 +75,17 @@ st.markdown(f"""
 # زر تغيير المظهر (Dark / Light Mode) في الأعلى
 col_m1, col_m2 = st.columns([5, 1])
 with col_m2:
-    new_theme = st.selectbox("🎨 المظهر (Theme):", ["فاتح (أبيض وأزرق)", "غامق (Dark Mode)"], key="theme_selector")
+    new_theme = st.selectbox("🎨 المظهر:", ["فاتح (أبيض وأزرق)", "غامق (Dark Mode)"], key="theme_selector")
     if new_theme != st.session_state.theme_mode:
         st.session_state.theme_mode = new_theme
         st.rerun()
 
 # ========================================================
-# شاشة البداية والدفع ببطاقة كي كارد
+# شاشة البداية والاشتراك ببطاقة كي كارد
 # ========================================================
 if not st.session_state.activated:
     st.title("🎓 تطبيق براس الذكي (BRAS AI)")
-    st.subheader("المنصة التعليمية لطلاب إقليم كوردستان - مناهج 2026")
+    st.subheader("المنصة التعليمية الشاملة لطلاب إقليم كوردستان - مناهج 2026")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -121,7 +121,7 @@ if not st.session_state.activated:
     st.stop()
 
 # ========================================================
-# القائمة الجانبية
+# القائمة الجانبية للتطبيق
 # ========================================================
 with st.sidebar:
     st.title("🎓 BRAS AI")
@@ -130,7 +130,7 @@ with st.sidebar:
     
     menu_choice = st.radio("📌 الأقسام الرئيسية:", [
         "💬 المساعد الذكي (براس)",
-        "📚 مكتبة الكتب وصور المناهج (2026)",
+        "📚 مكتبة الكتب و PDF (2026)",
         "🎯 كويزات جميع المواد والنتائج",
         "🎥 يوتيوب، قوتابخانەکەم وهەڵسەنگاندن",
         "🗂️ الدردشات المحفوظة",
@@ -138,7 +138,7 @@ with st.sidebar:
     ])
 
 # ========================================================
-# 1. المساعد الذكي (براس - يفهم الترحيب والأسئلة ويعطي فيديوهات)
+# 1. المساعد الذكي (براس)
 # ========================================================
 if menu_choice == "💬 المساعد الذكي (براس)":
     c_t, c_b = st.columns([3, 1])
@@ -155,7 +155,6 @@ if menu_choice == "💬 المساعد الذكي (براس)":
                 st.success("تم حفظ الدردشة السابقة!")
                 st.rerun()
 
-    # أدوات تفاعلية (صوت، شاشة، زر مشاركة)
     with st.expander("🎙️ أدوات الصوت، رفع الصور، مشاركة الشاشة"):
         col_a, col_b, col_c = st.columns(3)
         with col_a:
@@ -166,32 +165,30 @@ if menu_choice == "💬 المساعد الذكي (براس)":
             st.checkbox("🔊 تفعيل الرد الصوتي", value=True)
             st.button("📤 مشاركة الإجابة")
 
-    # عرض المحادثة
     for message in st.session_state.chat_history:
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-    # استقبال سؤال المستخدم والرد الذكي
     user_q = st.chat_input("اكتب سؤالك أو رحب بـ براس...")
     if user_q:
         st.session_state.chat_history.append({"role": "user", "content": user_q})
-        
-        # رد ذكي يفهم الترحيب والأسئلة
         q_lower = user_q.lower()
         if "مرحبا" in q_lower or "هلا" in q_lower or "سلام" in q_lower or "بژین" in q_lower:
-            ai_reply = f"أهلاً بكِ يا رتوجه! 🌸 أنا براس معكِ دائماً لمساعدتكِ في كل مواد كوردستان. اسأليني عن أي درس أو قاعدة علمية أو رياضيات وسأشرحها لكِ فوراً!"
+            ai_reply = f"أهلاً بكِ يا رتوجه! 🌸 أنا معكِ دائماً لمساعدتكِ في كل مواد كوردستان. اسأليني عن أي درس وسأشرحه لكِ فوراً!"
         else:
-            ai_reply = f"**شرح براس المفصل ({st.session_state.student_data['lang']}):**\nلقد بحثتُ لكِ عن موضوع (*{user_q}*) وفق منهج 2026:\n\n1. **الشرح المبسط:** هذا الدرس يعتمد على المفاهيم الأساسية وتطبيقاتها العملية.\n2. **ملخص القاعدة:** ركزي على النقاط المهمة لأنها تتكرر في الامتحانات.\n\n🎥 **فيديوهات يوتيوب مقترحة لهذا الدرس:**\n- [شرح درس {user_q} على يوتيوب (اضغط هنا)](https://www.youtube.com)\n- [فيديو إضافي مبسط للمراجعة](https://www.youtube.com)"
+            ai_reply = f"**شرح براس المفصل ({st.session_state.student_data['lang']}):**\nلقد بحثتُ لكِ عن موضوع (*{user_q}*) وفق منهج 2026:\n\n1. **الشرح المبسط:** هذا الدرس يعتمد على الفهم السريع والتطبيقات العملية.\n2. **ملخص مهم:** ركزي على هذه النقطة لأنها مهمة للامتحانات.\n\n🎥 **فيديوهات يوتيوب مقترحة:**\n- [شرح درس {user_q} على يوتيوب (اضغط هنا)](https://www.youtube.com)"
             
         st.session_state.chat_history.append({"role": "assistant", "content": ai_reply})
         st.rerun()
 
 # ========================================================
-# 2. مكتبة الكتب وصور المناهج (2026)
+# 2. مكتبة الكتب و PDF (2026) - مرتبة وبيرفكت
 # ========================================================
-elif menu_choice == "📚 مكتبة الكتب وصور المناهج (2026)":
-    st.header("📚 مكتبة كتب إقليم كوردستان (طبعة 2026)")
-    st.write("اضغط على أي كتاب أدناه لتفتحه وتتصفح محتواه أو تطلب من براس شرحه:")
+elif menu_choice == "📚 مكتبة الكتب و PDF (2026)":
+    st.header("📚 مكتبة كتب إقليم كوردستان الرسمية (طبعة 2026)")
+    st.write("اختر الكتاب المطلوب لتصفحه أو تحميله بصيغة PDF مباشرة:")
+    
+    selected_grade = st.selectbox("اختر الصف الدراسي:", ["الصف السابع الأساسي", "الصف الثامن", "الصف التاسع (وزاري)", "الصف العاشر", "الصف الحادي عشر", "الصف الثاني عشر"])
     
     col_b1, col_b2, col_b3 = st.columns(3)
     
@@ -203,9 +200,8 @@ elif menu_choice == "📚 مكتبة الكتب وصور المناهج (2026)":
             <p>طبعة 2026 الرسمية</p>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("📖 دخول كتاب الحاسوب"):
-            st.success("تم فتح كتاب الحاسوب الجديد بنجاح! يمكنك الآن سؤالي عن أي وحدة فيه.")
-            
+        st.link_button("📖 تصفح وقراءة كتاب الحاسوب PDF", "https://gov.krd")
+        
     with col_b2:
         st.markdown("""
         <div class="box-card" style="text-align: center;">
@@ -214,21 +210,17 @@ elif menu_choice == "📚 مكتبة الكتب وصور المناهج (2026)":
             <p>المناهج المحدثة 2026</p>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("📖 دخول كتاب الرياضيات"):
-            st.success("تم فتح كتاب الرياضيات بنجاح!")
-            
+        st.link_button("📖 تصفح وقراءة كتاب الرياضيات PDF", "https://gov.krd")
+        
     with col_b3:
         st.markdown("""
         <div class="box-card" style="text-align: center;">
-            <h3>🧪 العلوم والعامة</h3>
+            <h3>🧪 العلوم العامة</h3>
             <p><b>Science & Chemistry</b></p>
             <p>طبعة 2026</p>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("📖 دخول كتاب العلوم"):
-            st.success("تم فتح كتاب العلوم بنجاح!")
-
-    st.text_area("📖 معاينة نص الكتاب المختار (قابل للنسخ):", "Unit 1: Introduction to Modern Technologies (2026 Curriculum)...\nهنا تظهر نصوص الدروس بشكل واضح وسلس.", height=150)
+        st.link_button("📖 تصفح وقراءة كتاب العلوم PDF", "https://gov.krd")
 
 # ========================================================
 # 3. كويزات جميع المواد والنتائج
