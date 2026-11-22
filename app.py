@@ -13,6 +13,7 @@ st.set_page_config(
 
 # إدارة الحالة لتخزين الذاكرة والجدول وتوليد الصور
 if "logged_in" not in st.session_state:
+    
     st.session_state.logged_in = False
     st.session_state.username = "ريتاج لقمان گەرگەری"
     st.session_state.user_email = "retaj@brasai.com"
@@ -22,6 +23,141 @@ if "logged_in" not in st.session_state:
     st.session_state.selected_section = None
     st.session_state.my_schedule = []
     st.session_state.section_messages = {}
+    import streamlit as st
+from datetime import datetime, timedelta
+
+# إعدادات الصفحة الرئيسية
+st.set_page_config(page_title="Bras AI", page_icon="🤖", layout="wide")
+
+# تهيئة بيانات الجلسة (للتجربة المؤقتة)
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "is_subscribed" not in st.session_state:
+    st.session_state.is_subscribed = False
+if "trial_start" not in st.session_state:
+    st.session_state.trial_start = None
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# 1. شاشة تسجيل الدخول
+if not st.session_state.logged_in:
+    st.title("مرحباً بك في Bras AI 🤖")
+    st.subheader("سجّل الدخول للبدء في تجربتك المجانية لمدة 24 ساعة")
+    
+    email = st.text_input("البريد الإلكتروني")
+    password = st.text_input("كلمة المرور", type="password")
+    
+    if st.button("تسجيل الدخول / إنشاء حساب"):
+        if email and password:
+            st.session_state.logged_in = True
+            st.session_state.user_email = email
+            # بدء حساب الـ 24 ساعة المجانية عند أول دخول
+            if st.session_state.trial_start is None:
+                st.session_state.trial_start = datetime.now()
+            st.rerun()
+        else:
+            st.warning("يرجى إدخال البريد الإلكتروني وكلمة المرور.")
+
+# 2. واجهة التطبيق بعد تسجيل الدخول
+else:
+    # حساب الوقت المتبقي من الـ 24 ساعة المجانية
+    elapsed_time = datetime.now() - st.session_state.trial_start
+    trial_active = elapsed_time < timedelta(hours=24)
+    has_access = st.session_state.is_subscribed or trial_active
+
+    # القائمة الجانبية للتنقل بين الأقسام
+    with st.sidebar:
+        st.title("Bras AI 🚀")
+        st.write(f"أهلاً: {st.session_state.user_email}")
+        
+        if st.session_state.is_subscribed:
+            st.success("الحساب: مشترك (وصول كامل ومفتوح) ✅")
+        elif trial_active:
+            remaining = timedelta(hours=24) - elapsed_time
+            hours_left = int(remaining.total_seconds() // 3600)
+            st.info(f"فترة تجريبية مجانية: متبقي {hours_left} ساعة ⏳")
+        else:
+            st.error("انتهت الفترة المجانية (24 ساعة) 🔒")
+
+        menu = st.radio(
+            "الأقسام:",
+            [
+                "💬 المحادثة الحرة",
+                "📢 قسم الإعلانات والمتاجر",
+                "🎬 استوديو الفيديوهات (Deal 3)",
+                "💳 الاشتراك والدفع"
+            ]
+        )
+        
+        if st.button("تسجيل الخروج"):
+            st.session_state.logged_in = False
+            st.rerun()
+
+    # التحقق من الصلاحية قبل فتح الأقسام (ما عدا صفحة الدفع)
+    if not has_access and menu != "💳 الاشتراك والدفع":
+        st.warning("انتهت فترة الـ 24 ساعة المجانية. يرجى الانتقال إلى قسم (الاشتراك والدفع) لفتح جميع الميزات بلا حدود.")
+    
+    else:
+        # --- القسم الأول: المحادثة الحرة ---
+        if menu == "💬 المحادثة الحرة":
+            st.header("المحادثة الحرة بالذكاء الاصطناعي")
+            for msg in st.session_state.messages:
+                with st.chat_message(msg["role"]):
+                    st.write(msg["content"])
+
+            user_prompt = st.chat_input("اكتب رسالتك هنا...")
+            if user_prompt:
+                st.session_state.messages.append({"role": "user", "content": user_prompt})
+                with st.chat_message("user"):
+                    st.write(user_prompt)
+                
+                # هنا يتم ربط نموذج الذكاء الاصطناعي للرد
+                ai_reply = f"رد تجريبي من Bras AI على: {user_prompt}"
+                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+                with st.chat_message("assistant"):
+                    st.write(ai_reply)
+
+        # --- القسم الثاني: الإعلانات والمتاجر ---
+        elif menu == "📢 قسم الإعلانات والمتاجر":
+            st.header("صانع الإعلانات للمتاجر والمشاريع")
+            store_name = st.text_input("اسم المتجر أو المشروع")
+            product_desc = st.text_area("وصف المنتج أو العرض")
+            platform = st.selectbox("منصة النشر", ["إنستغرام", "تيك توك", "فيسبوك", "سناب شات"])
+            
+            if st.button("توليد نص وفكرة الإعلان"):
+                if store_name and product_desc:
+                    st.success("تم تجهيز الإعلان!")
+                    st.write(f"🔥 **عرض خاص من {store_name}!** 🔥\n\n{product_desc}\n\nاطلب الآن واستفد من العرض المميز! #كردستان #{store_name}")
+                else:
+                    st.warning("يرجى كتابة اسم المتجر ووصف المنتج.")
+
+        # --- القسم الثالث: الفيديوهات و Deal 3 ---
+        elif menu == "🎬 استوديو الفيديوهات (Deal 3)":
+            st.header("إنشاء الفيديوهات بالذكاء الاصطناعي")
+            video_prompt = st.text_area("اكتب وصف المشهد الذي تريد تحويله إلى فيديو")
+            video_style = st.selectbox("نمط الفيديو", ["سينمائي", "إعلان تجاري", "أنيميشن", "واقعي"])
+            
+            if st.button("بدء صناعة الفيديو"):
+                if video_prompt:
+                    st.info("جاري معالجة الفيديو... (سيتم ربط هذه الواجهة بخدمة توليد الفيديو API)")
+                else:
+                    st.warning("يرجى كتابة وصف للفيديو أولاً.")
+
+        # --- القسم الرابع: الاشتراك والدفع ---
+        elif menu == "💳 الاشتراك والدفع":
+            st.header("ترقية الحساب إلى الباقة الكاملة")
+            st.write("احصل على وصول غير محدود للمحادثات، الإعلانات، وصناعة الفيديوهات.")
+            
+            payment_method = st.radio("اختر طريقة الدفع:", ["بطاقة فيزا / ماستركارد (Visa / Mastercard)", "كي نت / كي كارد (K-Net / Qi Card)"])
+            
+            st.info("ملاحظة تقنية: يتم توجيه المستخدم هنا إلى بوابة الدفع الرسمية الآمنة لإدخال بيانات بطاقته الخاصة.")
+            
+            # زر محاكاة نجاح الدفع للتجربة البرمجية
+            if st.button("متابعة إلى بوابة الدفع الآمنة"):
+                st.session_state.is_subscribed = True
+                st.success("تم تفعيل اشتراكك بنجاح! جميع الميزات مفتوحة الآن.")
+                st.rerun()
+
     st.session_state.archives = []
     st.session_state.current_archive_title = None
     st.session_state.messages = []
