@@ -386,25 +386,20 @@ def generate_real_image(prompt_text: str):
     if not client or not prompt_text.strip():
         st.warning("تأكدي من ضبط OPENAI_API_KEY وكتابة وصف للصورة.")
         return None
-    last_error = None
-    for model_name in ("gpt-image-1", "dall-e-3"):
-        try:
-            img_resp = client.images.generate(
-                model=model_name,
-                prompt=prompt_text.strip(),
-                size="1024x1024",
-            )
-            if img_resp.data:
-                item = img_resp.data[0]
-                if getattr(item, "url", None):
-                    return item.url
-                if getattr(item, "b64_json", None):
-                    return f"data:image/png;base64,{item.b64_json}"
-        except Exception as e:
-            last_error = f"{model_name}: {e}"
-            continue
-    if last_error:
-        st.error(f"سبب فشل توليد الصورة من OpenAI: {last_error}")
+    try:
+        img_resp = client.images.generate(
+            model="gpt-image-1",
+            prompt=prompt_text.strip(),
+            size="1024x1024",
+        )
+        if img_resp.data:
+            item = img_resp.data[0]
+            if getattr(item, "url", None):
+                return item.url
+            if getattr(item, "b64_json", None):
+                return f"data:image/png;base64,{item.b64_json}"
+    except Exception as e:
+        st.error(f"سبب فشل توليد الصورة من OpenAI: gpt-image-1: {e}")
     return None
 
 
