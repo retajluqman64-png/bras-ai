@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import json
+from urllib.parse import quote
 from openai import OpenAI
 import requests
 import streamlit as st
@@ -383,25 +384,22 @@ def get_ai_answer(system_instruction: str, chat_history: list) -> str:
 
 
 def generate_real_image(prompt_text: str):
-    if not client or not prompt_text.strip():
-        st.warning("تأكدي من ضبط OPENAI_API_KEY وكتابة وصف للصورة.")
+    if not prompt_text.strip():
+        st.warning("اكتبي وصف الصورة التي تريدين توليدها أولاً.")
         return None
     try:
-        img_resp = client.images.generate(
-            model="gpt-image-1",
-            prompt=prompt_text.strip(),
-            size="1024x1024",
+        encoded_prompt = quote(prompt_text.strip())
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
+        resp = requests.get(url, timeout=90)
+        if resp.ok and resp.headers.get("content-type", "").startswith(
+            "image/"
+        ):
+            return resp.content
+        st.warning(
+            "تعذر توليد الصورة حالياً؛ جرّبي وصفاً أبسط أو أعيدي المحاولة."
         )
-        if img_resp.data:
-            item = img_resp.data[0]
-            if getattr(item, "url", None):
-                return item.url
-            if getattr(item, "b64_json", None):
-                return f"data:image/png;base64,{item.b64_json}"
     except Exception:
-        st.info(
-            "ميزة توليد الصور المباشرة من OpenAI غير مفعّلة أو غير متاحة على هذا الحساب حالياً. يمكنكِ استخدام وصف الصورة أو ربط مزود صور خارجي."
-        )
+        st.warning("حدث انقطاع أثناء الاتصال بخدمة الصور؛ جرّبي مجدداً.")
     return None
 
 
