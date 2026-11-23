@@ -1,6 +1,7 @@
 import base64
 from datetime import datetime, timedelta
 import json
+import os
 import re
 from openai import OpenAI
 import streamlit as st
@@ -12,56 +13,14 @@ st.set_page_config(
 )
 
 TODAY_STR = datetime.now().strftime("%Y-%m-%d")
+PERSIST_FILE = "bras_gmail_accounts_store.json"
 
-defaults = {
-    "logged_in": False,
-    "is_subscribed": False,
-    "subscription_plan": None,
-    "trial_start": None,
-    "username": "",
-    "user_email": "",
-    "theme": "داكن (Dark)",
-    "voice": "صوت بنت نقي وواضح (Nova)",
-    "language": "العربية (Arabic)",
-    "screen_mode": "عادي (Normal)",
-    "selected_section": None,
-    "my_schedule": [],
-    "section_messages": {},
-    "section_memory": {},
-    "archives": [],
-    "saved_chats": [],
-    "browsing_archive": None,
-    "messages": [],
-    "generated_videos": [],
-    "processed_audio_ids": [],
-    "processed_upload_ids": [],
-    "pending_image_b64": None,
-    "pending_image_mime": None,
-    "pending_image_name": None,
-    "free_messages_used": 0,
-    "free_allowed_sections": [],
-    "free_daily_date": TODAY_STR,
-    "free_daily_images_used": 0,
-    "free_daily_videos_used": 0,
-    "latest_voice_text": None,
-    "ui_translations_cache": {},
-}
-
-FREE_MSG_LIMIT = 25
+FREE_MSG_LIMIT_PER_SECTION = 25
 FREE_SECTION_LIMIT = 2
 FREE_DAILY_IMAGE_LIMIT = 4
 FREE_DAILY_VIDEO_LIMIT = 1
 FREE_DAILY_TASK_LIMIT = 1
 FREE_WEEKLY_TASK_LIMIT = 3
-
-for key, val in defaults.items():
-  if key not in st.session_state:
-    st.session_state[key] = val
-
-if st.session_state.free_daily_date != TODAY_STR:
-  st.session_state.free_daily_date = TODAY_STR
-  st.session_state.free_daily_images_used = 0
-  st.session_state.free_daily_videos_used = 0
 
 
 def is_valid_gmail(email_str: str) -> bool:
@@ -78,8 +37,109 @@ def derive_name_from_email(email_str: str) -> str:
   return cleaned.title() if cleaned else "مستخدم BRAS AI"
 
 
+def build_empty_account_record(email_str: str) -> dict:
+  return {
+      "username": derive_name_from_email(email_str),
+      "user_email": email_str,
+      "is_subscribed": False,
+      "subscription_plan": None,
+      "selected_payment_plan": "أسبوعي - $2",
+      "payment_ref": "",
+      "trial_start": datetime.now().isoformat(),
+      "theme": "داكن (Dark)",
+      "voice": "صوت بنت نقي وواضح (Nova)",
+      "language": "العربية (Arabic)",
+      "screen_mode": "عادي (Normal)",
+      "selected_section": None,
+      "my_schedule": [],
+      "section_messages": {},
+      "section_memory": {},
+      "free_section_messages": {},
+      "archives": [],
+      "saved_chats": [],
+      "browsing_archive": None,
+      "generated_videos": [],
+      "free_allowed_sections": [],
+      "free_daily_date": TODAY_STR,
+      "free_daily_images_used": 0,
+      "free_daily_videos_used": 0,
+  }
+
+
+def load_store_from_disk() -> dict:
+  if os.path.exists(PERSIST_FILE):
+    try:
+      with open(PERSIST_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+        if isinstance(data, dict):
+          return data
+    except Exception:
+      pass
+  return {}
+
+
+def save_store_to_disk(store: dict):
+  try:
+    with open(PERSIST_FILE, "w", encoding="utf-8") as f:
+      json.dump(store, f, ensure_ascii=False, indent=2)
+  except Exception:
+    pass
+
+
+if "gmail_vault" not in st.session_state:
+  st.session_state.gmail_vault = load_store_from_disk()
+
+session_defaults = {
+    "logged_in": False,
+    "active_gmail": "",
+    "processed_audio_ids": [],
+    "processed_upload_ids": [],
+    "pending_image_b64": None,
+    "pending_image_mime": None,
+    "pending_image_name": None,
+    "latest_voice_text": None,
+    "ui_translations_cache": {},
+}
+
+for k, v in session_defaults.items():
+  if k not in st.session_state:
+    st.session_state[k] = v
+
+
+def sync_current_gmail_data():
+  email_key = (st.session_state.active_gmail or "").strip().lower()
+  if not email_key:
+    return None
+  vault = st.session_state.gmail_vault
+  if email_key not in vault:
+    vault[email_key] = build_empty_account_record(email_key)
+
+  rec = vault[email_key]
+  if rec.get("free_daily_date") != TODAY_STR:
+    rec["free_daily_date"] = TODAY_STR
+    rec["free_daily_images_used"] = 0
+    rec["free_daily_videos_used"] = 0
+
+  base_rec = build_empty_account_record(email_key)
+  for field, default_val in base_rec.items():
+    if field not in rec:
+      rec[field] = default_val
+
+  save_store_to_disk(vault)
+  return rec
+
+
 api_key = st.secrets.get("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key) if api_key else None
+
+QICARD_INFO = st.secrets.get(
+    "QICARD_INFO",
+    "يرجى التحويل عبر كي كارد (QiCard) إلى الحساب المعتمد ثم إرسال وصل"
+    " الدفع لاستلام كود التفعيل.",
+)
+SECRET_ACTIVATION_CODE = str(
+    st.secrets.get("ACTIVATION_CODE", "BRAS-QICARD-2026")
+).strip()
 
 
 def get_badini_ui_pack() -> dict:
@@ -142,6 +202,70 @@ def get_badini_ui_pack() -> dict:
           "نصائح وتطوير الذات": "شیرەت و پێشئێخستنا کەسایەتیێ",
           "پشکا ریکلام و بازاڕان": "پشکا ریکلام و بازاڕان",
           "صانع الفيديوهات والأفكار": "چێکەرێ ڤیدیۆ و هزران",
+      },
+  }
+
+
+def get_sorani_ui_pack() -> dict:
+  return {
+      "t_title": "💜 BRAS AI - سەکۆی گشتگیری هۆشمەند 💜",
+      "t_login_title": "🔐 چوونەژوورەوە بە هەژماری Gmail",
+      "t_email": "هەژماری Gmail:",
+      "t_login_btn": "چوونە ژوورەوە بە Google",
+      "t_logout_btn": "چوونە دەرەوە",
+      "t_nav": "📍 گەشت بکە لە سەکۆکەت:",
+      "t_sec_main": "🏠 تۆڕی سەرەکی (بەشەکان)",
+      "t_sec_schedule": "📅 خشتە و بیرخەرەوەکان",
+      "t_sec_chats": "💬 گفتوگۆ پاشەکەوتکراوەکان",
+      "t_sec_pricing": "💳 پاکێج و نرخەکان",
+      "t_sec_archive": "📚 ئەرشیفی گفتوگۆکان",
+      "t_sec_settings": "⚙️ ڕێکخستنەکانی BRAS AI و هەژمار",
+      "t_account": "هەژمار",
+      "t_lang_label": (
+          "🌐 زمانی بەرنامە و هەڵبژاردنی گفتوگۆ (زیاتر لە 40 زمان):"
+      ),
+      "t_theme": "ڕووکار:",
+      "t_voice": "دەنگ:",
+      "t_screen_mode": "🖥️ دۆخی شاشە (Screen Mode):",
+      "t_settings_header": "🎛️ ڕێکخستنەکان",
+      "t_username": "ناوی بەکارهێنەر:",
+      "t_save": "💾 پاشەکەوتکردنی ڕێکخستنەکان",
+      "t_saved_ok": "ڕێکخستنەکان و زمان بە سەرکەوتوویی پاشەکەوت کران!",
+      "t_schedule_title": "📅 خشتەی کات و ئەرکەکان و بیرخەرەوە",
+      "t_task_input": (
+          "ئەرک یان کاتێک بنووسە (بۆ نموونە: تاقیکردنەوەی بیرکاری یان سەردان):"
+      ),
+      "t_day_label": "ڕۆژ هەڵبژێرە:",
+      "t_time_label": "کاتژمێر:",
+      "t_add_task_btn": "زیادکردن بۆ خشتە",
+      "t_task_added": "ئەرکەکە بە سەرکەوتوویی بۆ خشتەکەت زیاد کرا!",
+      "t_schedule_list": "📌 خشتەی کات و ئەرکە تۆمارکراوەکانت:",
+      "t_choose_sec": "بەشی گونجاو هەڵبژێرە بۆ دەستپێکردن:",
+      "t_back_grid": "⬅️ گەڕانەوە بۆ تۆڕ",
+      "t_new_chat": "✨ گفتوگۆی نوێ",
+      "t_archive_btn": "💾 پاشەکەوت و ئەرشیف",
+      "t_archived_ok": "گفتوگۆکە بە سەرکەوتوویی ئەرشیف کرا!",
+      "t_exit_arch": "↩️ دەرچوون لە ئەرشیف",
+      "t_file_upload": "➕ زیادکردنی وێنە یان فایل",
+      "t_archive_header": "📚 ئەرشیف",
+      "t_no_archive": "هیچ گفتوگۆیەکی ئەرشیفکراو نییە.",
+      "t_browse": "📖 پشکنین و بینین",
+      "ads_sec_key": "بەشی ڕیکلام و فرۆشگاکان",
+      "sections_map": {
+          "المساعد الشامل": "یاریدەدەری گشتی",
+          "المعلم الشامل": "مامۆستای گشتی",
+          "قسم كرة القدم": "بەشی تۆپی پێ (بەرشەلۆنە)",
+          "تعليم اللغات": "فێربوونی زمانەکان",
+          "البرمجة": "بەرنامەسازی",
+          "الطبخ والوصفات": "چێشتلێنان و ڕێسپی",
+          "مكياج وسكين كير": "مکیاژ و پاراستنی پێست",
+          "ديزاين وملابس وشوبينغ": "دیزاین، جلوبەرگ و شۆپینگ",
+          "أفكار دول وسفرات": "بیرۆکەی گەشت و وڵاتان",
+          "قسم التاريخ": "بەشی مێژوو",
+          "الصحة، الدايت والجيم": "تەندروستی، دایت و جیم",
+          "نصائح وتطوير الذات": "ئامۆژگاری و پەرەپێدانی خود",
+          "بەشی ڕیکلام و فرۆشگاکان": "بەشی ڕیکلام و فرۆشگاکان",
+          "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ و بیرۆکەکان",
       },
   }
 
@@ -273,6 +397,8 @@ def get_english_ui_pack() -> dict:
 def resolve_ui_pack(selected_lang: str) -> dict:
   if "Badini" in selected_lang or "باديني" in selected_lang:
     return get_badini_ui_pack()
+  if "Sorani" in selected_lang or "سوراني" in selected_lang:
+    return get_sorani_ui_pack()
   if "English" in selected_lang:
     return get_english_ui_pack()
   if "Arabic" in selected_lang:
@@ -316,12 +442,38 @@ def resolve_ui_pack(selected_lang: str) -> dict:
     return base_pack
 
 
-lang = st.session_state.language
-is_screen_mode = (
-    "شاشة" in st.session_state.screen_mode
-    or "Screen" in st.session_state.screen_mode
-)
-ui_pack = resolve_ui_pack(lang)
+if not st.session_state.logged_in:
+  ui_pack = get_arabic_ui_pack()
+  is_dark = True
+  bg_color = "#0b0b0d"
+  text_color = "#ffffff"
+  muted_text = "#e5e5ea"
+  card_bg = "#17171c"
+  input_bg = "#1f1f26"
+  border_color = "#9b5de5"
+  accent_color = "#c084fc"
+  container_max_width = "1240px"
+  block_padding = "1.5rem 2.2rem"
+  btn_height = "110px"
+  btn_font = "1.06rem"
+  rec = None
+else:
+  rec = sync_current_gmail_data()
+  lang = rec["language"]
+  is_screen_mode = "شاشة" in rec["screen_mode"] or "Screen" in rec["screen_mode"]
+  ui_pack = resolve_ui_pack(lang)
+  is_dark = "داكن" in rec["theme"] or "Dark" in rec["theme"]
+  bg_color = "#0b0b0d" if is_dark else "#ffffff"
+  text_color = "#ffffff" if is_dark else "#111111"
+  muted_text = "#e5e5ea" if is_dark else "#222222"
+  card_bg = "#17171c" if is_dark else "#f5f5f7"
+  input_bg = "#1f1f26" if is_dark else "#ffffff"
+  border_color = "#9b5de5"
+  accent_color = "#c084fc" if is_dark else "#6b21a8"
+  container_max_width = "100%" if is_screen_mode else "1240px"
+  block_padding = "1rem 1.4rem" if is_screen_mode else "1.5rem 2.2rem"
+  btn_height = "125px" if is_screen_mode else "110px"
+  btn_font = "1.18rem" if is_screen_mode else "1.06rem"
 
 t_title = ui_pack["t_title"]
 t_login_title = ui_pack["t_login_title"]
@@ -363,20 +515,6 @@ t_no_archive = ui_pack["t_no_archive"]
 t_browse = ui_pack["t_browse"]
 ads_sec_key = ui_pack["ads_sec_key"]
 SECTIONS_NAMES = ui_pack["sections_map"]
-
-is_dark = "داكن" in st.session_state.theme or "Dark" in st.session_state.theme
-bg_color = "#0b0b0d" if is_dark else "#ffffff"
-text_color = "#ffffff" if is_dark else "#111111"
-muted_text = "#e5e5ea" if is_dark else "#222222"
-card_bg = "#17171c" if is_dark else "#f5f5f7"
-input_bg = "#1f1f26" if is_dark else "#ffffff"
-border_color = "#9b5de5"
-accent_color = "#c084fc" if is_dark else "#6b21a8"
-
-container_max_width = "100%" if is_screen_mode else "1240px"
-block_padding = "1rem 1.4rem" if is_screen_mode else "1.5rem 2.2rem"
-btn_height = "125px" if is_screen_mode else "110px"
-btn_font = "1.18rem" if is_screen_mode else "1.06rem"
 
 st.markdown(
     f"""
@@ -446,7 +584,8 @@ label, .stRadio label, .stCheckbox label, .stSelectbox label,
     text-align: center;
     color: {accent_color} !important;
     font-weight: bold;
-    font-size: {"2.8rem" if is_screen_mode else "2.35rem"};
+    font-size: {btn_font};
+    font-size: {"2.8rem" if (rec and ("شاشة" in rec["screen_mode"] or "Screen" in rec["screen_mode"])) else "2.35rem"};
     margin-bottom: 16px;
 }}
 .user-info {{
@@ -506,20 +645,16 @@ label, .stRadio label, .stCheckbox label, .stSelectbox label,
 st.markdown(f"<h1 class='main-title'>{t_title}</h1>", unsafe_allow_html=True)
 
 
-def get_voice_api() -> str:
-  return (
-      "onyx"
-      if "رجل" in st.session_state.voice or "Onyx" in st.session_state.voice
-      else "nova"
-  )
+def get_voice_api(voice_val: str) -> str:
+  return "onyx" if ("رجل" in voice_val or "Onyx" in voice_val) else "nova"
 
 
-def play_voice_only(text: str):
+def play_voice_only(text: str, voice_val: str):
   if client and text:
     try:
       audio_resp = client.audio.speech.create(
           model="tts-1",
-          voice=get_voice_api(),
+          voice=get_voice_api(voice_val),
           input=text[:1500],
       )
       st.audio(audio_resp.read(), format="audio/mp3", autoplay=True)
@@ -527,9 +662,9 @@ def play_voice_only(text: str):
       pass
 
 
-def reply_with_voice(text: str):
+def reply_with_voice(text: str, voice_val: str):
   st.markdown(text)
-  play_voice_only(text)
+  play_voice_only(text, voice_val)
 
 
 def transcribe_once(audio_file, scope_name: str):
@@ -552,10 +687,10 @@ def transcribe_once(audio_file, scope_name: str):
     return None
 
 
-def record_subscriber_lesson_memory(sec_name: str, msgs: list):
-  if not st.session_state.is_subscribed or not msgs:
+def record_subscriber_lesson_memory(account_rec: dict, sec_name: str, msgs: list):
+  if not account_rec.get("is_subscribed") or not msgs:
     return
-  st.session_state.section_memory.setdefault(sec_name, [])
+  account_rec["section_memory"].setdefault(sec_name, [])
   snippets = []
   for m in msgs[-6:]:
     who = "المستخدم" if m["role"] == "user" else "المساعد"
@@ -570,20 +705,21 @@ def record_subscriber_lesson_memory(sec_name: str, msgs: list):
     snippets.append(f"{who}: {clean_txt}")
   lesson_entry = f"[{TODAY_STR}] " + " | ".join(snippets)
   if (
-      not st.session_state.section_memory[sec_name]
-      or st.session_state.section_memory[sec_name][-1] != lesson_entry
+      not account_rec["section_memory"][sec_name]
+      or account_rec["section_memory"][sec_name][-1] != lesson_entry
   ):
-    st.session_state.section_memory[sec_name].append(lesson_entry)
-    st.session_state.section_memory[sec_name] = st.session_state.section_memory[
+    account_rec["section_memory"][sec_name].append(lesson_entry)
+    account_rec["section_memory"][sec_name] = account_rec["section_memory"][
         sec_name
     ][-12:]
+    save_store_to_disk(st.session_state.gmail_vault)
 
 
-def build_subscriber_memory_context(sec_name: str) -> str:
-  if not st.session_state.is_subscribed:
+def build_subscriber_memory_context(account_rec: dict, sec_name: str) -> str:
+  if not account_rec.get("is_subscribed"):
     return ""
-  past_items = list(st.session_state.section_memory.get(sec_name, []))
-  for arch in st.session_state.archives:
+  past_items = list(account_rec.get("section_memory", {}).get(sec_name, []))
+  for arch in account_rec.get("archives", []):
     if arch.get("section") == sec_name and arch.get("messages"):
       first_c = arch["messages"][0].get("content", "")
       first_q = (
@@ -623,140 +759,149 @@ def format_history_for_api(chat_history: list) -> list:
   return formatted
 
 
-def has_image_in_history(chat_history: list) -> bool:
-  for m in chat_history[-6:]:
-    c = m.get("content")
-    if isinstance(c, list) and any(p.get("type") == "image_url" for p in c):
-      return True
-  return False
-
-
 def get_language_directive(selected_lang: str) -> str:
   if "Badini" in selected_lang or "باديني" in selected_lang:
     return (
         "Respond strictly in Kurdish Badini (Kurmanji) dialect using Arabic"
         " script as spoken and written in Duhok (بە شێوەزارێ بادینی ب پیتێن"
-        " عەرەبی). Do NOT use Central Kurdish (Sorani)."
+        " عەرەبی، وەک: ئەز، تە، دکەم، نڤیسی، سەرکەفتی). Do NOT use Sorani or"
+        " Arabic."
+    )
+  if "Sorani" in selected_lang or "سوراني" in selected_lang:
+    return (
+        "Respond strictly in Central Kurdish (Sorani) dialect using Arabic"
+        " script (بە شێوەزارێ سۆرانی ب پیتێن عەرەبی، وەک: من، تۆ، دەکەم،"
+        " نووسراو، سەرکەوتوو). Do NOT use Badini or Arabic."
     )
   return f"Respond naturally and fluently in {selected_lang}."
 
 
 def get_ai_answer(
-    system_instruction: str, chat_history: list, sec_name: str = ""
+    account_rec: dict,
+    system_instruction: str,
+    chat_history: list,
+    sec_name: str = "",
 ) -> str:
   if not client:
     return (
         "أهلاً بكِ في BRAS AI! أضيفي مفتاح OPENAI_API_KEY في Streamlit Secrets"
         " لتفعيل الردود الذكية."
     )
-  memory_note = build_subscriber_memory_context(sec_name) if sec_name else ""
-  lang_directive = get_language_directive(st.session_state.language)
+  memory_note = (
+      build_subscriber_memory_context(account_rec, sec_name) if sec_name else ""
+  )
+  lang_directive = get_language_directive(account_rec["language"])
   sys_full = (
       f"{system_instruction}{memory_note}\n"
       f"Current date: {TODAY_STR}. "
-      "When the user attaches an image, examine the image directly and answer"
-      " accurately based on what is visible in the image (such as ingredients,"
-      " dishes, notes, or questions about the photo). "
-      "Use live web search whenever needed for up-to-date match schedules,"
-      " scores, trending TikTok creators, and current news. "
-      "Provide a clear, helpful, and direct answer—never repeat or parrot what"
-      f" the user said. {lang_directive}"
+      "Answer text messages directly without asking the user to send an image"
+      " unless an image was actually attached. "
+      "When an image is attached, inspect the image carefully and answer"
+      " accurately based on what is shown. "
+      "Give clear, helpful, and direct responses. "
+      f"{lang_directive}"
   )
   recent_msgs = format_history_for_api(chat_history)
-
-  if not has_image_in_history(chat_history):
-    try:
-      resp_web = client.responses.create(
-          model="gpt-4o-mini",
-          tools=[{"type": "web_search_preview"}],
-          instructions=sys_full,
-          input=recent_msgs,
-      )
-      if getattr(resp_web, "output_text", None):
-        return resp_web.output_text
-    except Exception:
-      pass
 
   try:
     payload = [{"role": "system", "content": sys_full}] + recent_msgs
     resp = client.chat.completions.create(model="gpt-4o-mini", messages=payload)
-    return resp.choices[0].message.content or ""
-  except Exception:
-    return (
-        "تم استلام طلبكِ بنجاح؛ تحققي من رصيد أو إعدادات مفتاح API في حساب"
-        " OpenAI للمتابعة."
+    content = (resp.choices[0].message.content or "").strip()
+    return content if content else "تم استلام رسالتكِ؛ جربي صياغة السؤال مرة أخرى."
+  except Exception as exc:
+    return f"تعذر إتمام الرد الآن: {exc}"
+
+
+def get_section_free_used(account_rec: dict, sec_name: str) -> int:
+  return int(account_rec.get("free_section_messages", {}).get(sec_name, 0))
+
+
+def can_send_message_in_section(account_rec: dict, sec_name: str) -> bool:
+  if account_rec.get("is_subscribed"):
+    return True
+  return get_section_free_used(account_rec, sec_name) < FREE_MSG_LIMIT_PER_SECTION
+
+
+def record_message_in_section(account_rec: dict, sec_name: str):
+  if not account_rec.get("is_subscribed"):
+    current = get_section_free_used(account_rec, sec_name)
+    account_rec["free_section_messages"][sec_name] = min(
+        FREE_MSG_LIMIT_PER_SECTION, current + 1
     )
+    save_store_to_disk(st.session_state.gmail_vault)
 
 
-def can_send_free_message() -> bool:
-  if st.session_state.is_subscribed:
+def can_use_free_section(account_rec: dict, sec_name: str) -> bool:
+  if account_rec.get("is_subscribed"):
     return True
-  return st.session_state.free_messages_used < FREE_MSG_LIMIT
-
-
-def record_free_message():
-  if not st.session_state.is_subscribed:
-    st.session_state.free_messages_used += 1
-
-
-def can_use_free_section(sec_name: str) -> bool:
-  if st.session_state.is_subscribed:
-    return True
-  allowed = st.session_state.free_allowed_sections
+  allowed = account_rec.get("free_allowed_sections", [])
   if sec_name in allowed:
     return True
   return len(allowed) < FREE_SECTION_LIMIT
 
 
-def register_free_section(sec_name: str):
-  if not st.session_state.is_subscribed:
-    if sec_name not in st.session_state.free_allowed_sections and (
-        len(st.session_state.free_allowed_sections) < FREE_SECTION_LIMIT
+def register_free_section(account_rec: dict, sec_name: str):
+  if not account_rec.get("is_subscribed"):
+    if sec_name not in account_rec["free_allowed_sections"] and (
+        len(account_rec["free_allowed_sections"]) < FREE_SECTION_LIMIT
     ):
-      st.session_state.free_allowed_sections.append(sec_name)
+      account_rec["free_allowed_sections"].append(sec_name)
+      account_rec["free_section_messages"].setdefault(sec_name, 0)
+      save_store_to_disk(st.session_state.gmail_vault)
 
 
-def can_upload_free_media(is_video: bool) -> bool:
-  if st.session_state.is_subscribed:
+def can_upload_free_media(account_rec: dict, is_video: bool) -> bool:
+  if account_rec.get("is_subscribed"):
     return True
   if is_video:
-    return st.session_state.free_daily_videos_used < FREE_DAILY_VIDEO_LIMIT
-  return st.session_state.free_daily_images_used < FREE_DAILY_IMAGE_LIMIT
+    return account_rec.get("free_daily_videos_used", 0) < FREE_DAILY_VIDEO_LIMIT
+  return account_rec.get("free_daily_images_used", 0) < FREE_DAILY_IMAGE_LIMIT
 
 
-def record_free_media_upload(is_video: bool):
-  if not st.session_state.is_subscribed:
+def record_free_media_upload(account_rec: dict, is_video: bool):
+  if not account_rec.get("is_subscribed"):
     if is_video:
-      st.session_state.free_daily_videos_used += 1
+      account_rec["free_daily_videos_used"] = (
+          account_rec.get("free_daily_videos_used", 0) + 1
+      )
     else:
-      st.session_state.free_daily_images_used += 1
+      account_rec["free_daily_images_used"] = (
+          account_rec.get("free_daily_images_used", 0) + 1
+      )
+    save_store_to_disk(st.session_state.gmail_vault)
 
 
-def can_generate_free_video() -> bool:
-  if st.session_state.is_subscribed:
+def can_generate_free_video(account_rec: dict) -> bool:
+  if account_rec.get("is_subscribed"):
     return True
-  return st.session_state.free_daily_videos_used < FREE_DAILY_VIDEO_LIMIT
+  return account_rec.get("free_daily_videos_used", 0) < FREE_DAILY_VIDEO_LIMIT
 
 
-def record_free_video_generation():
-  if not st.session_state.is_subscribed:
-    st.session_state.free_daily_videos_used += 1
+def record_free_video_generation(account_rec: dict):
+  if not account_rec.get("is_subscribed"):
+    account_rec["free_daily_videos_used"] = (
+        account_rec.get("free_daily_videos_used", 0) + 1
+    )
+    save_store_to_disk(st.session_state.gmail_vault)
 
 
-def count_free_tasks_on_day(day_name: str) -> int:
-  return sum(1 for item in st.session_state.my_schedule if item["day"] == day_name)
+def count_free_tasks_on_day(account_rec: dict, day_name: str) -> int:
+  return sum(
+      1 for item in account_rec.get("my_schedule", []) if item["day"] == day_name
+  )
 
 
-def save_full_chat_snapshot(label: str, msgs: list):
+def save_full_chat_snapshot(account_rec: dict, label: str, msgs: list):
   if not msgs:
     return
   entry = {
-      "id": len(st.session_state.saved_chats) + 1,
+      "id": len(account_rec["saved_chats"]) + 1,
       "title": f"{label} — {datetime.now().strftime('%H:%M')}",
       "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
       "messages": [dict(m) for m in msgs],
   }
-  st.session_state.saved_chats.insert(0, entry)
+  account_rec["saved_chats"].insert(0, entry)
+  save_store_to_disk(st.session_state.gmail_vault)
 
 
 def render_chat_message(message: dict):
@@ -792,7 +937,7 @@ if not st.session_state.logged_in:
     with st.form("login_form"):
       email = st.text_input(
           t_email,
-          value=st.session_state.user_email,
+          value=st.session_state.active_gmail,
           placeholder="example@gmail.com",
       )
       submit_button = st.form_submit_button(t_login_btn)
@@ -802,56 +947,38 @@ if not st.session_state.logged_in:
           st.error("يرجى إدخال حساب Gmail صحيح مثل: example@gmail.com")
         else:
           st.session_state.logged_in = True
-          st.session_state.user_email = clean_email
-          st.session_state.username = derive_name_from_email(clean_email)
-          if st.session_state.trial_start is None:
-            st.session_state.trial_start = datetime.now()
+          st.session_state.active_gmail = clean_email
+          sync_current_gmail_data()
           st.rerun()
   with c_right:
     st.info(
-        "✨ دخول سريع بحساب Gmail\n\n• بدون إنشاء كلمة سر جديدة\n• تجربة"
-        " مجانية 24 ساعة\n• الباقات بعد التجربة:\n  - أسبوعي: **$2**\n  - شهري:"
-        " **$10**\n  - سنوي: **$50**"
+        "✨ دخول سريع بحساب Gmail\n\n• كل بياناتكِ محفوظة على إيميلكِ عند"
+        " العودة\n• قسمين مجانيين (25 رسالة لكل قسم)\n• الباقات:\n  - أسبوعي:"
+        " **$2**\n  - شهري: **$10**\n  - سنوي: **$50**"
     )
 else:
-  trial_active = False
-  hours_left = 0
-  if st.session_state.trial_start is not None:
-    elapsed_time = datetime.now() - st.session_state.trial_start
-    remaining = timedelta(hours=24) - elapsed_time
-    if remaining.total_seconds() > 0:
-      trial_active = True
-      hours_left = max(1, int(remaining.total_seconds() // 3600))
-
-  has_access = st.session_state.is_subscribed or trial_active
-
-  if st.session_state.is_subscribed:
+  if rec.get("is_subscribed"):
     status_badge = (
-        f"✅ مشترك ({st.session_state.subscription_plan}) | 🧠 ذاكرة الدروس"
-        " مفعّلة"
+        f"✅ مشترك ({rec.get('subscription_plan')}) | 🧠 ذاكرة الدروس مفعّلة"
     )
   else:
-    rem_msgs = max(0, FREE_MSG_LIMIT - st.session_state.free_messages_used)
-    rem_secs = max(
-        0, FREE_SECTION_LIMIT - len(st.session_state.free_allowed_sections)
-    )
+    rem_secs = max(0, FREE_SECTION_LIMIT - len(rec.get("free_allowed_sections", [])))
     rem_day_imgs = max(
-        0, FREE_DAILY_IMAGE_LIMIT - st.session_state.free_daily_images_used
+        0, FREE_DAILY_IMAGE_LIMIT - rec.get("free_daily_images_used", 0)
     )
     rem_day_vids = max(
-        0, FREE_DAILY_VIDEO_LIMIT - st.session_state.free_daily_videos_used
+        0, FREE_DAILY_VIDEO_LIMIT - rec.get("free_daily_videos_used", 0)
     )
-    trial_txt = f"⏳ {hours_left}س" if trial_active else "🔒 انتهت التجربة"
     status_badge = (
-        f"{trial_txt} | 💬 {rem_msgs}/25 | 📷 {rem_day_imgs}/4 صور/يوم | 🎬"
-        f" {rem_day_vids}/1 فيديو/يوم | 📂 {rem_secs}/2 قسم"
+        f"📂 {rem_secs}/2 قسم متاح | 💬 25 رسالة/قسم | 📷 {rem_day_imgs}/4"
+        f" صور/يوم | 🎬 {rem_day_vids}/1 فيديو/يوم"
     )
 
   st.markdown(
       f"""
         <div class='user-info'>
-            <span>👤 {t_account}: <b>{st.session_state.username}</b> ({st.session_state.user_email}) | 🌐 {st.session_state.language}</span>
-            <span>{status_badge} | 🖥️ {st.session_state.screen_mode} | 🎙️ {st.session_state.voice}</span>
+            <span>👤 {t_account}: <b>{rec['username']}</b> ({rec['user_email']}) | 🌐 {rec['language']}</span>
+            <span>{status_badge} | 🖥️ {rec['screen_mode']} | 🎙️ {rec['voice']}</span>
         </div>
         """,
       unsafe_allow_html=True,
@@ -863,8 +990,9 @@ else:
   new_screen_val = (
       "شاشة كاملة (Screen Mode)" if screen_toggle else "عادي (Normal)"
   )
-  if new_screen_val != st.session_state.screen_mode:
-    st.session_state.screen_mode = new_screen_val
+  if new_screen_val != rec["screen_mode"]:
+    rec["screen_mode"] = new_screen_val
+    save_store_to_disk(st.session_state.gmail_vault)
     st.rerun()
 
   nav_mode = st.sidebar.radio(
@@ -881,20 +1009,13 @@ else:
 
   st.sidebar.divider()
   if st.sidebar.button(t_logout_btn):
+    save_store_to_disk(st.session_state.gmail_vault)
     st.session_state.logged_in = False
     st.rerun()
 
-  if not has_access and nav_mode not in (t_sec_pricing, t_sec_settings):
-    st.warning(
-        "🔒 انتهت فترة الـ 24 ساعة المجانية. يرجى اختيار باقة اشتراك لمتابعة"
-        " استخدام الأقسام."
-    )
-    nav_mode = t_sec_pricing
-
   base_system_prompt = (
-      "You are BRAS AI, a smart assistant platform that can view and analyze"
-      " uploaded images directly. "
-      f"{get_language_directive(st.session_state.language)}"
+      "You are BRAS AI, a smart assistant platform. "
+      f"{get_language_directive(rec['language'])}"
   )
 
   BASE_SECTIONS = {
@@ -902,7 +1023,7 @@ else:
           "🤖",
           (
               f"{base_system_prompt} You are a versatile smart assistant with"
-              " live web search access and image vision."
+              " image vision."
           ),
       ),
       "المعلم الشامل": (
@@ -916,7 +1037,7 @@ else:
           "⚽",
           (
               f"{base_system_prompt} You are a football analyst covering FC"
-              " Barcelona, La Liga, Champions League, live match schedules, and"
+              " Barcelona, La Liga, Champions League, match schedules, and"
               " football news."
           ),
       ),
@@ -981,25 +1102,23 @@ else:
 
   SECTIONS = {SECTIONS_NAMES.get(k, k): v for k, v in BASE_SECTIONS.items()}
 
-  if (
-      st.session_state.selected_section is not None
-      and st.session_state.selected_section not in SECTIONS
-  ):
-    st.session_state.selected_section = None
+  if rec.get("selected_section") is not None and rec.get("selected_section") not in SECTIONS:
+    rec["selected_section"] = None
 
   if nav_mode == t_sec_main:
-    if st.session_state.selected_section is None:
+    if rec.get("selected_section") is None:
       st.markdown(
           f"<h3 style='text-align: center;'>{t_choose_sec}</h3>",
           unsafe_allow_html=True,
       )
-      if not st.session_state.is_subscribed:
+      if not rec.get("is_subscribed"):
         used_secs = (
-            ", ".join(st.session_state.free_allowed_sections) or "لا يوجد بعد"
+            ", ".join(rec.get("free_allowed_sections", [])) or "لا يوجد بعد"
         )
         st.info(
             "🔒 لغير المشتركين: **قسمين فقط** (المختارة حالياً:"
-            f" {used_secs})، حد **25 رسالة**، و**4 صور + 1 فيديو يومياً**."
+            f" {used_secs}) ولكل قسم **25 رسالة**، و**4 صور + 1 فيديو"
+            " يومياً**."
         )
       grid_cols = 4 if is_screen_mode else 3
       cols = st.columns(grid_cols)
@@ -1008,11 +1127,12 @@ else:
         with col:
           st.markdown("<div class='grid-card-wrap'>", unsafe_allow_html=True)
           if st.button(f"{emoji}\n\n{sec_name}", key=f"sec_btn_{index}"):
-            if can_use_free_section(sec_name):
-              register_free_section(sec_name)
-              st.session_state.selected_section = sec_name
-              st.session_state.browsing_archive = None
+            if can_use_free_section(rec, sec_name):
+              register_free_section(rec, sec_name)
+              rec["selected_section"] = sec_name
+              rec["browsing_archive"] = None
               st.session_state.latest_voice_text = None
+              save_store_to_disk(st.session_state.gmail_vault)
               st.rerun()
             else:
               st.warning(
@@ -1021,11 +1141,11 @@ else:
               )
           st.markdown("</div>", unsafe_allow_html=True)
     else:
-      sec_name = st.session_state.selected_section
+      sec_name = rec["selected_section"]
       emoji, system_prompt = SECTIONS.get(
           sec_name, ("🤖", f"{base_system_prompt}")
       )
-      browsing_item = st.session_state.browsing_archive
+      browsing_item = rec.get("browsing_archive")
 
       col1, col2 = st.columns([4, 1])
       with col1:
@@ -1033,16 +1153,26 @@ else:
       with col2:
         if st.button(t_back_grid):
           record_subscriber_lesson_memory(
+              rec,
               sec_name,
-              st.session_state.section_messages.get(sec_name, []),
+              rec["section_messages"].get(sec_name, []),
           )
-          st.session_state.selected_section = None
-          st.session_state.browsing_archive = None
+          rec["selected_section"] = None
+          rec["browsing_archive"] = None
           st.session_state.latest_voice_text = None
+          save_store_to_disk(st.session_state.gmail_vault)
           st.rerun()
 
-      if st.session_state.is_subscribed and browsing_item is None:
-        mem_count = len(st.session_state.section_memory.get(sec_name, []))
+      if not rec.get("is_subscribed") and browsing_item is None:
+        used_in_sec = get_section_free_used(rec, sec_name)
+        rem_in_sec = max(0, FREE_MSG_LIMIT_PER_SECTION - used_in_sec)
+        st.caption(
+            f"💬 الرسائل المتبقية في هذا القسم: {rem_in_sec} /"
+            f" {FREE_MSG_LIMIT_PER_SECTION}"
+        )
+
+      if rec.get("is_subscribed") and browsing_item is None:
+        mem_count = len(rec.get("section_memory", {}).get(sec_name, []))
         if mem_count > 0:
           st.caption(
               f"🧠 يتذكر BRAS AI دروسكِ ومحادثاتكِ السابقة في هذا القسم"
@@ -1050,43 +1180,47 @@ else:
           )
 
       if st.session_state.latest_voice_text:
-        play_voice_only(st.session_state.latest_voice_text)
+        play_voice_only(st.session_state.latest_voice_text, rec["voice"])
         st.session_state.latest_voice_text = None
 
       if browsing_item is None:
         col_new, col_arc, col_save_side = st.columns(3)
         if col_new.button(t_new_chat):
           record_subscriber_lesson_memory(
+              rec,
               sec_name,
-              st.session_state.section_messages.get(sec_name, []),
+              rec["section_messages"].get(sec_name, []),
           )
-          st.session_state.section_messages[sec_name] = []
+          rec["section_messages"][sec_name] = []
           st.session_state.pending_image_b64 = None
           st.session_state.pending_image_mime = None
           st.session_state.pending_image_name = None
           st.session_state.latest_voice_text = None
+          save_store_to_disk(st.session_state.gmail_vault)
           st.rerun()
         if col_arc.button(t_archive_btn):
-          msgs = st.session_state.section_messages.get(sec_name, [])
+          msgs = rec["section_messages"].get(sec_name, [])
           if msgs:
-            record_subscriber_lesson_memory(sec_name, msgs)
+            record_subscriber_lesson_memory(rec, sec_name, msgs)
             archive_title = f"{sec_name} - {datetime.now().strftime('%H:%M')}"
-            st.session_state.archives.append({
+            rec["archives"].append({
                 "title": archive_title,
                 "section": sec_name,
                 "messages": [dict(m) for m in msgs],
             })
+            save_store_to_disk(st.session_state.gmail_vault)
             st.success(t_archived_ok)
         if col_save_side.button("📌 حفظ في سجل الدردشة"):
-          msgs = st.session_state.section_messages.get(sec_name, [])
+          msgs = rec["section_messages"].get(sec_name, [])
           if msgs:
-            record_subscriber_lesson_memory(sec_name, msgs)
-            save_full_chat_snapshot(sec_name, msgs)
+            record_subscriber_lesson_memory(rec, sec_name, msgs)
+            save_full_chat_snapshot(rec, sec_name, msgs)
             st.success("تم حفظ الدردشة كاملة في سجل الدردشة!")
       else:
         st.info(f"📖 استعراض أرشيف: {browsing_item['title']}")
         if st.button(t_exit_arch):
-          st.session_state.browsing_archive = None
+          rec["browsing_archive"] = None
+          save_store_to_disk(st.session_state.gmail_vault)
           st.rerun()
 
       with st.expander(t_file_upload, expanded=False):
@@ -1103,10 +1237,8 @@ else:
           is_img_file = lower_name.endswith((".png", ".jpg", ".jpeg", ".webp"))
 
           if up_sig not in st.session_state.processed_upload_ids:
-            if (
-                is_vid_file or is_img_file
-            ) and not st.session_state.is_subscribed:
-              if not can_upload_free_media(is_vid_file):
+            if (is_vid_file or is_img_file) and not rec.get("is_subscribed"):
+              if not can_upload_free_media(rec, is_vid_file):
                 if is_vid_file:
                   st.warning(
                       "🔒 يُسمح بإرسال **فيديو واحد فقط في اليوم** لغير"
@@ -1119,7 +1251,7 @@ else:
                   )
               else:
                 st.session_state.processed_upload_ids.append(up_sig)
-                record_free_media_upload(is_vid_file)
+                record_free_media_upload(rec, is_vid_file)
             else:
               st.session_state.processed_upload_ids.append(up_sig)
 
@@ -1146,12 +1278,13 @@ else:
             " — اكتبي سؤالكِ أو اضغطي «شاهد الصورة وأجب»."
         )
         if st.button("👁️ شاهد الصورة وأجب", key=f"see_img_{sec_name}"):
-          if not can_send_free_message():
+          if not can_send_message_in_section(rec, sec_name):
             st.warning(
-                "🔒 وصلتِ للحد الأقصى (25 رسالة فقط) لغير المشتركين."
+                "🔒 وصلتِ للحد الأقصى (25 رسالة في هذا القسم) لغير"
+                " المشتركين."
             )
           else:
-            record_free_message()
+            record_message_in_section(rec, sec_name)
             img_msg = [
                 {
                     "type": "text",
@@ -1169,23 +1302,25 @@ else:
                     },
                 },
             ]
-            st.session_state.section_messages.setdefault(sec_name, []).append(
+            rec["section_messages"].setdefault(sec_name, []).append(
                 {"role": "user", "content": img_msg}
             )
             st.session_state.pending_image_b64 = None
             st.session_state.pending_image_mime = None
             st.session_state.pending_image_name = None
             full_response = get_ai_answer(
+                rec,
                 system_prompt,
-                st.session_state.section_messages[sec_name],
+                rec["section_messages"][sec_name],
                 sec_name=sec_name,
             )
-            st.session_state.section_messages[sec_name].append(
+            rec["section_messages"][sec_name].append(
                 {"role": "assistant", "content": full_response}
             )
             record_subscriber_lesson_memory(
-                sec_name, st.session_state.section_messages[sec_name]
+                rec, sec_name, rec["section_messages"][sec_name]
             )
+            save_store_to_disk(st.session_state.gmail_vault)
             st.session_state.latest_voice_text = full_response
             st.rerun()
 
@@ -1210,13 +1345,15 @@ else:
         if st.button(
             "توليد نص الإعلان الآن", type="primary", key="gen_ad_btn"
         ):
-          if not can_send_free_message():
+          if not can_send_message_in_section(rec, sec_name):
             st.warning(
-                "🔒 انتهى حد الـ 25 رسالة لغير المشتركين. اشتركي للمتابعة."
+                "🔒 انتهى حد الـ 25 رسالة في هذا القسم لغير المشتركين."
+                " اشتركي للمتابعة."
             )
           elif ad_store.strip() and ad_offer.strip():
-            record_free_message()
+            record_message_in_section(rec, sec_name)
             ad_out = get_ai_answer(
+                rec,
                 (
                     f"{system_prompt} Create a persuasive ad for {ad_channel}"
                     f" for store '{ad_store}' offering: {ad_offer}."
@@ -1227,12 +1364,13 @@ else:
                 }],
                 sec_name=sec_name,
             )
-            st.session_state.section_messages.setdefault(sec_name, []).append(
+            rec["section_messages"].setdefault(sec_name, []).append(
                 {"role": "assistant", "content": ad_out}
             )
             record_subscriber_lesson_memory(
-                sec_name, st.session_state.section_messages[sec_name]
+                rec, sec_name, rec["section_messages"][sec_name]
             )
+            save_store_to_disk(st.session_state.gmail_vault)
             st.session_state.latest_voice_text = ad_out
             st.rerun()
           else:
@@ -1244,10 +1382,10 @@ else:
       )
       if is_vid_section and browsing_item is None:
         st.markdown("### 🎬 استوديو الفيديوهات والأفكار")
-        if not st.session_state.is_subscribed:
+        if not rec.get("is_subscribed"):
           st.caption(
               "المتبقي من الفيديوهات اليوم:"
-              f" {max(0, FREE_DAILY_VIDEO_LIMIT - st.session_state.free_daily_videos_used)}/{FREE_DAILY_VIDEO_LIMIT}"
+              f" {max(0, FREE_DAILY_VIDEO_LIMIT - rec.get('free_daily_videos_used', 0))}/{FREE_DAILY_VIDEO_LIMIT}"
           )
         vid_idea = st.text_area(
             "اكتبي فكرة الفيديو أو المشهد:", key="vid_studio_idea"
@@ -1267,19 +1405,21 @@ else:
             type="primary",
             key="gen_vid_btn",
         ):
-          if not can_generate_free_video():
+          if not can_generate_free_video(rec):
             st.warning(
                 "🔒 وصلتِ للحد اليومي لغير المشتركين (**1 فيديو في اليوم**)."
             )
-          elif not can_send_free_message():
+          elif not can_send_message_in_section(rec, sec_name):
             st.warning(
-                "🔒 انتهى حد الـ 25 رسالة لغير المشتركين. اشتركي للمتابعة."
+                "🔒 انتهى حد الـ 25 رسالة في هذا القسم لغير المشتركين."
+                " اشتركي للمتابعة."
             )
           elif vid_idea.strip():
-            record_free_video_generation()
-            record_free_message()
+            record_free_video_generation(rec)
+            record_message_in_section(rec, sec_name)
             with st.spinner("جاري تجهيز السيناريو والمشاهد..."):
               vid_plan = get_ai_answer(
+                  rec,
                   (
                       f"{system_prompt} Create a complete video concept,"
                       " scene-by-scene storyboard, camera angles, voiceover"
@@ -1289,7 +1429,7 @@ else:
                   [{"role": "user", "content": vid_idea.strip()}],
                   sec_name=sec_name,
               )
-            st.session_state.generated_videos.insert(
+            rec["generated_videos"].insert(
                 0,
                 {
                     "idea": vid_idea.strip(),
@@ -1298,15 +1438,17 @@ else:
                 },
             )
             record_subscriber_lesson_memory(
+                rec,
                 sec_name,
-                st.session_state.section_messages.get(sec_name, []),
+                rec["section_messages"].get(sec_name, []),
             )
+            save_store_to_disk(st.session_state.gmail_vault)
             st.session_state.latest_voice_text = vid_plan
             st.rerun()
           else:
             st.info("اكتبي فكرة الفيديو أولاً.")
 
-        for v in st.session_state.generated_videos[:3]:
+        for v in rec.get("generated_videos", [])[:3]:
           st.markdown(f"**{v['style']}:** {v['idea']}")
           st.markdown(v["script"])
           st.divider()
@@ -1315,8 +1457,8 @@ else:
       if browsing_item is not None:
         active_messages = browsing_item.get("messages", [])
       else:
-        st.session_state.section_messages.setdefault(sec_name, [])
-        active_messages = st.session_state.section_messages[sec_name]
+        rec["section_messages"].setdefault(sec_name, [])
+        active_messages = rec["section_messages"][sec_name]
 
       for message in active_messages:
         with st.chat_message(message["role"]):
@@ -1333,13 +1475,13 @@ else:
         final_prompt = user_spoken_text if user_spoken_text else typed_prompt
 
         if final_prompt:
-          if not can_send_free_message():
+          if not can_send_message_in_section(rec, sec_name):
             st.warning(
-                "🔒 وصلتِ للحد الأقصى (25 رسالة فقط) لغير المشتركين. اختاري"
-                " باقة اشتراك للمتابعة."
+                "🔒 وصلتِ للحد الأقصى (25 رسالة في هذا القسم) لغير"
+                " المشتركين. اختاري باقة اشتراك للمتابعة."
             )
           else:
-            record_free_message()
+            record_message_in_section(rec, sec_name)
             if st.session_state.pending_image_b64:
               user_payload = [
                   {"type": "text", "text": final_prompt},
@@ -1358,7 +1500,7 @@ else:
             else:
               user_payload = final_prompt
 
-            st.session_state.section_messages[sec_name].append(
+            rec["section_messages"][sec_name].append(
                 {"role": "user", "content": user_payload}
             )
             with st.chat_message("user"):
@@ -1366,22 +1508,25 @@ else:
 
             with st.chat_message("assistant"):
               full_response = get_ai_answer(
+                  rec,
                   system_prompt,
-                  st.session_state.section_messages[sec_name],
+                  rec["section_messages"][sec_name],
                   sec_name=sec_name,
               )
-              reply_with_voice(full_response)
-              st.session_state.section_messages[sec_name].append(
+              reply_with_voice(full_response, rec["voice"])
+              rec["section_messages"][sec_name].append(
                   {"role": "assistant", "content": full_response}
               )
               record_subscriber_lesson_memory(
+                  rec,
                   sec_name,
-                  st.session_state.section_messages[sec_name],
+                  rec["section_messages"][sec_name],
               )
+              save_store_to_disk(st.session_state.gmail_vault)
 
   elif nav_mode == t_sec_schedule:
     st.header(t_schedule_title)
-    if not st.session_state.is_subscribed:
+    if not rec.get("is_subscribed"):
       st.info(
           "🔒 لغير المشتركين: يُسمح بمهمة واحدة في اليوم (**1/يوم**) و3 مهام"
           " في الأسبوع (**3/أسبوع**)."
@@ -1406,33 +1551,35 @@ else:
         task_time = st.text_input(t_time_label, value="12:00")
 
       if st.form_submit_button(t_add_task_btn) and task_desc.strip():
-        if not st.session_state.is_subscribed:
-          if len(st.session_state.my_schedule) >= FREE_WEEKLY_TASK_LIMIT:
+        if not rec.get("is_subscribed"):
+          if len(rec.get("my_schedule", [])) >= FREE_WEEKLY_TASK_LIMIT:
             st.warning(
                 "🔒 وصلتِ للحد الأسبوعي (3 مهام في الأسبوع) لغير المشتركين."
             )
-          elif count_free_tasks_on_day(task_day) >= FREE_DAILY_TASK_LIMIT:
+          elif count_free_tasks_on_day(rec, task_day) >= FREE_DAILY_TASK_LIMIT:
             st.warning(
                 f"🔒 يُسمح بمهمة واحدة فقط في يوم {task_day} لغير المشتركين."
             )
           else:
-            st.session_state.my_schedule.append({
+            rec["my_schedule"].append({
                 "day": task_day,
                 "time": task_time.strip() or "12:00",
                 "task": task_desc.strip(),
             })
+            save_store_to_disk(st.session_state.gmail_vault)
             st.success(t_task_added)
         else:
-          st.session_state.my_schedule.append({
+          rec["my_schedule"].append({
               "day": task_day,
               "time": task_time.strip() or "12:00",
               "task": task_desc.strip(),
           })
+          save_store_to_disk(st.session_state.gmail_vault)
           st.success(t_task_added)
 
-    if st.session_state.my_schedule:
+    if rec.get("my_schedule"):
       st.subheader(t_schedule_list)
-      for idx, item in enumerate(st.session_state.my_schedule):
+      for idx, item in enumerate(rec["my_schedule"]):
         c_txt, c_del = st.columns([5, 1])
         with c_txt:
           st.info(
@@ -1441,20 +1588,21 @@ else:
           )
         with c_del:
           if st.button("حذف", key=f"del_sch_{idx}"):
-            st.session_state.my_schedule.pop(idx)
+            rec["my_schedule"].pop(idx)
+            save_store_to_disk(st.session_state.gmail_vault)
             st.rerun()
     else:
       st.info("لا توجد مواعيد مضافة في جدولكِ حالياً.")
 
   elif nav_mode == t_sec_chats:
     st.header("💬 سجل الدردشة الكاملة")
-    if not st.session_state.saved_chats:
+    if not rec.get("saved_chats"):
       st.info(
           "لم يتم حفظ أي دردشة كاملة بعد. اضغطي على «حفظ في سجل الدردشة» داخل"
           " أي قسم لحفظها هنا."
       )
     else:
-      for idx, chat_item in enumerate(st.session_state.saved_chats):
+      for idx, chat_item in enumerate(rec["saved_chats"]):
         with st.expander(
             f"🗂️ {chat_item['title']} ({chat_item['saved_at']})",
             expanded=(idx == 0),
@@ -1472,8 +1620,12 @@ else:
           )
 
   elif nav_mode == t_sec_pricing:
-    st.header("💳 الباقات والاشتراك (BRAS AI)")
-    st.write("اختاري الباقة المناسبة لفتح الوصول الكامل غير المحدود:")
+    st.header("💳 الباقات والاشتراك عبر كي كارد (BRAS AI)")
+    if rec.get("is_subscribed"):
+      st.success(
+          f"✅ اشتراككِ مفعّل حالياً ({rec.get('subscription_plan')})."
+      )
+
     p1, p2, p3 = st.columns(3)
     with p1:
       st.markdown(
@@ -1481,10 +1633,9 @@ else:
           " أيام</p></div>",
           unsafe_allow_html=True,
       )
-      if st.button("اشتراك أسبوعي ($2)", key="plan_w"):
-        st.session_state.is_subscribed = True
-        st.session_state.subscription_plan = "أسبوعي - $2"
-        st.success("تم تفعيل الباقة الأسبوعية ($2)!")
+      if st.button("اختيار الباقة الأسبوعية ($2)", key="plan_w"):
+        rec["selected_payment_plan"] = "أسبوعي - $2"
+        save_store_to_disk(st.session_state.gmail_vault)
         st.rerun()
     with p2:
       st.markdown(
@@ -1492,10 +1643,9 @@ else:
           " يوماً</p></div>",
           unsafe_allow_html=True,
       )
-      if st.button("اشتراك شهري ($10)", key="plan_m"):
-        st.session_state.is_subscribed = True
-        st.session_state.subscription_plan = "شهري - $10"
-        st.success("تم تفعيل الباقة الشهرية ($10)!")
+      if st.button("اختيار الباقة الشهرية ($10)", key="plan_m"):
+        rec["selected_payment_plan"] = "شهري - $10"
+        save_store_to_disk(st.session_state.gmail_vault)
         st.rerun()
     with p3:
       st.markdown(
@@ -1503,30 +1653,56 @@ else:
           " يوماً</p></div>",
           unsafe_allow_html=True,
       )
-      if st.button("اشتراك سنوي ($50)", key="plan_y"):
-        st.session_state.is_subscribed = True
-        st.session_state.subscription_plan = "سنوي - $50"
-        st.success("تم تفعيل الباقة السنوية ($50)!")
+      if st.button("اختيار الباقة السنوية ($50)", key="plan_y"):
+        rec["selected_payment_plan"] = "سنوي - $50"
+        save_store_to_disk(st.session_state.gmail_vault)
         st.rerun()
 
-    st.radio(
-        "طريقة الدفع:",
-        ["Visa / Mastercard", "K-Net / QiCard / زين كاش"],
-    )
+    active_plan = rec.get("selected_payment_plan", "أسبوعي - $2")
+    st.markdown("---")
+    st.subheader(f"💳 الدفع عبر كي كارد — {active_plan}")
+    st.info(QICARD_INFO)
+
+    with st.form("qicard_activation_form"):
+      payer_ref = st.text_input(
+          "اسم المحوِّل أو رقم مرجع التحويل (اختياري):",
+          value=rec.get("payment_ref", ""),
+          placeholder="مثال: اسم صاحب التحويل أو رقم العملية",
+      )
+      code_input = st.text_input(
+          "أدخلي كود التفعيل بعد تأكيد الدفع:",
+          type="password",
+          placeholder="أدخلي الكود المرسل لكِ بعد التحويل",
+      )
+      confirm_pay = st.form_submit_button("تأكيد الدفع وتفعيل الاشتراك")
+      if confirm_pay:
+        if (code_input or "").strip() == SECRET_ACTIVATION_CODE:
+          rec["is_subscribed"] = True
+          rec["subscription_plan"] = active_plan
+          rec["payment_ref"] = (payer_ref or "").strip()
+          save_store_to_disk(st.session_state.gmail_vault)
+          st.success(f"تم تفعيل اشتراككِ بنجاح ({active_plan})!")
+          st.rerun()
+        else:
+          st.error(
+              "كود التفعيل غير صحيح. أتمي التحويل عبر كي كارد أولاً ثم أدخلي"
+              " الكود الصحيح."
+          )
 
   elif nav_mode == t_sec_archive:
     st.markdown(
         f"<h2 style='text-align: center; color: #9b5de5;'>{t_archive_header}</h2>",
         unsafe_allow_html=True,
     )
-    if not st.session_state.archives:
+    if not rec.get("archives"):
       st.info(t_no_archive)
     else:
-      for idx, arch in enumerate(st.session_state.archives):
+      for idx, arch in enumerate(rec["archives"]):
         with st.expander(f"📁 {arch['title']}", expanded=True):
           if st.button(t_browse, key=f"arch_{idx}"):
-            st.session_state.selected_section = arch["section"]
-            st.session_state.browsing_archive = arch
+            rec["selected_section"] = arch["section"]
+            rec["browsing_archive"] = arch
+            save_store_to_disk(st.session_state.gmail_vault)
             st.rerun()
 
   elif nav_mode == t_sec_settings:
@@ -1536,26 +1712,16 @@ else:
     )
     with st.container():
       st.markdown("<div class='settings-panel'>", unsafe_allow_html=True)
-      new_name = st.text_input(t_username, value=st.session_state.username)
+      new_name = st.text_input(t_username, value=rec["username"])
       new_theme = st.radio(
           t_theme,
           ("داكن (Dark)", "فاتح (Light)"),
-          index=(
-              0
-              if "داكن" in st.session_state.theme
-              or "Dark" in st.session_state.theme
-              else 1
-          ),
+          index=0 if ("داكن" in rec["theme"] or "Dark" in rec["theme"]) else 1,
       )
       new_voice = st.radio(
           t_voice,
           ("صوت بنت نقي وواضح (Nova)", "صوت رجل نقي وواضح (Onyx)"),
-          index=(
-              0
-              if "بنت" in st.session_state.voice
-              or "Nova" in st.session_state.voice
-              else 1
-          ),
+          index=0 if ("بنت" in rec["voice"] or "Nova" in rec["voice"]) else 1,
       )
       new_screen = st.radio(
           t_screen_mode,
@@ -1566,7 +1732,8 @@ else:
       languages_40 = [
           "العربية (Arabic)",
           "الإنجليزية (English)",
-          "الكوردية (Kurdish Badini)",
+          "الكوردية البادينية (Kurdish Badini)",
+          "الكوردية السورانية (Kurdish Sorani)",
           "التركية (Türkçe)",
           "الفرنسية (Français)",
           "الألمانية (Deutsch)",
@@ -1607,8 +1774,8 @@ else:
       ]
 
       current_lang_idx = (
-          languages_40.index(st.session_state.language)
-          if st.session_state.language in languages_40
+          languages_40.index(rec["language"])
+          if rec["language"] in languages_40
           else 0
       )
       new_lang = st.selectbox(t_lang_label, languages_40, index=current_lang_idx)
@@ -1617,15 +1784,16 @@ else:
       st.checkbox("Enable notifications on app open", value=True)
 
       if st.button(t_save):
-        lang_changed = new_lang != st.session_state.language
-        st.session_state.username = new_name.strip() or st.session_state.username
-        st.session_state.theme = new_theme
-        st.session_state.voice = new_voice
-        st.session_state.screen_mode = new_screen
-        st.session_state.language = new_lang
+        lang_changed = new_lang != rec["language"]
+        rec["username"] = new_name.strip() or rec["username"]
+        rec["theme"] = new_theme
+        rec["voice"] = new_voice
+        rec["screen_mode"] = new_screen
+        rec["language"] = new_lang
         if lang_changed:
-          st.session_state.selected_section = None
-          st.session_state.browsing_archive = None
+          rec["selected_section"] = None
+          rec["browsing_archive"] = None
+        save_store_to_disk(st.session_state.gmail_vault)
         st.success(t_saved_ok)
         st.rerun()
       st.markdown("</div>", unsafe_allow_html=True)
