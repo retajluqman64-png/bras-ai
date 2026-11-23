@@ -247,23 +247,63 @@ else:
     }
 
 is_dark = "داكن" in st.session_state.theme or "Dark" in st.session_state.theme
-bg_color = "#0d0614" if is_dark else "#fcf8ff"
-text_color = "#ffffff" if is_dark else "#111111"
-card_bg = "#1a1026" if is_dark else "#ffffff"
-border_color = "#9b5de5"
-accent_color = "#9b5de5"
+bg_color = "#0e0818" if is_dark else "#f8f4ff"
+text_color = "#f8f5ff" if is_dark else "#161124"
+muted_text = "#d6c8f0" if is_dark else "#3b2f54"
+card_bg = "#1e1230" if is_dark else "#ffffff"
+input_bg = "#281840" if is_dark else "#ffffff"
+border_color = "#a855f7"
+accent_color = "#c084fc" if is_dark else "#7e22ce"
 
 container_max_width = "100%" if is_screen_mode else "1240px"
 block_padding = "1rem 1.4rem" if is_screen_mode else "1.5rem 2.2rem"
 btn_height = "125px" if is_screen_mode else "110px"
-btn_font = "1.2rem" if is_screen_mode else "1.08rem"
+btn_font = "1.18rem" if is_screen_mode else "1.06rem"
 
 st.markdown(
     f"""
 <style>
-.stApp {{
-    background-color: {bg_color};
-    color: {text_color};
+.stApp, [data-testid="stAppViewContainer"] {{
+    background-color: {bg_color} !important;
+    color: {text_color} !important;
+}}
+[data-testid="stHeader"] {{
+    background-color: transparent !important;
+}}
+[data-testid="stSidebar"] {{
+    background-color: {card_bg} !important;
+    color: {text_color} !important;
+}}
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+.stMarkdown, .stMarkdown p, .stMarkdown li,
+label, .stRadio label, .stCheckbox label, .stSelectbox label,
+.stTextInput label, .stTextArea label {{
+    color: {text_color} !important;
+    opacity: 1 !important;
+}}
+.stCaption, [data-testid="stCaptionContainer"] {{
+    color: {muted_text} !important;
+    opacity: 1 !important;
+}}
+.stTextInput input, .stTextArea textarea,
+[data-baseweb="select"] > div {{
+    background-color: {input_bg} !important;
+    color: {text_color} !important;
+    border-color: {border_color} !important;
+}}
+.stButton > button {{
+    background-color: {card_bg} !important;
+    color: {text_color} !important;
+    border: 1.5px solid {border_color} !important;
+    border-radius: 14px !important;
+    font-weight: 600 !important;
+}}
+.stButton > button:hover {{
+    background-color: #9333ea !important;
+    color: #ffffff !important;
+    border-color: #f472b6 !important;
 }}
 .main .block-container {{
     max-width: {container_max_width};
@@ -271,14 +311,14 @@ st.markdown(
 }}
 .main-title {{
     text-align: center;
-    color: {accent_color};
+    color: {accent_color} !important;
     font-weight: bold;
-    font-size: {"3rem" if is_screen_mode else "2.5rem"};
+    font-size: {"2.8rem" if is_screen_mode else "2.35rem"};
     margin-bottom: 16px;
 }}
 .user-info {{
     background-color: {card_bg};
-    color: {text_color};
+    color: {text_color} !important;
     padding: 14px 18px;
     border-radius: 15px;
     border: 1.5px solid {border_color};
@@ -289,29 +329,29 @@ st.markdown(
     flex-wrap: wrap;
     gap: 10px;
 }}
-.grid-card-wrap button {{
+.grid-card-wrap .stButton > button {{
     width: 100%;
     min-height: {btn_height};
-    background-color: {card_bg};
-    color: {text_color};
-    border: 2px solid {border_color};
-    border-radius: 20px;
+    background-color: {card_bg} !important;
+    color: {text_color} !important;
+    border: 2px solid {border_color} !important;
+    border-radius: 20px !important;
     font-size: {btn_font};
     font-weight: bold;
     line-height: 1.4;
     padding: 14px 12px;
     transition: 0.25s ease;
-    box-shadow: 0 4px 15px rgba(155, 93, 229, 0.25);
+    box-shadow: 0 4px 15px rgba(155, 93, 229, 0.22);
 }}
-.grid-card-wrap button:hover {{
-    background-color: {accent_color};
-    color: #ffffff;
-    border-color: #f15bb5;
-    transform: translateY(-3px);
+.grid-card-wrap .stButton > button:hover {{
+    background-color: #9333ea !important;
+    color: #ffffff !important;
+    border-color: #f472b6 !important;
+    transform: translateY(-2px);
 }}
 .plan-box {{
     background-color: {card_bg};
-    color: {text_color};
+    color: {text_color} !important;
     padding: 18px;
     border-radius: 16px;
     border: 1.5px solid {border_color};
@@ -319,7 +359,7 @@ st.markdown(
 }}
 .settings-panel {{
     background-color: {card_bg};
-    color: {text_color};
+    color: {text_color} !important;
     padding: 20px;
     border-radius: 20px;
     border: 2px solid {border_color};
