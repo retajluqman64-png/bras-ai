@@ -484,23 +484,37 @@ def get_ai_answer(
 ) -> str:
     if not client:
         return "أهلاً بكِ في BRAS AI! أضيفي مفتاح OPENAI_API_KEY في Streamlit Secrets لتفعيل الردود الذكية."
+    memory_note = (
+        build_subscriber_memory_context(sec_name) if sec_name else ""
+    )
+    sys_full = (
+        f"{system_instruction}{memory_note}\n"
+        f"Current date: {TODAY_STR}. "
+        "Use live web search whenever needed to get accurate up-to-date match schedules, scores, trending TikTok creators, and current news. "
+        "Provide a clear, helpful, and direct answer—never repeat or parrot what the user said. "
+        f"Respond fluently in {st.session_state.language}."
+    )
+    recent_msgs = [
+        {"role": m["role"], "content": m["content"]}
+        for m in chat_history[-10:]
+    ]
+
+    # المحاولة الأولى: استخدام ميزة البحث الحي في الويب المدمجة في OpenAI بنفس المفتاح
     try:
-        memory_note = (
-            build_subscriber_memory_context(sec_name) if sec_name else ""
+        resp_web = client.responses.create(
+            model="gpt-4o-mini",
+            tools=[{"type": "web_search_preview"}],
+            instructions=sys_full,
+            input=recent_msgs,
         )
-        payload = [
-            {
-                "role": "system",
-                "content": (
-                    f"{system_instruction}{memory_note} "
-                    "Provide a clear, helpful, and direct answer to the user's request—never repeat or parrot what the user said. "
-                    f"Respond fluently in {st.session_state.language}."
-                ),
-            }
-        ] + [
-            {"role": m["role"], "content": m["content"]}
-            for m in chat_history[-10:]
-        ]
+        if getattr(resp_web, "output_text", None):
+            return resp_web.output_text
+    except Exception:
+        pass
+
+    # المحاولة البديلة: المحادثة القياسية بنفس المفتاح إذا لم يكن البحث مفعلاً على الحساب
+    try:
+        payload = [{"role": "system", "content": sys_full}] + recent_msgs
         resp = client.chat.completions.create(
             model="gpt-4o-mini", messages=payload
         )
@@ -707,7 +721,7 @@ else:
     BASE_SECTIONS = {
         "المساعد الشامل": (
             "🤖",
-            f"{base_system_prompt} You are a versatile smart assistant.",
+            f"{base_system_prompt} You are a versatile smart assistant with live web search access for current news, social media trends, and events.",
         ),
         "المعلم الشامل": (
             "📚",
@@ -715,7 +729,7 @@ else:
         ),
         "قسم كرة القدم": (
             "⚽",
-            f"{base_system_prompt} You are a football analyst.",
+            f"{base_system_prompt} You are a football analyst covering FC Barcelona, La Liga, Champions League, live match schedules, and football news.",
         ),
         "تعليم اللغات": (
             "🗣️",
@@ -1131,7 +1145,10 @@ else:
                             },
                         )
                         record_subscriber_lesson_memory(
-                            sec_name, st.session_state.section_messages.get(sec_name, [])
+                            sec_name,
+                            st.session_state.section_messages.get(
+                                sec_name, []
+                            ),
                         )
                         st.session_state.latest_voice_text = vid_plan
                         st.rerun()
