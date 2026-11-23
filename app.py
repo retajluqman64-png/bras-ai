@@ -44,6 +44,7 @@ defaults = {
     "free_daily_images_used": 0,
     "free_daily_videos_used": 0,
     "latest_voice_text": None,
+    "ui_translations_cache": {},
 }
 
 FREE_MSG_LIMIT = 25
@@ -77,180 +78,291 @@ def derive_name_from_email(email_str: str) -> str:
   return cleaned.title() if cleaned else "مستخدم BRAS AI"
 
 
+api_key = st.secrets.get("OPENAI_API_KEY")
+client = OpenAI(api_key=api_key) if api_key else None
+
+
+def get_badini_ui_pack() -> dict:
+  return {
+      "t_title": "💜 BRAS AI - سەکۆیێ گشتی یێ زیرەک 💜",
+      "t_login_title": "🔐 چوونە ژوورێ ب هەژمارا Gmail",
+      "t_email": "هەژمارا Gmail:",
+      "t_login_btn": "چوونە ژوورێ ب Google",
+      "t_logout_btn": "دەرکەفتن",
+      "t_nav": "📍 بگەڕە د سەکۆیا خۆ دا:",
+      "t_sec_main": "🏠 تۆڕا سەرەکی (پشک)",
+      "t_sec_schedule": "📅 خشتە و بیرئینان",
+      "t_sec_chats": "💬 تۆمارا تەمام یا ئاخفتنێ",
+      "t_sec_pricing": "💳 پاکێج و بهایێ بەشداریێ",
+      "t_sec_archive": "📚 ئەرشیفا ئاخفتنێن هەلگرتی",
+      "t_sec_settings": "⚙️ رێکخستنێن BRAS AI و هەژمارێ",
+      "t_account": "هەژمار",
+      "t_lang_label": (
+          "🌐 زمانێ بەرنامەی و هەلبژارتنا ئاخفتنێ (پتری 40 زمانان):"
+      ),
+      "t_theme": "رەنگ و شێواز:",
+      "t_voice": "دەنگ:",
+      "t_screen_mode": "🖥️ شێوازێ شاشێ (Screen Mode):",
+      "t_settings_header": "🎛️ رێکخستن",
+      "t_username": "ناڤێ بەکارهێنەری:",
+      "t_save": "💾 هەلگرتنا رێکخستنان و بجهئینان",
+      "t_saved_ok": "رێکخستن و زمان ب سەرکەفتی هاتنە هەلگرتن!",
+      "t_schedule_title": "📅 خشتێ ژڤان، کار و بیرئینانێ",
+      "t_task_input": (
+          "کار یان ژڤانی بنڤیسە (بۆ نموونە: تاقیکرنا بیرکاریێ یان سەرەدان):"
+      ),
+      "t_day_label": "رۆژێ هەلبژێرە:",
+      "t_time_label": "دەمژمێر:",
+      "t_add_task_btn": "زێدەکرن بۆ خشتەی",
+      "t_task_added": "ژڤان ب سەرکەفتی بۆ خشتێ تە هاتە زێدەکرن!",
+      "t_schedule_list": "📌 خشتێ ژڤان و کارێن تە یێن تۆمارکری:",
+      "t_choose_sec": "پشکا گونجاو هەلبژێرە دا دەست ب داهێنانێ بکەی:",
+      "t_back_grid": "⬅️ زڤرین بۆ تۆڕێ",
+      "t_new_chat": "✨ ئاخفتنەکا نوی",
+      "t_archive_btn": "💾 هەلگرتن و ئەرشیف",
+      "t_archived_ok": "ئاخفتن ب سەرکەفتی هاتە ئەرشیفکرن!",
+      "t_exit_arch": "↩️ دەرکەفتن ژ ئەرشیفێ",
+      "t_file_upload": "➕ زێدەکرنا وێنەی یان فایلێ",
+      "t_archive_header": "📚 ئەرشیف",
+      "t_no_archive": "چ ئاخفتنێن ئەرشیفکری نینن.",
+      "t_browse": "📖 ڤەکرن و دیتن",
+      "ads_sec_key": "پشکا ریکلام و بازاڕان",
+      "sections_map": {
+          "المساعد الشامل": "هاریکارێ گشتی",
+          "المعلم الشامل": "مامۆستایێ گشتی",
+          "قسم كرة القدم": "پشکا تەپا پێ (بەرشەلۆنە)",
+          "تعليم اللغات": "فێربوونا زمانان",
+          "البرمجة": "پڕۆگرامسازی",
+          "الطبخ والوصفات": "خارن چێکرن و رێسپی",
+          "مكياج وسكين كير": "مکیاژ و خزمەتکرنا پیستی",
+          "ديزاين وملابس وشوبينغ": "دیزاین، جلك و شۆپینگ",
+          "أفكار دول وسفرات": "هزرێن وەلات و گەشتان",
+          "قسم التاريخ": "پشکا مێژوویێ",
+          "الصحة، الدايت والجيم": "ساخلەمی، دایت و جیم",
+          "نصائح وتطوير الذات": "شیرەت و پێشئێخستنا کەسایەتیێ",
+          "پشکا ریکلام و بازاڕان": "پشکا ریکلام و بازاڕان",
+          "صانع الفيديوهات والأفكار": "چێکەرێ ڤیدیۆ و هزران",
+      },
+  }
+
+
+def get_arabic_ui_pack() -> dict:
+  return {
+      "t_title": "💜 BRAS AI - المنصة الشاملة الذكية 💜",
+      "t_login_title": "🔐 تسجيل الدخول بحساب Gmail",
+      "t_email": "حساب Gmail:",
+      "t_login_btn": "دخول بحساب Google",
+      "t_logout_btn": "تسجيل الخروج",
+      "t_nav": "📍 تنقلي في منصتكِ:",
+      "t_sec_main": "🏠 الشبكة الرئيسية (الأقسام)",
+      "t_sec_schedule": "📅 الجدول والتذكير",
+      "t_sec_chats": "💬 سجل الدردشة الكاملة",
+      "t_sec_pricing": "💳 الباقات والاشتراك",
+      "t_sec_archive": "📚 أرشيف المحادثات المحفوظة",
+      "t_sec_settings": "⚙️ إعدادات BRAS AI والحساب",
+      "t_account": "الحساب",
+      "t_lang_label": (
+          "🌐 لغة التطبيق وتفضيل المحادثة (أكثر من 40 لغة):"
+      ),
+      "t_theme": "المظهر:",
+      "t_voice": "الصوت:",
+      "t_screen_mode": "🖥️ وضع الشاشة (Screen Mode):",
+      "t_settings_header": "🎛️ الإعدادات",
+      "t_username": "اسم المستخدم:",
+      "t_save": "💾 حفظ الإعدادات وتطبيق التغييرات",
+      "t_saved_ok": "تم حفظ الإعدادات وتطبيق اللغة بنجاح!",
+      "t_schedule_title": "📅 جدول المواعيد والمهمات والتذكير",
+      "t_task_input": (
+          "اكتبي المهمة أو الموعد (مثلاً: امتحان رياضيات أو موعد طبيب):"
+      ),
+      "t_day_label": "اختر اليوم:",
+      "t_time_label": "الساعة:",
+      "t_add_task_btn": "إضافة إلى الجدول",
+      "t_task_added": "تمت إضافة الموعد إلى جدولكِ!",
+      "t_schedule_list": "📌 جدول مواعيدكِ ومهامكِ المسجلة:",
+      "t_choose_sec": "اخترِ القسم المناسب لبدء الإبداع:",
+      "t_back_grid": "⬅️ العودة للشبكة",
+      "t_new_chat": "✨ محادثة جديدة",
+      "t_archive_btn": "💾 حفظ وأرشفة",
+      "t_archived_ok": "تمت أرشفة المحادثة بنجاح!",
+      "t_exit_arch": "↩️ الخروج من الأرشيف",
+      "t_file_upload": "➕ إضافة صورة أو ملف",
+      "t_archive_header": "📚 الأرشيف",
+      "t_no_archive": "لا توجد محادثات مؤرشفة.",
+      "t_browse": "📖 استعراض",
+      "ads_sec_key": "قسم الإعلانات والمتاجر",
+      "sections_map": {
+          "المساعد الشامل": "المساعد الشامل",
+          "المعلم الشامل": "المعلم الشامل",
+          "قسم كرة القدم": "قسم كرة القدم",
+          "تعليم اللغات": "تعليم اللغات",
+          "البرمجة": "البرمجة",
+          "الطبخ والوصفات": "الطبخ والوصفات",
+          "مكياج وسكين كير": "مكياج وسكين كير",
+          "ديزاين وملابس وشوبينغ": "ديزاين وملابس وشوبينغ",
+          "أفكار دول وسفرات": "أفكار دول وسفرات",
+          "قسم التاريخ": "قسم التاريخ",
+          "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
+          "نصائح وتطوير الذات": "نصائح وتطوير الذات",
+          "قسم الإعلانات والمتاجر": "قسم الإعلانات والمتاجر",
+          "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار",
+      },
+  }
+
+
+def get_english_ui_pack() -> dict:
+  return {
+      "t_title": "💜 BRAS AI - Smart Comprehensive Platform 💜",
+      "t_login_title": "🔐 Sign In with Your Gmail Account",
+      "t_email": "Gmail Account:",
+      "t_login_btn": "Continue with Google",
+      "t_logout_btn": "Logout",
+      "t_nav": "Navigate Your Platform:",
+      "t_sec_main": "🏠 Main Grid (Sections)",
+      "t_sec_schedule": "📅 Schedule & Reminders",
+      "t_sec_chats": "💬 Saved Chats",
+      "t_sec_pricing": "💳 Plans & Pricing",
+      "t_sec_archive": "📚 Saved Archives",
+      "t_sec_settings": "⚙️ BRAS AI & Account Settings",
+      "t_account": "Account",
+      "t_lang_label": "App Language",
+      "t_theme": "Theme",
+      "t_voice": "Voice",
+      "t_screen_mode": "Screen Mode",
+      "t_settings_header": "⚙️ Settings",
+      "t_username": "Username:",
+      "t_save": "Save Settings & Apply Changes",
+      "t_saved_ok": "Settings saved and language applied successfully!",
+      "t_schedule_title": "📅 Your Schedule & Smart Reminders",
+      "t_task_input": "Enter task (e.g., Math exam or family visit):",
+      "t_day_label": "Select Day:",
+      "t_time_label": "Time (e.g., 4:00 PM):",
+      "t_add_task_btn": "Add Task to Schedule",
+      "t_task_added": "Task added to your schedule!",
+      "t_schedule_list": "📌 Your Schedule & Recorded Tasks:",
+      "t_choose_sec": "Choose the right section to start creating:",
+      "t_back_grid": "⬅️ Back to Grid",
+      "t_new_chat": "✨ New Chat",
+      "t_archive_btn": "💾 Save & Archive",
+      "t_archived_ok": "Conversation archived successfully!",
+      "t_exit_arch": "↩️ Exit Archive View",
+      "t_file_upload": "➕ Add Image or File",
+      "t_archive_header": "📚 Archives",
+      "t_no_archive": "No archived conversations.",
+      "t_browse": "📖 Browse",
+      "ads_sec_key": "Ads & Stores Studio",
+      "sections_map": {
+          "المساعد الشامل": "Comprehensive Assistant",
+          "المعلم الشامل": "School Teacher",
+          "قسم كرة القدم": "Football (FC Barcelona)",
+          "تعليم اللغات": "Languages Tutor",
+          "البرمجة": "Programming",
+          "الطبخ والوصفات": "Cooking & Recipes",
+          "مكياج وسكين كير": "Makeup & Skincare",
+          "ديزاين وملابس وشوبينغ": "Fashion & Shopping",
+          "أفكار دول وسفرات": "Travel & Trip Planner",
+          "قسم التاريخ": "History Expert",
+          "الصحة، الدايت والجيم": "Fitness & Health",
+          "نصائح وتطوير الذات": "Life Advisor",
+          "Ads & Stores Studio": "Ads & Stores Studio",
+          "صانع الفيديوهات والأفكار": "Video & Ideas Studio",
+      },
+  }
+
+
+def resolve_ui_pack(selected_lang: str) -> dict:
+  if "Badini" in selected_lang or "باديني" in selected_lang:
+    return get_badini_ui_pack()
+  if "English" in selected_lang:
+    return get_english_ui_pack()
+  if "Arabic" in selected_lang:
+    return get_arabic_ui_pack()
+
+  cache = st.session_state.setdefault("ui_translations_cache", {})
+  if selected_lang in cache:
+    return cache[selected_lang]
+
+  base_pack = get_english_ui_pack()
+  if not client:
+    return base_pack
+
+  try:
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Translate every string value in the provided JSON UI"
+                    f" dictionary accurately and naturally into '{selected_lang}'."
+                    " Keep emojis intact and return valid JSON with the exact"
+                    " same keys."
+                ),
+            },
+            {"role": "user", "content": json.dumps(base_pack, ensure_ascii=False)},
+        ],
+    )
+    translated = json.loads(resp.choices[0].message.content or "{}")
+    merged = {**base_pack, **translated}
+    if isinstance(translated.get("sections_map"), dict):
+      merged["sections_map"] = {
+          **base_pack["sections_map"],
+          **translated["sections_map"],
+      }
+    cache[selected_lang] = merged
+    return merged
+  except Exception:
+    return base_pack
+
+
 lang = st.session_state.language
 is_screen_mode = (
     "شاشة" in st.session_state.screen_mode
     or "Screen" in st.session_state.screen_mode
 )
+ui_pack = resolve_ui_pack(lang)
 
-if "English" in lang:
-  t_title = "💜 BRAS AI - Smart Comprehensive Platform 💜"
-  t_login_title = "🔐 Sign In with Your Gmail Account"
-  t_email = "Gmail Account:"
-  t_login_btn = "Continue with Google"
-  t_logout_btn = "Logout"
-  t_nav = "Navigate Your Platform:"
-  t_sec_main = "🏠 Main Grid (Sections)"
-  t_sec_schedule = "📅 Schedule & Reminders"
-  t_sec_chats = "💬 Saved Chats"
-  t_sec_pricing = "💳 Plans & Pricing"
-  t_sec_archive = "📚 Saved Archives"
-  t_sec_settings = "⚙️ BRAS AI & Account Settings"
-  t_account = "Account"
-  t_lang_label = "App Language"
-  t_theme = "Theme"
-  t_voice = "Voice"
-  t_screen_mode = "Screen Mode"
-  t_settings_header = "⚙️ Settings"
-  t_username = "Username:"
-  t_save = "Save Settings & Apply Changes"
-  t_saved_ok = "Settings saved and language applied successfully!"
-  t_schedule_title = "📅 Your Schedule & Smart Reminders"
-  t_task_input = "Enter task (e.g., Math exam or family visit):"
-  t_day_label = "Select Day:"
-  t_time_label = "Time (e.g., 4:00 PM):"
-  t_add_task_btn = "Add Task to Schedule"
-  t_task_added = "Task added to your schedule!"
-  t_schedule_list = "📌 Your Schedule & Recorded Tasks:"
-  t_choose_sec = "Choose the right section to start creating:"
-  t_back_grid = "⬅️ Back to Grid"
-  t_new_chat = "✨ New Chat"
-  t_archive_btn = "💾 Save & Archive"
-  t_archived_ok = "Conversation archived successfully!"
-  t_exit_arch = "↩️ Exit Archive View"
-  t_file_upload = "➕ Add Image or File"
-  t_archive_header = "📚 Archives"
-  t_no_archive = "No archived conversations."
-  t_browse = "📖 Browse"
-  ads_sec_key = "Ads & Stores Studio"
-  SECTIONS_NAMES = {
-      "المساعد الشامل": "Comprehensive Assistant",
-      "المعلم الشامل": "School Teacher",
-      "قسم كرة القدم": "Football (FC Barcelona)",
-      "تعليم اللغات": "Languages Tutor",
-      "البرمجة": "Programming",
-      "الطبخ والوصفات": "Cooking & Recipes",
-      "مكياج وسكين كير": "Makeup & Skincare",
-      "ديزاين وملابس وشوبينغ": "Fashion & Shopping",
-      "أفكار دول وسفرات": "Travel & Trip Planner",
-      "قسم التاريخ": "History Expert",
-      "الصحة، الدايت والجيم": "Fitness & Health",
-      "نصائح وتطوير الذات": "Life Advisor",
-      ads_sec_key: "Ads & Stores Studio",
-      "صانع الفيديوهات والأفكار": "Video & Ideas Studio",
-  }
-elif "Kurdish" in lang:
-  t_title = "💜 BRAS AI - سەکۆی گشتگیری هۆشمەند 💜"
-  t_login_title = "🔐 چوونەژوورەوە بە هەژماری Gmail"
-  t_email = "هەژماری Gmail:"
-  t_login_btn = "چوونە ژوورەوە بە Google"
-  t_logout_btn = "چوونە دەرەوە"
-  t_nav = "گه‌شت بكه‌ له‌ سەکۆکەت:"
-  t_sec_main = "🏠 تۆڕی سەرەکی (بەشەکان)"
-  t_sec_schedule = "📅 خشتە و بیرخەرەوەکان"
-  t_sec_chats = "💬 گفتوگۆ پاشەکەوتکراوەکان"
-  t_sec_pricing = "💳 پاکێج و نرخەکان"
-  t_sec_archive = "📚 ئەرشیفی گفتوگۆکان"
-  t_sec_settings = "⚙️ ڕێکخستنەکانی BRAS AI"
-  t_account = "هەژمار"
-  t_lang_label = "زمانی بەرنامە"
-  t_theme = "ڕوکار"
-  t_voice = "دەنگ"
-  t_screen_mode = "دۆخی شاشە (Screen Mode)"
-  t_settings_header = "⚙️ ڕێکخستنەکان"
-  t_username = "ناوی بەکارهێنەر:"
-  t_save = "پاشەکەوتکردنی ڕێکخستنەکان"
-  t_saved_ok = "ڕێکخستنەکان بە سەرکەوتوویی پاشەکەوت کران!"
-  t_schedule_title = "📅 خشتەی ئەرکەکان و بیرخەرەوە"
-  t_task_input = "ئەرکێک بنووسە:"
-  t_day_label = "ڕۆژ هەڵبژێرە:"
-  t_time_label = "کات:"
-  t_add_task_btn = "زیادکردنی ئەرک بۆ خشتە"
-  t_task_added = "ئەرکەکە زیادکرا!"
-  t_schedule_list = "📌 خشتەی ئەرکە تۆمارکراوەکانت:"
-  t_choose_sec = "بەشی گونجاو هەڵبژێرە بۆ دەستپێکردن:"
-  t_back_grid = "⬅️ گەڕانەوە بۆ تۆڕ"
-  t_new_chat = "✨ گفتوگۆی نوێ"
-  t_archive_btn = "💾 پاشەکەوت و ئەرشیف"
-  t_archived_ok = "گفتوگۆکە ئەرشیف کرا!"
-  t_exit_arch = "↩️ دەرچوون لە ئەرشیف"
-  t_file_upload = "➕ زیادکردنی وێنە یان فایل"
-  t_archive_header = "📚 ئەرشیف"
-  t_no_archive = "هیچ گفتوگۆیەکی ئەرشیفکراو نییە."
-  t_browse = "📖 پشکنین"
-  ads_sec_key = "ستۆدیۆی ڕیکلام و بازاڕەکان"
-  SECTIONS_NAMES = {
-      "المساعد الشامل": "یاریدەدەری گشتی",
-      "المعلم الشامل": "مامۆستای قوتابخانە",
-      "قسم كرة القدم": "تۆپی پێ (بارسێلۆنا)",
-      "تعليم اللغات": "فێربوونی زمانەکان",
-      "البرمجة": "بەرمەسازی",
-      "الطبخ والوصفات": "چێشتلێنان",
-      "مكياج وسكين كير": "مکیاژ و چاودێری پێست",
-      "ديزاين وملابس وشوبينغ": "فاشیۆن و بازاڕکردن",
-      "أفكار دول وسفرات": "پلانی گەشتکردن",
-      "قسم التاريخ": "مێژوونووس",
-      "الصحة، الدايت والجيم": "تەندروستی و لەشجوانی",
-      "نصائح وتطوير الذات": "پەرەپێدانی خۆی",
-      ads_sec_key: "ستۆدیۆی ڕیکلام و بازاڕەکان",
-      "صانع الفيديوهات والأفكار": "ستۆدیۆی ڤیدیۆ و بیرۆکەکان",
-  }
-else:
-  t_title = "💜 BRAS AI - المنصة الشاملة الذكية 💜"
-  t_login_title = "🔐 تسجيل الدخول بحساب Gmail"
-  t_email = "حساب Gmail:"
-  t_login_btn = "دخول بحساب Google"
-  t_logout_btn = "تسجيل الخروج"
-  t_nav = "📍 تنقلي في منصتكِ:"
-  t_sec_main = "🏠 الشبكة الرئيسية (الأقسام)"
-  t_sec_schedule = "📅 الجدول والتذكير"
-  t_sec_chats = "💬 سجل الدردشة الكاملة"
-  t_sec_pricing = "💳 الباقات والاشتراك"
-  t_sec_archive = "📚 أرشيف المحادثات المحفوظة"
-  t_sec_settings = "⚙️ إعدادات BRAS AI والحساب"
-  t_account = "الحساب"
-  t_lang_label = "🌐 لغة التطبيق وتفضيل المحادثة (أكثر من 40 لغة):"
-  t_theme = "المظهر:"
-  t_voice = "الصوت:"
-  t_screen_mode = "🖥️ وضع الشاشة (Screen Mode):"
-  t_settings_header = "🎛️ الإعدادات"
-  t_username = "اسم المستخدم:"
-  t_save = "💾 حفظ الإعدادات وتطبيق التغييرات"
-  t_saved_ok = "تم حفظ الإعدادات وتطبيق اللغة بنجاح!"
-  t_schedule_title = "📅 جدول المواعيد والمهمات والتذكير"
-  t_task_input = "اكتبي المهمة أو الموعد (مثلاً: امتحان رياضيات أو موعد طبيب):"
-  t_day_label = "اختر اليوم:"
-  t_time_label = "الساعة:"
-  t_add_task_btn = "إضافة إلى الجدول"
-  t_task_added = "تمت إضافة الموعد إلى جدولكِ!"
-  t_schedule_list = "📌 جدول مواعيدكِ ومهامكِ المسجلة:"
-  t_choose_sec = "اخترِ القسم المناسب لبدء الإبداع:"
-  t_back_grid = "⬅️ العودة للشبكة"
-  t_new_chat = "✨ محادثة جديدة"
-  t_archive_btn = "💾 حفظ وأرشفة"
-  t_archived_ok = "تمت أرشفة المحادثة بنجاح!"
-  t_exit_arch = "↩️ الخروج من الأرشيف"
-  t_file_upload = "➕ إضافة صورة أو ملف"
-  t_archive_header = "📚 الأرشيف"
-  t_no_archive = "لا توجد محادثات مؤرشفة."
-  t_browse = "📖 استعراض"
-  ads_sec_key = "قسم الإعلانات والمتاجر"
-  SECTIONS_NAMES = {
-      "المساعد الشامل": "المساعد الشامل",
-      "المعلم الشامل": "المعلم الشامل",
-      "قسم كرة القدم": "قسم كرة القدم",
-      "تعليم اللغات": "تعليم اللغات",
-      "البرمجة": "البرمجة",
-      "الطبخ والوصفات": "الطبخ والوصفات",
-      "مكياج وسكين كير": "مكياج وسكين كير",
-      "ديزاين وملابس وشوبينغ": "ديزاين وملابس وشوبينغ",
-      "أفكار دول وسفرات": "أفكار دول وسفرات",
-      "قسم التاريخ": "قسم التاريخ",
-      "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
-      "نصائح وتطوير الذات": "نصائح وتطوير الذات",
-      ads_sec_key: "قسم الإعلانات والمتاجر",
-      "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار",
-  }
+t_title = ui_pack["t_title"]
+t_login_title = ui_pack["t_login_title"]
+t_email = ui_pack["t_email"]
+t_login_btn = ui_pack["t_login_btn"]
+t_logout_btn = ui_pack["t_logout_btn"]
+t_nav = ui_pack["t_nav"]
+t_sec_main = ui_pack["t_sec_main"]
+t_sec_schedule = ui_pack["t_sec_schedule"]
+t_sec_chats = ui_pack["t_sec_chats"]
+t_sec_pricing = ui_pack["t_sec_pricing"]
+t_sec_archive = ui_pack["t_sec_archive"]
+t_sec_settings = ui_pack["t_sec_settings"]
+t_account = ui_pack["t_account"]
+t_lang_label = ui_pack["t_lang_label"]
+t_theme = ui_pack["t_theme"]
+t_voice = ui_pack["t_voice"]
+t_screen_mode = ui_pack["t_screen_mode"]
+t_settings_header = ui_pack["t_settings_header"]
+t_username = ui_pack["t_username"]
+t_save = ui_pack["t_save"]
+t_saved_ok = ui_pack["t_saved_ok"]
+t_schedule_title = ui_pack["t_schedule_title"]
+t_task_input = ui_pack["t_task_input"]
+t_day_label = ui_pack["t_day_label"]
+t_time_label = ui_pack["t_time_label"]
+t_add_task_btn = ui_pack["t_add_task_btn"]
+t_task_added = ui_pack["t_task_added"]
+t_schedule_list = ui_pack["t_schedule_list"]
+t_choose_sec = ui_pack["t_choose_sec"]
+t_back_grid = ui_pack["t_back_grid"]
+t_new_chat = ui_pack["t_new_chat"]
+t_archive_btn = ui_pack["t_archive_btn"]
+t_archived_ok = ui_pack["t_archived_ok"]
+t_exit_arch = ui_pack["t_exit_arch"]
+t_file_upload = ui_pack["t_file_upload"]
+t_archive_header = ui_pack["t_archive_header"]
+t_no_archive = ui_pack["t_no_archive"]
+t_browse = ui_pack["t_browse"]
+ads_sec_key = ui_pack["ads_sec_key"]
+SECTIONS_NAMES = ui_pack["sections_map"]
 
 is_dark = "داكن" in st.session_state.theme or "Dark" in st.session_state.theme
 bg_color = "#0b0b0d" if is_dark else "#ffffff"
@@ -393,9 +505,6 @@ label, .stRadio label, .stCheckbox label, .stSelectbox label,
 
 st.markdown(f"<h1 class='main-title'>{t_title}</h1>", unsafe_allow_html=True)
 
-api_key = st.secrets.get("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key) if api_key else None
-
 
 def get_voice_api() -> str:
   return (
@@ -522,6 +631,16 @@ def has_image_in_history(chat_history: list) -> bool:
   return False
 
 
+def get_language_directive(selected_lang: str) -> str:
+  if "Badini" in selected_lang or "باديني" in selected_lang:
+    return (
+        "Respond strictly in Kurdish Badini (Kurmanji) dialect using Arabic"
+        " script as spoken and written in Duhok (بە شێوەزارێ بادینی ب پیتێن"
+        " عەرەبی). Do NOT use Central Kurdish (Sorani)."
+    )
+  return f"Respond naturally and fluently in {selected_lang}."
+
+
 def get_ai_answer(
     system_instruction: str, chat_history: list, sec_name: str = ""
 ) -> str:
@@ -531,6 +650,7 @@ def get_ai_answer(
         " لتفعيل الردود الذكية."
     )
   memory_note = build_subscriber_memory_context(sec_name) if sec_name else ""
+  lang_directive = get_language_directive(st.session_state.language)
   sys_full = (
       f"{system_instruction}{memory_note}\n"
       f"Current date: {TODAY_STR}. "
@@ -540,8 +660,7 @@ def get_ai_answer(
       "Use live web search whenever needed for up-to-date match schedules,"
       " scores, trending TikTok creators, and current news. "
       "Provide a clear, helpful, and direct answer—never repeat or parrot what"
-      " the user said. "
-      f"Respond fluently in {st.session_state.language}."
+      f" the user said. {lang_directive}"
   )
   recent_msgs = format_history_for_api(chat_history)
 
@@ -775,8 +894,7 @@ else:
   base_system_prompt = (
       "You are BRAS AI, a smart assistant platform that can view and analyze"
       " uploaded images directly. "
-      f"Current user language setting: {st.session_state.language}. Respond"
-      " naturally and fluently in this language."
+      f"{get_language_directive(st.session_state.language)}"
   )
 
   BASE_SECTIONS = {
@@ -1071,8 +1189,10 @@ else:
             st.session_state.latest_voice_text = full_response
             st.rerun()
 
-      is_ads_section = any(
-          w in sec_name for w in ["إعلانات", "Ads", "ڕیکلام"]
+      is_ads_section = sec_name == SECTIONS_NAMES.get(
+          ads_sec_key, ads_sec_key
+      ) or any(
+          w in sec_name for w in ["إعلانات", "Ads", "ریکلام", "ریكلام"]
       )
       if is_ads_section and browsing_item is None:
         st.markdown("### 📢 مولد إعلانات المتاجر والمشاريع")
@@ -1120,7 +1240,7 @@ else:
         st.markdown("---")
 
       is_vid_section = any(
-          w in sec_name for w in ["الفيديوهات", "Video", "ڤیدیۆ"]
+          w in sec_name for w in ["الفيديوهات", "Video", "ڤیدیۆ", "ڤیدیو"]
       )
       if is_vid_section and browsing_item is None:
         st.markdown("### 🎬 استوديو الفيديوهات والأفكار")
