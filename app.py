@@ -13,7 +13,7 @@ st.set_page_config(
 
 TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 
-# الحسابات المعتمدة وكلمات السر الخاصة بكل حساب (البريد الإلكتروني: {"password": "...", "username": "..."})
+# الحسابات المعتمدة وكلمات السر الخاصة بكل حساب فقط (لا يُنشأ أي حساب أو كلمة سر جديدة من التطبيق)
 AUTHORIZED_ACCOUNTS = {
     "retaj@brasai.com": {
         "password": "Retaj@2026",
@@ -91,7 +91,7 @@ is_screen_mode = (
 
 if "English" in lang:
     t_title = "💜 BRAS AI - Smart Comprehensive Platform 💜"
-    t_login_title = "🔐 Sign In with Your Account Password"
+    t_login_title = "🔐 Sign In with Your Existing Password"
     t_email = "Email:"
     t_password = "Password:"
     t_login_btn = "Sign In"
@@ -684,30 +684,32 @@ if not st.session_state.logged_in:
                 placeholder="name@example.com",
             )
             password = st.text_input(
-                t_password, type="password", placeholder="أدخل كلمة السر الخاصة بحسابك"
+                t_password,
+                type="password",
+                placeholder="أدخل كلمة السر الخاصة بحسابك",
             )
             submit_button = st.form_submit_button(t_login_btn)
             if submit_button:
                 clean_email = email.strip().lower()
+                account_data = AUTHORIZED_ACCOUNTS.get(clean_email)
                 if not is_valid_email(clean_email):
+                    st.error("يرجى إدخال بريد إلكتروني صحيح.")
+                    st.stop()
+                if not password:
+                    st.error("يرجى إدخال كلمة السر.")
+                    st.stop()
+                if account_data is None or account_data["password"] != password:
                     st.error(
-                        "يرجى إدخال بريد إلكتروني صحيح (مثل: user@brasai.com)."
+                        "البريد الإلكتروني أو كلمة السر غير صحيحة؛ يُرجى إدخال كلمة السر المعتمدة للحساب."
                     )
-                elif not password:
-                    st.error("يرجى إدخال كلمة السر الخاصة بحسابك.")
-                elif clean_email not in AUTHORIZED_ACCOUNTS:
-                    st.error(
-                        "هذا البريد الإلكتروني غير مسجل في المنصة؛ لا يمكن إنشاء كلمة سر جديدة من هنا."
-                    )
-                elif AUTHORIZED_ACCOUNTS[clean_email]["password"] != password:
-                    st.error("كلمة السر غير صحيحة لهذا الحساب.")
-                else:
-                    st.session_state.logged_in = True
-                    st.session_state.user_email = clean_email
-                    st.session_state.username = AUTHORIZED_ACCOUNTS[clean_email]["username"]
-                    if st.session_state.trial_start is None:
-                        st.session_state.trial_start = datetime.now()
-                    st.rerun()
+                    st.stop()
+
+                st.session_state.logged_in = True
+                st.session_state.user_email = clean_email
+                st.session_state.username = account_data["username"]
+                if st.session_state.trial_start is None:
+                    st.session_state.trial_start = datetime.now()
+                st.rerun()
     with c_right:
         st.info(
             "✨ تسجيل الدخول بحسابكِ وكلمة سركِ\n\n• تجربة مجانية 24 ساعة\n•"
