@@ -392,21 +392,18 @@ def generate_real_image(prompt_text: str):
         return None
 
     errors = []
-    for model_name in ("dall-e-3", "gpt-image-1"):
+    for model_name in ("dall-e-3", "dall-e-2"):
         try:
-            kwargs = {
-                "model": model_name,
-                "prompt": prompt_text.strip(),
-                "size": "1024x1024",
-            }
-            if model_name == "dall-e-3":
-                kwargs["response_format"] = "b64_json"
-            res = client.images.generate(**kwargs)
-            b64_data = res.data[0].b64_json
-            if b64_data:
-                return base64.b64decode(b64_data)
-            if getattr(res.data[0], "url", None):
-                return res.data[0].url
+            res = client.images.generate(
+                model=model_name,
+                prompt=prompt_text.strip(),
+                size="1024x1024",
+            )
+            item = res.data[0]
+            if getattr(item, "b64_json", None):
+                return base64.b64decode(item.b64_json)
+            if getattr(item, "url", None):
+                return item.url
         except Exception as exc:
             errors.append(f"{model_name}: {exc}")
 
