@@ -398,8 +398,10 @@ def generate_real_image(prompt_text: str):
                 return item.url
             if getattr(item, "b64_json", None):
                 return f"data:image/png;base64,{item.b64_json}"
-    except Exception as e:
-        st.error(f"سبب فشل توليد الصورة من OpenAI: gpt-image-1: {e}")
+    except Exception:
+        st.info(
+            "ميزة توليد الصور المباشرة من OpenAI غير مفعّلة أو غير متاحة على هذا الحساب حالياً. يمكنكِ استخدام وصف الصورة أو ربط مزود صور خارجي."
+        )
     return None
 
 
