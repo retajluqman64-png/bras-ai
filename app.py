@@ -41,6 +41,7 @@ defaults = {
     "free_daily_date": TODAY_STR,
     "free_daily_images_used": 0,
     "free_daily_videos_used": 0,
+    "latest_voice_text": None,
 }
 
 FREE_MSG_LIMIT = 25
@@ -343,8 +344,7 @@ def get_voice_api() -> str:
     )
 
 
-def reply_with_voice(text: str):
-    st.markdown(text)
+def play_voice_only(text: str):
     if client and text:
         try:
             audio_resp = client.audio.speech.create(
@@ -355,6 +355,11 @@ def reply_with_voice(text: str):
             st.audio(audio_resp.read(), format="audio/mp3", autoplay=True)
         except Exception:
             pass
+
+
+def reply_with_voice(text: str):
+    st.markdown(text)
+    play_voice_only(text)
 
 
 def transcribe_once(audio_file, scope_name: str):
@@ -702,6 +707,7 @@ else:
                             register_free_section(sec_name)
                             st.session_state.selected_section = sec_name
                             st.session_state.browsing_archive = None
+                            st.session_state.latest_voice_text = None
                             st.rerun()
                         else:
                             st.warning(
@@ -723,12 +729,18 @@ else:
                 if st.button(t_back_grid):
                     st.session_state.selected_section = None
                     st.session_state.browsing_archive = None
+                    st.session_state.latest_voice_text = None
                     st.rerun()
+
+            if st.session_state.latest_voice_text:
+                play_voice_only(st.session_state.latest_voice_text)
+                st.session_state.latest_voice_text = None
 
             if browsing_item is None:
                 col_new, col_arc, col_save_side = st.columns(3)
                 if col_new.button(t_new_chat):
                     st.session_state.section_messages[sec_name] = []
+                    st.session_state.latest_voice_text = None
                     st.rerun()
                 if col_arc.button(t_archive_btn):
                     msgs = st.session_state.section_messages.get(sec_name, [])
@@ -855,6 +867,7 @@ else:
                         st.session_state.section_messages.setdefault(
                             sec_name, []
                         ).append({"role": "assistant", "content": ad_out})
+                        st.session_state.latest_voice_text = ad_out
                         st.rerun()
                     else:
                         st.info("اكتبي اسم المتجر ووصف العرض أولاً.")
@@ -912,6 +925,7 @@ else:
                         st.session_state.section_messages.setdefault(
                             sec_name, []
                         ).append({"role": "assistant", "content": desc_out})
+                        st.session_state.latest_voice_text = desc_out
                         st.rerun()
                     else:
                         st.info("اكتبي فكرة الصورة أولاً.")
@@ -981,6 +995,7 @@ else:
                                 "script": vid_plan,
                             },
                         )
+                        st.session_state.latest_voice_text = vid_plan
                         st.rerun()
                     else:
                         st.info("اكتبي فكرة الفيديو أولاً.")
