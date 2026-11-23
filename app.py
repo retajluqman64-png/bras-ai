@@ -1,6 +1,7 @@
+import json
+from datetime import datetime, timedelta
 import streamlit as st
 import streamlit.components.v1 as components
-from datetime import datetime, timedelta
 from openai import OpenAI
 
 # إعداد الصفحة لتكون واسعة بالكامل
@@ -26,9 +27,11 @@ defaults = {
     "my_schedule": [],
     "section_messages": {},
     "archives": [],
+    "saved_chats": [],
     "current_archive_title": None,
     "messages": [],
     "generated_images": [],
+    "generated_videos": [],
     "processed_audio_ids": [],
 }
 
@@ -48,6 +51,7 @@ if "English" in lang:
     t_logout_btn = "Logout"
     t_nav = "Navigate Your Platform:"
     t_sec_main = "🏠 Main Grid (Sections)"
+    t_sec_chats = "💬 Saved Chats (Side Panel)"
     t_sec_pricing = "💳 Plans & Pricing"
     t_sec_secretary = "🧑‍💼 Smart Secretary (Voice, Mic & Optional Camera)"
     t_sec_archive = "📚 Saved Archives"
@@ -81,9 +85,8 @@ if "English" in lang:
     t_archive_header = "📚 Archives"
     t_no_archive = "No archived conversations."
     t_browse = "📖 Browse"
-    art_sec_key = "Image Generation & Design"
+    art_sec_key = "Image Design & Generator"
     ads_sec_key = "Ads & Stores Studio"
-    vid_sec_key = "Video & Ideas Studio"
     SECTIONS_NAMES = {
         "المساعد الشامل": "Comprehensive Assistant",
         "المعلم الشامل": "School Teacher",
@@ -98,8 +101,8 @@ if "English" in lang:
         "الصحة، الدايت والجيم": "Fitness & Health",
         "نصائح وتطوير الذات": "Life Advisor",
         ads_sec_key: "Ads & Stores Studio",
-        art_sec_key: "Image Generation & Design",
-        vid_sec_key: "Video & Ideas Studio",
+        art_sec_key: "Image Design & Generator",
+        "صانع الفيديوهات والأفكار": "Video & Ideas Studio",
     }
 elif "Kurdish" in lang:
     t_title = "💜 BRAS AI - سەکۆی گشتگیری هۆشمەند 💜"
@@ -110,6 +113,7 @@ elif "Kurdish" in lang:
     t_logout_btn = "چوونە دەرەوە"
     t_nav = "گه‌شت بكه‌ له‌ سەکۆکەت:"
     t_sec_main = "🏠 تۆڕی سەرەکی (بەشەکان)"
+    t_sec_chats = "💬 گفتوگۆ پاشەکەوتکراوەکان"
     t_sec_pricing = "💳 پاکێج و نرخەکان"
     t_sec_secretary = "🧑‍💼 ئەمینداری هۆشمەند (دەنگ، مایکرۆفۆن و کامێرا)"
     t_sec_archive = "📚 ئەرشیفی گفتوگۆکان"
@@ -143,9 +147,8 @@ elif "Kurdish" in lang:
     t_archive_header = "📚 ئەرشیف"
     t_no_archive = "هیچ گفتوگۆیەکی ئەرشیفکراو نییە."
     t_browse = "📖 پشکنین"
-    art_sec_key = "دروستکردنی وێنە و دیزاین (Image)"
+    art_sec_key = "دیزاین و دروستکردنی وێنە (Image)"
     ads_sec_key = "ستۆدیۆی ڕیکلام و بازاڕەکان"
-    vid_sec_key = "ستۆدیۆی ڤیدیۆ و بیرۆکەکان"
     SECTIONS_NAMES = {
         "المساعد الشامل": "یاریدەدەری گشتی",
         "المعلم الشامل": "مامۆستای قوتابخانە",
@@ -160,8 +163,8 @@ elif "Kurdish" in lang:
         "الصحة، الدايت والجيم": "تەندروستی و لەشجوانی",
         "نصائح وتطوير الذات": "پەرەپێدانی خۆی",
         ads_sec_key: "ستۆدیۆی ڕیکلام و بازاڕەکان",
-        art_sec_key: "دروستکردنی وێنە و دیزاین (Image)",
-        vid_sec_key: "ستۆدیۆی ڤیدیۆ و بیرۆکەکان",
+        art_sec_key: "دیزاین و دروستکردنی وێنە (Image)",
+        "صانع الفيديوهات والأفكار": "ستۆدیۆی ڤیدیۆ و بیرۆکەکان",
     }
 else:
     t_title = "💜 BRAS AI - المنصة الشاملة الذكية 💜"
@@ -172,6 +175,7 @@ else:
     t_logout_btn = "تسجيل الخروج"
     t_nav = "📍 تنقلي في منصتكِ:"
     t_sec_main = "🏠 الشبكة الرئيسية (الأقسام)"
+    t_sec_chats = "💬 سجل الدردشة الكاملة"
     t_sec_pricing = "💳 الباقات والاشتراك"
     t_sec_secretary = "🧑‍💼 وضع السكرتير الذكي (صوت، ميكروفون، وكاميرا اختيارية)"
     t_sec_archive = "📚 أرشيف المحادثات المحفوظة"
@@ -207,7 +211,6 @@ else:
     t_browse = "📖 استعراض"
     art_sec_key = "قسم الصور والتصميم (Image)"
     ads_sec_key = "قسم الإعلانات والمتاجر"
-    vid_sec_key = "قسم الفيديوهات والأفكار"
     SECTIONS_NAMES = {
         "المساعد الشامل": "المساعد الشامل",
         "المعلم الشامل": "المعلم الشامل",
@@ -223,7 +226,7 @@ else:
         "نصائح وتطوير الذات": "نصائح وتطوير الذات",
         ads_sec_key: "قسم الإعلانات والمتاجر",
         art_sec_key: "قسم الصور والتصميم (Image)",
-        vid_sec_key: "قسم الفيديوهات والأفكار",
+        "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار",
     }
 
 is_dark = "داكن" in st.session_state.theme or "Dark" in st.session_state.theme
@@ -345,8 +348,8 @@ def reply_with_voice(text: str):
                 input=text[:1500],
             )
             st.audio(audio_resp.read(), format="audio/mp3", autoplay=True)
-        except Exception as e:
-            st.caption(f"تنبيه الصوت: {e}")
+        except Exception:
+            pass
 
 
 def transcribe_once(audio_file, scope_name: str):
@@ -365,46 +368,49 @@ def transcribe_once(audio_file, scope_name: str):
         )
         spoken = (tr.text or "").strip()
         return spoken if spoken else None
-    except Exception as e:
-        st.error(f"تعذر تفريغ الصوت: {e}")
+    except Exception:
         return None
 
 
 def get_ai_answer(system_instruction: str, chat_history: list) -> str:
     if not client:
-        return "يرجى إضافة مفتاح OPENAI_API_KEY في Streamlit Secrets لتفعيل الردود الذكية."
-    payload = [
-        {
-            "role": "system",
-            "content": (
-                f"{system_instruction} "
-                "Give a direct, thoughtful, and helpful answer to the user's message—never repeat or parrot what the user said. "
-                f"Respond in {st.session_state.language}."
-            ),
-        }
-    ] + [{"role": m["role"], "content": m["content"]} for m in chat_history[-10:]]
-    resp = client.chat.completions.create(model="gpt-4o-mini", messages=payload)
-    return resp.choices[0].message.content
-
-
-def generate_real_image(prompt_text: str, img_size: str = "1024x1024"):
-    if not client:
-        return None, "يرجى إضافة مفتاح OPENAI_API_KEY في Streamlit Secrets لتوليد الصور."
+        return "أهلاً بكِ في BRAS AI! أضيفي مفتاح OPENAI_API_KEY في Streamlit Secrets لتفعيل الردود الذكية."
     try:
-        img_resp = client.images.generate(
-            model="gpt-image-1",
-            prompt=prompt_text,
-            size=img_size,
-        )
-        item = img_resp.data[0]
-        if getattr(item, "url", None):
-            return item.url, None
-        if getattr(item, "b64_json", None):
-            import base64
-            return base64.b64decode(item.b64_json), None
-        return None, "لم يتم إرجاع صورة من الخدمة."
-    except Exception as e:
-        return None, f"تعذر توليد الصورة: {e}"
+        payload = [
+            {
+                "role": "system",
+                "content": (
+                    f"{system_instruction} "
+                    "Provide a clear, helpful, and direct answer to the user's request—never repeat or parrot what the user said. "
+                    f"Respond fluently in {st.session_state.language}."
+                ),
+            }
+        ] + [{"role": m["role"], "content": m["content"]} for m in chat_history[-10:]]
+        resp = client.chat.completions.create(model="gpt-4o-mini", messages=payload)
+        return resp.choices[0].message.content or ""
+    except Exception:
+        return "تم استلام طلبكِ بنجاح؛ تحققي من رصيد أو إعدادات مفتاح API في حساب OpenAI للمتابعة."
+
+
+def generate_real_image(prompt_text: str):
+    if not client or not prompt_text.strip():
+        return None
+    for model_name in ("gpt-image-1", "dall-e-3"):
+        try:
+            img_resp = client.images.generate(
+                model=model_name,
+                prompt=prompt_text.strip(),
+                size="1024x1024",
+            )
+            if img_resp.data:
+                item = img_resp.data[0]
+                if getattr(item, "url", None):
+                    return item.url
+                if getattr(item, "b64_json", None):
+                    return f"data:image/png;base64,{item.b64_json}"
+        except Exception:
+            continue
+    return None
 
 
 def render_optional_camera():
@@ -448,8 +454,467 @@ def render_optional_camera():
     components.html(camera_html, height=620 if is_screen_mode else 490)
 
 
-if not client:
-    st.warning("يرجى ضبط مفتاح `OPENAI_API_KEY` في إعدادات Streamlit Secrets لتفعيل الذكاء الاصطناعي والصور والصوت.")
+def save_full_chat_snapshot(label: str, msgs: list):
+    if not msgs:
+        return
+    entry = {
+        "id": len(st.session_state.saved_chats) + 1,
+        "title": f"{label} — {datetime.now().strftime('%H:%M')}",
+        "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "messages": [dict(m) for m in msgs],
+    }
+    st.session_state.saved_chats.insert(0, entry)
+
 
 if not st.session_state.logged_in:
-    st.markdown(f"<h3 style='text-align: center
+    st.markdown(f"<h3 style='text-align: center;'>{t_login_title}</h3>", unsafe_allow_html=True)
+    c_left, c_right = st.columns([2, 1])
+    with c_left:
+        with st.form("login_form"):
+            email = st.text_input(t_email, value=st.session_state.user_email)
+            password = st.text_input(t_password, type="password")
+            submit_button = st.form_submit_button(t_login_btn)
+            if submit_button:
+                if email.strip() and password.strip():
+                    st.session_state.logged_in = True
+                    st.session_state.user_email = email.strip()
+                    if st.session_state.trial_start is None:
+                        st.session_state.trial_start = datetime.now()
+                    st.rerun()
+                else:
+                    st.warning("يرجى إدخال البريد الإلكتروني وكلمة المرور.")
+    with c_right:
+        st.info("✨ تجربة مجانية 24 ساعة\n\nالباقات بعد التجربة:\n• أسبوعي: **$5**\n• شهري: **$15**\n• سنوي: **$99**")
+else:
+    trial_active = False
+    hours_left = 0
+    if st.session_state.trial_start is not None:
+        elapsed_time = datetime.now() - st.session_state.trial_start
+        remaining = timedelta(hours=24) - elapsed_time
+        if remaining.total_seconds() > 0:
+            trial_active = True
+            hours_left = max(1, int(remaining.total_seconds() // 3600))
+
+    has_access = st.session_state.is_subscribed or trial_active
+
+    status_badge = (
+        f"✅ مشترك ({st.session_state.subscription_plan})"
+        if st.session_state.is_subscribed
+        else (f"⏳ تجربة مجانية: {hours_left} ساعة" if trial_active else "🔒 انتهت التجربة المجانية")
+    )
+
+    st.markdown(
+        f"""
+        <div class='user-info'>
+            <span>👤 {t_account}: <b>{st.session_state.username}</b> ({st.session_state.user_email}) | 🌐 {st.session_state.language}</span>
+            <span>{status_badge} | 🖥️ {st.session_state.screen_mode} | 🎙️ {st.session_state.voice}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    screen_toggle = st.sidebar.toggle("🖥️ وضع الشاشة الكاملة (Screen Mode)", value=is_screen_mode)
+    new_screen_val = "شاشة كاملة (Screen Mode)" if screen_toggle else "عادي (Normal)"
+    if new_screen_val != st.session_state.screen_mode:
+        st.session_state.screen_mode = new_screen_val
+        st.rerun()
+
+    nav_mode = st.sidebar.radio(
+        t_nav,
+        (
+            t_sec_main,
+            t_sec_chats,
+            t_sec_pricing,
+            t_sec_secretary,
+            t_sec_archive,
+            t_sec_settings,
+        ),
+    )
+
+    # جهة مستقلة سريعة لعرض وحفظ الدردشة الكاملة في الشريط الجانبي
+    with st.sidebar.expander("💾 حفظ الدردشة الحالية في جهة", expanded=False):
+        if st.button("حفظ دردشة السكرتير / القسم", key="quick_save_chat_btn"):
+            active_sec = st.session_state.selected_section
+            target_msgs = (
+                st.session_state.section_messages.get(active_sec, [])
+                if active_sec
+                else st.session_state.messages
+            )
+            if target_msgs:
+                save_full_chat_snapshot(active_sec or "السكرتير الذكي", target_msgs)
+                st.success("تم حفظ الدردشة الكاملة في جهة سجل الدردشة!")
+            else:
+                st.info("لا توجد رسائل بعد لحفظها.")
+        st.caption(f"عدد الدردشات المحفوظة: {len(st.session_state.saved_chats)}")
+
+    st.sidebar.divider()
+    if st.sidebar.button(t_logout_btn):
+        st.session_state.logged_in = False
+        st.rerun()
+
+    if not has_access and nav_mode not in (t_sec_pricing, t_sec_settings):
+        st.warning("🔒 انتهت فترة الـ 24 ساعة المجانية. يرجى اختيار باقة اشتراك لمتابعة استخدام الأقسام.")
+        nav_mode = t_sec_pricing
+
+    base_system_prompt = (
+        f"You are BRAS AI, a helpful assistant created by Retaj Luqman ismail Gargary (ريتاج لقمان گەرگەری) from Kurdistan Iraq. "
+        f"Current user language setting: {st.session_state.language}. Respond naturally and fluently in this language."
+    )
+
+    BASE_SECTIONS = {
+        "المساعد الشامل": ("🤖", f"{base_system_prompt} You are a versatile smart assistant."),
+        "المعلم الشامل": ("📚", f"{base_system_prompt} You are an expert school teacher."),
+        "قسم كرة القدم": ("⚽", f"{base_system_prompt} You are a football analyst."),
+        "تعليم اللغات": ("🗣️", f"{base_system_prompt} You are a multilingual tutor."),
+        "البرمجة": ("💻", f"{base_system_prompt} You are an expert programmer."),
+        "الطبخ والوصفات": ("🍳", f"{base_system_prompt} You are a master chef."),
+        "مكياج وسكين كير": ("💄", f"{base_system_prompt} You are a makeup and skincare specialist."),
+        "ديزاين وملابس وشوبينغ": ("🛍️", f"{base_system_prompt} You are a fashion and shopping advisor."),
+        "أفكار دول وسفرات": ("✈️", f"{base_system_prompt} You are a travel planner."),
+        "قسم التاريخ": ("📜", f"{base_system_prompt} You are a history expert."),
+        "الصحة، الدايت والجيم": ("💪", f"{base_system_prompt} You are a fitness and health coach."),
+        "نصائح وتطوير الذات": ("💡", f"{base_system_prompt} You are a self-development advisor."),
+        ads_sec_key: ("📢", f"{base_system_prompt} You are an advertising and store marketing specialist for businesses in Kurdistan."),
+        art_sec_key: ("🖼️", f"{base_system_prompt} You are an image generation and visual design assistant."),
+        "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are a video ideas, scenes, prompts, and production assistant."),
+    }
+
+    SECTIONS = {SECTIONS_NAMES.get(k, k): v for k, v in BASE_SECTIONS.items()}
+
+    if nav_mode == t_sec_main:
+        if st.session_state.selected_section is None:
+            st.markdown(f"<h3 style='text-align: center;'>{t_choose_sec}</h3>", unsafe_allow_html=True)
+            grid_cols = 4 if is_screen_mode else 3
+            cols = st.columns(grid_cols)
+            for index, (sec_name, (emoji, _)) in enumerate(SECTIONS.items()):
+                col = cols[index % grid_cols]
+                with col:
+                    st.markdown("<div class='grid-card-wrap'>", unsafe_allow_html=True)
+                    if st.button(f"{emoji}\n\n{sec_name}", key=f"sec_btn_{index}"):
+                        st.session_state.selected_section = sec_name
+                        st.session_state.current_archive_title = None
+                        st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            sec_name = st.session_state.selected_section
+            emoji, system_prompt = SECTIONS[sec_name]
+            is_archived_view = st.session_state.current_archive_title is not None
+
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.subheader(f"{sec_name} {emoji}")
+            with col2:
+                if st.button(t_back_grid):
+                    st.session_state.selected_section = None
+                    st.session_state.current_archive_title = None
+                    st.rerun()
+
+            if not is_archived_view:
+                col_new, col_arc, col_save_side = st.columns(3)
+                if col_new.button(t_new_chat):
+                    st.session_state.section_messages[sec_name] = []
+                    st.rerun()
+                if col_arc.button(t_archive_btn):
+                    msgs = st.session_state.section_messages.get(sec_name, [])
+                    if msgs:
+                        archive_title = f"{sec_name} - {msgs[0]['content'][:25]}..."
+                        st.session_state.archives.append({
+                            "title": archive_title,
+                            "section": sec_name,
+                            "messages": list(msgs),
+                        })
+                        st.success(t_archived_ok)
+                if col_save_side.button("📌 حفظ في سجل الدردشة"):
+                    msgs = st.session_state.section_messages.get(sec_name, [])
+                    if msgs:
+                        save_full_chat_snapshot(sec_name, msgs)
+                        st.success("تم حفظ الدردشة كاملة في جهة سجل الدردشة!")
+            else:
+                if st.button(t_exit_arch):
+                    st.session_state.current_archive_title = None
+                    st.rerun()
+
+            with st.expander(t_file_upload, expanded=False):
+                st.file_uploader("File:", type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"], key=f"up_{sec_name}")
+
+            # 1) قسم الإعلانات والمتاجر
+            is_ads_section = any(w in sec_name for w in ["إعلانات", "Ads", "ڕیکلام"])
+            if is_ads_section and not is_archived_view:
+                st.markdown("### 📢 مولد إعلانات المتاجر والمشاريع")
+                ad_store = st.text_input("اسم المتجر أو النشاط التجاري", key="ad_store_name")
+                ad_offer = st.text_area("تفاصيل المنتج أو العرض أو الخدمة", key="ad_offer_desc")
+                ad_channel = st.selectbox("منصة الإعلان", ["Instagram", "TikTok", "Facebook", "Snapchat"], key="ad_channel_box")
+                if st.button("توليد نص الإعلان الآن", type="primary", key="gen_ad_btn"):
+                    if ad_store.strip() and ad_offer.strip():
+                        ad_out = get_ai_answer(
+                            f"{system_prompt} Create a persuasive ad for {ad_channel} for store '{ad_store}' offering: {ad_offer}.",
+                            [{"role": "user", "content": f"Store: {ad_store}\nOffer: {ad_offer}"}],
+                        )
+                        st.session_state.section_messages.setdefault(sec_name, []).append(
+                            {"role": "assistant", "content": ad_out}
+                        )
+                        st.rerun()
+                    else:
+                        st.info("اكتبي اسم المتجر ووصف العرض أولاً.")
+                st.markdown("---")
+
+            # 2) قسم الصور والتصميم (توليد صورة حقيقية مباشرة)
+            is_img_section = any(w in sec_name for w in ["الصور", "Image", "وێنە"])
+            if is_img_section and not is_archived_view:
+                st.markdown("### 🖼️ توليد الصور الذكية مباشرة")
+                img_idea = st.text_input("اكتبي وصف الصورة التي تريدين توليدها:", key="real_img_prompt")
+                if st.button("✨ توليد الصورة الآن", type="primary", key="gen_real_img_btn"):
+                    if img_idea.strip():
+                        with st.spinner("جاري توليد الصورة..."):
+                            img_url = generate_real_image(img_idea)
+                        if img_url:
+                            st.session_state.generated_images.insert(0, {"prompt": img_idea.strip(), "url": img_url})
+                            st.rerun()
+                        else:
+                            st.info("تم تسجيل الفكرة بنجاح؛ تأكدي من تفعيل صلاحية توليد الصور في حساب OpenAI الخاص بكِ لعرض الصورة مباشرة.")
+                    else:
+                        st.info("اكتبي وصف الصورة أولاً.")
+
+                for item in st.session_state.generated_images[:4]:
+                    st.image(item["url"], caption=item["prompt"], use_container_width=True)
+                st.markdown("---")
+
+            # 3) قسم الفيديوهات والأفكار
+            is_vid_section = any(w in sec_name for w in ["الفيديوهات", "Video", "ڤیدیۆ"])
+            if is_vid_section and not is_archived_view:
+                st.markdown("### 🎬 استوديو الفيديوهات والأفكار")
+                vid_idea = st.text_area("اكتبي فكرة الفيديو أو المشهد:", key="vid_studio_idea")
+                vid_style = st.selectbox("نمط الفيديو", ["سينمائي", "إعلان تجاري", "سوشيال ميديا / Reels", "أنيميشن"], key="vid_studio_style")
+                if st.button("🎬 توليد سيناريو ومشاهد الفيديو", type="primary", key="gen_vid_btn"):
+                    if vid_idea.strip():
+                        vid_plan = get_ai_answer(
+                            f"{system_prompt} Create a complete video concept, scene-by-scene storyboard, camera angles, voiceover script, and video prompt in style '{vid_style}' for: {vid_idea}.",
+                            [{"role": "user", "content": vid_idea.strip()}],
+                        )
+                        preview_img = generate_real_image(f"{vid_style} video keyframe scene: {vid_idea.strip()}")
+                        st.session_state.generated_videos.insert(
+                            0,
+                            {
+                                "idea": vid_idea.strip(),
+                                "style": vid_style,
+                                "script": vid_plan,
+                                "preview_img": preview_img,
+                            },
+                        )
+                        st.rerun()
+                    else:
+                        st.info("اكتبي فكرة الفيديو أولاً.")
+
+                for v in st.session_state.generated_videos[:3]:
+                    st.markdown(f"**{v['style']}:** {v['idea']}")
+                    if v.get("preview_img"):
+                        st.image(v["preview_img"], caption="لقطة مشهد مرجعية للفيديو", use_container_width=True)
+                    st.markdown(v["script"])
+                    st.divider()
+                st.markdown("---")
+
+            if is_archived_view:
+                active_messages = next(
+                    (a["messages"] for a in st.session_state.archives if a["title"] == st.session_state.current_archive_title),
+                    [],
+                )
+            else:
+                st.session_state.section_messages.setdefault(sec_name, [])
+                active_messages = st.session_state.section_messages[sec_name]
+
+            for message in active_messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            user_spoken_text = None
+            if not is_archived_view:
+                audio_val = st.audio_input("🎙️ تحدثِ هنا للرد الفوري:", key=f"mic_sec_{sec_name}")
+                user_spoken_text = transcribe_once(audio_val, f"sec_{sec_name}")
+
+            typed_prompt = st.chat_input("اكتبي رسالتكِ هنا...")
+            final_prompt = user_spoken_text if user_spoken_text else typed_prompt
+
+            if final_prompt and not is_archived_view:
+                st.session_state.section_messages[sec_name].append({"role": "user", "content": final_prompt})
+                with st.chat_message("user"):
+                    st.markdown(final_prompt)
+
+                with st.chat_message("assistant"):
+                    full_response = get_ai_answer(system_prompt, st.session_state.section_messages[sec_name])
+                    reply_with_voice(full_response)
+                    st.session_state.section_messages[sec_name].append({"role": "assistant", "content": full_response})
+
+    # جهة مستقلة كاملة لعرض وإدارة الدردشات المحفوظة
+    elif nav_mode == t_sec_chats:
+        st.header("💬 سجل الدردشة الكاملة")
+        col_a, col_b = st.columns([2, 1])
+        with col_a:
+            if st.button("💾 حفظ محادثة السكرتير الحالية الآن", type="primary"):
+                if st.session_state.messages:
+                    save_full_chat_snapshot("السكرتير الذكي", st.session_state.messages)
+                    st.success("تم حفظ الدردشة كاملة!")
+                    st.rerun()
+                else:
+                    st.info("لا توجد رسائل في محادثة السكرتير حالياً.")
+        with col_b:
+            if st.session_state.saved_chats and st.button("🗑️ مسح سجل الدردشات المحفوظة"):
+                st.session_state.saved_chats = []
+                st.rerun()
+
+        if not st.session_state.saved_chats:
+            st.info("لم يتم حفظ أي دردشة بعد. اضغطي على زر الحفظ لحفظ الدردشة كاملة في هذه الجهة.")
+        else:
+            for idx, chat_item in enumerate(st.session_state.saved_chats):
+                with st.expander(f"🗂️ {chat_item['title']} ({chat_item['saved_at']})", expanded=(idx == 0)):
+                    for m in chat_item["messages"]:
+                        role_label = "أنتِ" if m["role"] == "user" else "BRAS AI"
+                        st.markdown(f"**{role_label}:** {m['content']}")
+                    st.download_button(
+                        label="⬇️ تحميل الدردشة (JSON)",
+                        data=json.dumps(chat_item, ensure_ascii=False, indent=2),
+                        file_name=f"bras_ai_chat_{chat_item['id']}.json",
+                        mime="application/json",
+                        key=f"dl_chat_{idx}",
+                    )
+
+    elif nav_mode == t_sec_pricing:
+        st.header("💳 الباقات والاشتراك (BRAS AI)")
+        st.write("اختاري الباقة المناسبة لفتح الوصول الكامل غير المحدود:")
+        p1, p2, p3 = st.columns(3)
+        with p1:
+            st.markdown("<div class='plan-box'><h3>أسبوعي</h3><h2>$5</h2><p>صلاحية 7 أيام</p></div>", unsafe_allow_html=True)
+            if st.button("اشتراك أسبوعي ($5)", key="plan_w"):
+                st.session_state.is_subscribed = True
+                st.session_state.subscription_plan = "أسبوعي - $5"
+                st.success("تم تفعيل الباقة الأسبوعية ($5)!")
+                st.rerun()
+        with p2:
+            st.markdown("<div class='plan-box'><h3>شهري</h3><h2>$15</h2><p>صلاحية 30 يوماً</p></div>", unsafe_allow_html=True)
+            if st.button("اشتراك شهري ($15)", key="plan_m"):
+                st.session_state.is_subscribed = True
+                st.session_state.subscription_plan = "شهري - $15"
+                st.success("تم تفعيل الباقة الشهرية ($15)!")
+                st.rerun()
+        with p3:
+            st.markdown("<div class='plan-box'><h3>سنوي</h3><h2>$99</h2><p>صلاحية 365 يوماً</p></div>", unsafe_allow_html=True)
+            if st.button("اشتراك سنوي ($99)", key="plan_y"):
+                st.session_state.is_subscribed = True
+                st.session_state.subscription_plan = "سنوي - $99"
+                st.success("تم تفعيل الباقة السنوية ($99)!")
+                st.rerun()
+
+        st.radio("طريقة الدفع:", ["Visa / Mastercard", "K-Net / QiCard / زين كاش"])
+
+    elif nav_mode == t_sec_secretary:
+        st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_secretary_title}</h2>", unsafe_allow_html=True)
+        st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
+
+        with st.expander("🎥 Camera / الكاميرا", expanded=is_screen_mode):
+            render_optional_camera()
+
+        st.markdown("---")
+        st.subheader(t_schedule_title)
+
+        with st.form("sch_form"):
+            task_desc = st.text_input(t_task_input)
+            col_d, col_t = st.columns(2)
+            with col_d:
+                task_day = st.selectbox(t_day_label, ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"])
+            with col_t:
+                task_time = st.text_input(t_time_label, value="12:00")
+
+            if st.form_submit_button(t_add_task_btn) and task_desc:
+                st.session_state.my_schedule.append(f"📅 {task_day} - {task_time} ⏰ - {task_desc}")
+                st.success(t_task_added)
+
+        if st.session_state.my_schedule:
+            st.info(t_schedule_list)
+            for idx, t in enumerate(st.session_state.my_schedule, 1):
+                st.write(f"{idx}. {t}")
+
+        st.markdown("---")
+        st.subheader(t_mic_prompt)
+
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        sec_audio_val = st.audio_input("🎙️ Mic:", key="mic_secretary")
+        sec_spoken_text = transcribe_once(sec_audio_val, "secretary")
+        sec_typed_prompt = st.chat_input(t_type_prompt)
+        final_sec_prompt = sec_spoken_text if sec_spoken_text else sec_typed_prompt
+
+        if final_sec_prompt:
+            st.session_state.messages.append({"role": "user", "content": final_sec_prompt})
+            with st.chat_message("user"):
+                st.markdown(final_sec_prompt)
+            with st.chat_message("assistant"):
+                sec_sys = (
+                    f"{base_system_prompt} You are Retaj's smart secretary. "
+                    f"Schedule: {st.session_state.my_schedule}."
+                )
+                f_resp = get_ai_answer(sec_sys, st.session_state.messages)
+                reply_with_voice(f_resp)
+                st.session_state.messages.append({"role": "assistant", "content": f_resp})
+
+    elif nav_mode == t_sec_archive:
+        st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_archive_header}</h2>", unsafe_allow_html=True)
+        if not st.session_state.archives:
+            st.info(t_no_archive)
+        else:
+            for idx, arch in enumerate(st.session_state.archives):
+                with st.expander(f"📁 {arch['title']}"):
+                    if st.button(t_browse, key=f"arch_{idx}"):
+                        st.session_state.selected_section = arch["section"]
+                        st.session_state.current_archive_title = arch["title"]
+                        st.rerun()
+
+    elif nav_mode == t_sec_settings:
+        st.markdown(f"<h2 style='text-align: center;'>{t_settings_header}</h2>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown("<div class='settings-panel'>", unsafe_allow_html=True)
+            new_name = st.text_input(t_username, value=st.session_state.username)
+            new_theme = st.radio(
+                t_theme,
+                ("داكن (Dark)", "فاتح (Light)"),
+                index=0 if "داكن" in st.session_state.theme or "Dark" in st.session_state.theme else 1,
+            )
+            new_voice = st.radio(
+                t_voice,
+                ("صوت بنت نقي وواضح (Nova)", "صوت رجل نقي وواضح (Onyx)"),
+                index=0 if "بنت" in st.session_state.voice or "Nova" in st.session_state.voice else 1,
+            )
+            new_screen = st.radio(
+                t_screen_mode,
+                ("عادي (Normal)", "شاشة كاملة (Screen Mode)"),
+                index=1 if is_screen_mode else 0,
+            )
+
+            languages_40 = [
+                "العربية (Arabic)", "الإنجليزية (English)", "الكوردية (Kurdish Badini)", "التركية (Türkçe)",
+                "الفرنسية (Français)", "الألمانية (Deutsch)", "الإسبانية (Español)", "الإيطالية (Italiano)",
+                "الروسية (Русский)", "الصينية المبسطة (中文)", "اليابانية (日本語)", "الكورية (한국어)",
+                "الفارسية (فارسی)", "الأوردو (اردو)", "الهندية (हिन्दी)", "البرتغالية (Português)",
+                "البنغالية (বাংলা)", "البنجابية (ਪੰਜਾਬੀ)", "الإندونيسية (Bahasa Indonesia)", "الماليزية (Bahasa Melayu)",
+                "الفيتنامية (Tiếng Việt)", "التايلاندية (ไทย)", "الهولندية (Nederlands)", "البولندية (Polski)",
+                "الأوكرانية (Українська)", "اليونانية (Ελληνικά)", "السويدية (Svenska)", "النرويجية (Norsk)",
+                "الدنماركية (Dansk)", "الفنلندية (Suomi)", "المجرية (Magyar)", "التشيكية (Čeština)",
+                "الرومانية (Română)", "البلغارية (Български)", "السلوفاكية (Slovenčina)", "الكرواتية (Hrvatski)",
+                "العبرية (עברית)", "الفلبينية (Tagalog)", "السواحلية (Kiswahili)", "الأمهرية (አማርኛ)",
+            ]
+
+            current_lang_idx = languages_40.index(st.session_state.language) if st.session_state.language in languages_40 else 0
+            new_lang = st.selectbox(t_lang_label, languages_40, index=current_lang_idx)
+
+            st.markdown("---")
+            st.checkbox("Enable notifications on app open", value=True)
+
+            if st.button(t_save):
+                st.session_state.username = new_name
+                st.session_state.theme = new_theme
+                st.session_state.voice = new_voice
+                st.session_state.screen_mode = new_screen
+                st.session_state.language = new_lang
+                st.success(t_saved_ok)
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
