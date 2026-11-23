@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import json
 from openai import OpenAI
+import requests
 import streamlit as st
 
 # إعداد الصفحة لتكون واسعة بالكامل
@@ -310,6 +311,8 @@ st.markdown(f"<h1 class='main-title'>{t_title}</h1>", unsafe_allow_html=True)
 
 api_key = st.secrets.get("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key) if api_key else None
+video_api_key = st.secrets.get("VIDEO_API_KEY")
+video_api_url = st.secrets.get("VIDEO_API_URL")
 
 
 def get_voice_api() -> str:
@@ -397,6 +400,28 @@ def generate_real_image(prompt_text: str):
                     return f"data:image/png;base64,{item.b64_json}"
         except Exception:
             continue
+    return None
+
+
+def generate_real_video(prompt_text: str, style_text: str):
+    """ترسل طلب الفيديو إلى مزود فيديو خارجي إذا تم ضبط VIDEO_API_KEY وVIDEO_API_URL."""
+    if not video_api_key or not video_api_url or not prompt_text.strip():
+        return None
+    try:
+        resp = requests.post(
+            video_api_url,
+            headers={
+                "Authorization": f"Bearer {video_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={"prompt": prompt_text.strip(), "style": style_text},
+            timeout=60,
+        )
+        if resp.ok:
+            data = resp.json()
+            return data.get("video_url") or data.get("url")
+    except Exception:
+        return None
     return None
 
 
@@ -583,6 +608,12 @@ else:
 
     SECTIONS = {SECTIONS_NAMES.get(k, k): v for k, v in BASE_SECTIONS.items()}
 
+    if (
+        st.session_state.selected_section is not None
+        and st.session_state.selected_section not in SECTIONS
+    ):
+        st.session_state.selected_section = None
+
     if nav_mode == t_sec_main:
         if st.session_state.selected_section is None:
             st.markdown(
@@ -604,7 +635,9 @@ else:
                     st.markdown("</div>", unsafe_allow_html=True)
         else:
             sec_name = st.session_state.selected_section
-            emoji, system_prompt = SECTIONS[sec_name]
+            emoji, system_prompt = SECTIONS.get(
+                sec_name, ("🤖", f"{base_system_prompt}")
+            )
             browsing_item = st.session_state.browsing_archive
 
             col1, col2 = st.columns([4, 1])
@@ -757,18 +790,23 @@ else:
                     key="gen_vid_btn",
                 ):
                     if vid_idea.strip():
-                        vid_plan = get_ai_answer(
-                            (
-                                f"{system_prompt} Create a complete video"
-                                " concept, scene-by-scene storyboard, camera"
-                                " angles, voiceover script, and video prompt in"
-                                f" style '{vid_style}' for: {vid_idea}."
-                            ),
-                            [{"role": "user", "content": vid_idea.strip()}],
-                        )
-                        preview_img = generate_real_image(
-                            f"{vid_style} video keyframe scene: {vid_idea.strip()}"
-                        )
+                        with st.spinner("جاري تجهيز السيناريو والمشاهد..."):
+                            vid_plan = get_ai_answer(
+                                (
+                                    f"{system_prompt} Create a complete video"
+                                    " concept, scene-by-scene storyboard, camera"
+                                    " angles, voiceover script, and video prompt"
+                                    f" in style '{vid_style}' for:"
+                                    f" {vid_idea}."
+                                ),
+                                [{"role": "user", "content": vid_idea.strip()}],
+                            )
+                            preview_img = generate_real_image(
+                                f"{vid_style} video keyframe scene: {vid_idea.strip()}"
+                            )
+                            video_url = generate_real_video(
+                                vid_idea.strip(), vid_style
+                            )
                         st.session_state.generated_videos.insert(
                             0,
                             {
@@ -776,6 +814,7 @@ else:
                                 "style": vid_style,
                                 "script": vid_plan,
                                 "preview_img": preview_img,
+                                "video_url": video_url,
                             },
                         )
                         st.rerun()
@@ -784,7 +823,9 @@ else:
 
                 for v in st.session_state.generated_videos[:3]:
                     st.markdown(f"**{v['style']}:** {v['idea']}")
-                    if v.get("preview_img"):
+                    if v.get("video_url"):
+                        st.video(v["video_url"])
+                    elif v.get("preview_img"):
                         st.image(
                             v["preview_img"],
                             caption="لقطة مشهد مرجعية للفيديو",
@@ -1050,11 +1091,15 @@ else:
             st.checkbox("Enable notifications on app open", value=True)
 
             if st.button(t_save):
+                lang_changed = new_lang != st.session_state.language
                 st.session_state.username = new_name
                 st.session_state.theme = new_theme
                 st.session_state.voice = new_voice
                 st.session_state.screen_mode = new_screen
                 st.session_state.language = new_lang
+                if lang_changed:
+                    st.session_state.selected_section = None
+                    st.session_state.browsing_archive = None
                 st.success(t_saved_ok)
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
