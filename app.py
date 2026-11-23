@@ -247,13 +247,13 @@ else:
     }
 
 is_dark = "داكن" in st.session_state.theme or "Dark" in st.session_state.theme
-bg_color = "#0e0818" if is_dark else "#f8f4ff"
-text_color = "#f8f5ff" if is_dark else "#161124"
-muted_text = "#d6c8f0" if is_dark else "#3b2f54"
-card_bg = "#1e1230" if is_dark else "#ffffff"
-input_bg = "#281840" if is_dark else "#ffffff"
-border_color = "#a855f7"
-accent_color = "#c084fc" if is_dark else "#7e22ce"
+bg_color = "#0b0b0d" if is_dark else "#ffffff"
+text_color = "#ffffff" if is_dark else "#111111"
+muted_text = "#e5e5ea" if is_dark else "#222222"
+card_bg = "#17171c" if is_dark else "#f5f5f7"
+input_bg = "#1f1f26" if is_dark else "#ffffff"
+border_color = "#9b5de5"
+accent_color = "#c084fc" if is_dark else "#6b21a8"
 
 container_max_width = "100%" if is_screen_mode else "1240px"
 block_padding = "1rem 1.4rem" if is_screen_mode else "1.5rem 2.2rem"
@@ -277,9 +277,10 @@ st.markdown(
 [data-testid="stSidebar"] label,
 [data-testid="stSidebar"] p,
 [data-testid="stSidebar"] span,
-.stMarkdown, .stMarkdown p, .stMarkdown li,
+.stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span,
 label, .stRadio label, .stCheckbox label, .stSelectbox label,
-.stTextInput label, .stTextArea label {{
+.stTextInput label, .stTextArea label,
+[data-testid="stChatMessage"] p, [data-testid="stChatMessage"] span, [data-testid="stChatMessage"] div {{
     color: {text_color} !important;
     opacity: 1 !important;
 }}
@@ -288,10 +289,24 @@ label, .stRadio label, .stCheckbox label, .stSelectbox label,
     opacity: 1 !important;
 }}
 .stTextInput input, .stTextArea textarea,
-[data-baseweb="select"] > div {{
+[data-baseweb="select"] > div,
+[data-testid="stChatInput"] textarea,
+[data-testid="stChatInput"] input {{
     background-color: {input_bg} !important;
     color: {text_color} !important;
     border-color: {border_color} !important;
+}}
+[data-testid="stChatInput"] button,
+[data-testid="stChatInput"] svg {{
+    color: {text_color} !important;
+    fill: {text_color} !important;
+}}
+[data-testid="stChatInput"] textarea::placeholder,
+[data-testid="stChatInput"] input::placeholder,
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder {{
+    color: {muted_text} !important;
+    opacity: 0.85 !important;
 }}
 .stButton > button {{
     background-color: {card_bg} !important;
