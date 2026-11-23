@@ -388,8 +388,7 @@ for model_name in ("gpt-image-2.5-sunburst", "gpt-image-2.5-flare"):
             model=model_name,
             prompt=prompt_text.strip(),
             size="1024x1024",
-        )
-            
+        )  
             item = res.data[0]
             if getattr(item, "b64_json", None):
                 return base64.b64decode(item.b64_json)
