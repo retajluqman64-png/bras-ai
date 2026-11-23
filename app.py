@@ -27,6 +27,7 @@ defaults = {
     "selected_section": None,
     "my_schedule": [],
     "section_messages": {},
+    "section_memory": {},
     "archives": [],
     "saved_chats": [],
     "browsing_archive": None,
@@ -437,15 +438,61 @@ def transcribe_once(audio_file, scope_name: str):
         return None
 
 
-def get_ai_answer(system_instruction: str, chat_history: list) -> str:
+def record_subscriber_lesson_memory(sec_name: str, msgs: list):
+    """تحفظ ملخصاً للدروس والمحادثات السابقة في القسم للمشترك فقط."""
+    if not st.session_state.is_subscribed or not msgs:
+        return
+    st.session_state.section_memory.setdefault(sec_name, [])
+    snippets = []
+    for m in msgs[-6:]:
+        who = "الطالب" if m["role"] == "user" else "المعلم/المساعد"
+        clean_txt = " ".join((m["content"] or "").split())[:160]
+        snippets.append(f"{who}: {clean_txt}")
+    lesson_entry = f"[{TODAY_STR}] " + " | ".join(snippets)
+    if (
+        not st.session_state.section_memory[sec_name]
+        or st.session_state.section_memory[sec_name][-1] != lesson_entry
+    ):
+        st.session_state.section_memory[sec_name].append(lesson_entry)
+        st.session_state.section_memory[sec_name] = (
+            st.session_state.section_memory[sec_name][-12:]
+        )
+
+
+def build_subscriber_memory_context(sec_name: str) -> str:
+    """تجمع الدروس والمحادثات السابقة للمشترك في هذا القسم."""
+    if not st.session_state.is_subscribed:
+        return ""
+    past_items = list(st.session_state.section_memory.get(sec_name, []))
+    for arch in st.session_state.archives:
+        if arch.get("section") == sec_name and arch.get("messages"):
+            first_q = arch["messages"][0].get("content", "")[:120]
+            past_items.append(f"[أرشيف {arch.get('title', '')}] {first_q}")
+    if not past_items:
+        return ""
+    joined = "\n- ".join(past_items[-10:])
+    return (
+        " Subscriber Previous Lessons & Conversations Memory in this section"
+        f" ('{sec_name}'): remember what was previously covered across days/lessons"
+        " and build naturally on past lessons without forgetting prior topics:\n-"
+        f" {joined}"
+    )
+
+
+def get_ai_answer(
+    system_instruction: str, chat_history: list, sec_name: str = ""
+) -> str:
     if not client:
         return "أهلاً بكِ في BRAS AI! أضيفي مفتاح OPENAI_API_KEY في Streamlit Secrets لتفعيل الردود الذكية."
     try:
+        memory_note = (
+            build_subscriber_memory_context(sec_name) if sec_name else ""
+        )
         payload = [
             {
                 "role": "system",
                 "content": (
-                    f"{system_instruction} "
+                    f"{system_instruction}{memory_note} "
                     "Provide a clear, helpful, and direct answer to the user's request—never repeat or parrot what the user said. "
                     f"Respond fluently in {st.session_state.language}."
                 ),
@@ -582,7 +629,10 @@ else:
     has_access = st.session_state.is_subscribed or trial_active
 
     if st.session_state.is_subscribed:
-        status_badge = f"✅ مشترك ({st.session_state.subscription_plan})"
+        status_badge = (
+            f"✅ مشترك ({st.session_state.subscription_plan}) | 🧠 ذاكرة"
+            " الدروس مفعّلة"
+        )
     else:
         rem_msgs = max(0, FREE_MSG_LIMIT - st.session_state.free_messages_used)
         rem_imgs = max(
@@ -669,7 +719,11 @@ else:
         ),
         "تعليم اللغات": (
             "🗣️",
-            f"{base_system_prompt} You are a multilingual tutor.",
+            (
+                f"{base_system_prompt} You are a multilingual tutor who tracks"
+                " previous lessons, vocabulary, grammar, and past sessions"
+                " when teaching new lessons."
+            ),
         ),
         "البرمجة": (
             "💻",
@@ -782,10 +836,21 @@ else:
                 st.subheader(f"{sec_name} {emoji}")
             with col2:
                 if st.button(t_back_grid):
+                    record_subscriber_lesson_memory(
+                        sec_name,
+                        st.session_state.section_messages.get(sec_name, []),
+                    )
                     st.session_state.selected_section = None
                     st.session_state.browsing_archive = None
                     st.session_state.latest_voice_text = None
                     st.rerun()
+
+            if st.session_state.is_subscribed and browsing_item is None:
+                mem_count = len(st.session_state.section_memory.get(sec_name, []))
+                if mem_count > 0:
+                    st.caption(
+                        f"🧠 يتذكر BRAS AI دروسكِ ومحادثاتكِ السابقة في هذا القسم ({mem_count} سجل درس سابق)."
+                    )
 
             if st.session_state.latest_voice_text:
                 play_voice_only(st.session_state.latest_voice_text)
@@ -794,12 +859,17 @@ else:
             if browsing_item is None:
                 col_new, col_arc, col_save_side = st.columns(3)
                 if col_new.button(t_new_chat):
+                    record_subscriber_lesson_memory(
+                        sec_name,
+                        st.session_state.section_messages.get(sec_name, []),
+                    )
                     st.session_state.section_messages[sec_name] = []
                     st.session_state.latest_voice_text = None
                     st.rerun()
                 if col_arc.button(t_archive_btn):
                     msgs = st.session_state.section_messages.get(sec_name, [])
                     if msgs:
+                        record_subscriber_lesson_memory(sec_name, msgs)
                         archive_title = (
                             f"{sec_name} - {msgs[0]['content'][:25]}..."
                         )
@@ -812,6 +882,7 @@ else:
                 if col_save_side.button("📌 حفظ في سجل الدردشة"):
                     msgs = st.session_state.section_messages.get(sec_name, [])
                     if msgs:
+                        record_subscriber_lesson_memory(sec_name, msgs)
                         save_full_chat_snapshot(sec_name, msgs)
                         st.success("تم حفظ الدردشة كاملة في سجل الدردشة!")
             else:
@@ -918,10 +989,14 @@ else:
                                     ),
                                 }
                             ],
+                            sec_name=sec_name,
                         )
                         st.session_state.section_messages.setdefault(
                             sec_name, []
                         ).append({"role": "assistant", "content": ad_out})
+                        record_subscriber_lesson_memory(
+                            sec_name, st.session_state.section_messages[sec_name]
+                        )
                         st.session_state.latest_voice_text = ad_out
                         st.rerun()
                     else:
@@ -973,6 +1048,7 @@ else:
                                     " copy."
                                 ),
                                 [{"role": "user", "content": img_idea.strip()}],
+                                sec_name=sec_name,
                             )
                         st.session_state.generated_images.insert(
                             0, {"prompt": img_idea.strip(), "desc": desc_out}
@@ -980,6 +1056,9 @@ else:
                         st.session_state.section_messages.setdefault(
                             sec_name, []
                         ).append({"role": "assistant", "content": desc_out})
+                        record_subscriber_lesson_memory(
+                            sec_name, st.session_state.section_messages[sec_name]
+                        )
                         st.session_state.latest_voice_text = desc_out
                         st.rerun()
                     else:
@@ -1041,6 +1120,7 @@ else:
                                     f" {vid_idea}."
                                 ),
                                 [{"role": "user", "content": vid_idea.strip()}],
+                                sec_name=sec_name,
                             )
                         st.session_state.generated_videos.insert(
                             0,
@@ -1049,6 +1129,9 @@ else:
                                 "style": vid_style,
                                 "script": vid_plan,
                             },
+                        )
+                        record_subscriber_lesson_memory(
+                            sec_name, st.session_state.section_messages.get(sec_name, [])
                         )
                         st.session_state.latest_voice_text = vid_plan
                         st.rerun()
@@ -1099,6 +1182,7 @@ else:
                             full_response = get_ai_answer(
                                 system_prompt,
                                 st.session_state.section_messages[sec_name],
+                                sec_name=sec_name,
                             )
                             reply_with_voice(full_response)
                             st.session_state.section_messages[sec_name].append(
@@ -1106,6 +1190,10 @@ else:
                                     "role": "assistant",
                                     "content": full_response,
                                 }
+                            )
+                            record_subscriber_lesson_memory(
+                                sec_name,
+                                st.session_state.section_messages[sec_name],
                             )
 
     elif nav_mode == t_sec_schedule:
