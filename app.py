@@ -1,8 +1,6 @@
-import base64
 from datetime import datetime, timedelta
 import json
 from openai import OpenAI
-import requests
 import streamlit as st
 
 # إعداد الصفحة لتكون واسعة بالكامل
@@ -11,6 +9,8 @@ st.set_page_config(
     page_icon="💜",
     layout="wide",
 )
+
+TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 
 # تهيئة بيانات الجلسة
 defaults = {
@@ -34,11 +34,32 @@ defaults = {
     "generated_images": [],
     "generated_videos": [],
     "processed_audio_ids": [],
+    "processed_upload_ids": [],
+    "free_messages_used": 0,
+    "free_allowed_sections": [],
+    "free_image_prompts_used": 0,
+    "free_daily_date": TODAY_STR,
+    "free_daily_images_used": 0,
+    "free_daily_videos_used": 0,
 }
+
+FREE_MSG_LIMIT = 25
+FREE_SECTION_LIMIT = 2
+FREE_IMG_PROMPT_LIMIT = 3
+FREE_DAILY_IMAGE_LIMIT = 4
+FREE_DAILY_VIDEO_LIMIT = 1
+FREE_DAILY_TASK_LIMIT = 1
+FREE_WEEKLY_TASK_LIMIT = 3
 
 for key, val in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = val
+
+# تصفير عداد الصور والفيديوهات اليومية عند دخول يوم جديد
+if st.session_state.free_daily_date != TODAY_STR:
+    st.session_state.free_daily_date = TODAY_STR
+    st.session_state.free_daily_images_used = 0
+    st.session_state.free_daily_videos_used = 0
 
 lang = st.session_state.language
 is_screen_mode = (
@@ -312,8 +333,6 @@ st.markdown(f"<h1 class='main-title'>{t_title}</h1>", unsafe_allow_html=True)
 
 api_key = st.secrets.get("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key) if api_key else None
-video_api_key = st.secrets.get("VIDEO_API_KEY")
-video_api_url = st.secrets.get("VIDEO_API_URL")
 
 
 def get_voice_api() -> str:
@@ -382,48 +401,75 @@ def get_ai_answer(system_instruction: str, chat_history: list) -> str:
     except Exception:
         return "تم استلام طلبكِ بنجاح؛ تحققي من رصيد أو إعدادات مفتاح API في حساب OpenAI للمتابعة."
 
-for model_name in ("gpt-image-2.5-sunburst", "gpt-image-2.5-flare"):
-    try:
-        res = client.images.generate(
-            model=model_name,
-            prompt=prompt_text.strip(),
-            size="1024x1024",
-        )  
-            
-        item = res.data[0]
-            if getattr(item, "b64_json", None):
-                return base64.b64decode(item.b64_json)
-            if getattr(item, "url", None):
-                return item.url
-        except Exception as exc:
-            errors.append(f"{model_name}: {exc}")
 
-    st.error("تعذر توليد الصورة من OpenAI. التفاصيل التقنية:")
-    for err in errors:
-        st.code(err, language="text")
-    return None
+def can_send_free_message() -> bool:
+    if st.session_state.is_subscribed:
+        return True
+    return st.session_state.free_messages_used < FREE_MSG_LIMIT
 
 
-def generate_real_video(prompt_text: str, style_text: str):
-    """ترسل طلب الفيديو إلى مزود فيديو خارجي إذا تم ضبط VIDEO_API_KEY وVIDEO_API_URL."""
-    if not video_api_key or not video_api_url or not prompt_text.strip():
-        return None
-    try:
-        resp = requests.post(
-            video_api_url,
-            headers={
-                "Authorization": f"Bearer {video_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={"prompt": prompt_text.strip(), "style": style_text},
-            timeout=60,
-        )
-        if resp.ok:
-            data = resp.json()
-            return data.get("video_url") or data.get("url")
-    except Exception:
-        return None
-    return None
+def record_free_message():
+    if not st.session_state.is_subscribed:
+        st.session_state.free_messages_used += 1
+
+
+def can_use_free_section(sec_name: str) -> bool:
+    if st.session_state.is_subscribed:
+        return True
+    allowed = st.session_state.free_allowed_sections
+    if sec_name in allowed:
+        return True
+    return len(allowed) < FREE_SECTION_LIMIT
+
+
+def register_free_section(sec_name: str):
+    if not st.session_state.is_subscribed:
+        if sec_name not in st.session_state.free_allowed_sections and (
+            len(st.session_state.free_allowed_sections) < FREE_SECTION_LIMIT
+        ):
+            st.session_state.free_allowed_sections.append(sec_name)
+
+
+def can_generate_free_image_prompt() -> bool:
+    if st.session_state.is_subscribed:
+        return True
+    return st.session_state.free_image_prompts_used < FREE_IMG_PROMPT_LIMIT
+
+
+def record_free_image_prompt():
+    if not st.session_state.is_subscribed:
+        st.session_state.free_image_prompts_used += 1
+
+
+def can_upload_free_media(is_video: bool) -> bool:
+    if st.session_state.is_subscribed:
+        return True
+    if is_video:
+        return st.session_state.free_daily_videos_used < FREE_DAILY_VIDEO_LIMIT
+    return st.session_state.free_daily_images_used < FREE_DAILY_IMAGE_LIMIT
+
+
+def record_free_media_upload(is_video: bool):
+    if not st.session_state.is_subscribed:
+        if is_video:
+            st.session_state.free_daily_videos_used += 1
+        else:
+            st.session_state.free_daily_images_used += 1
+
+
+def can_generate_free_video() -> bool:
+    if st.session_state.is_subscribed:
+        return True
+    return st.session_state.free_daily_videos_used < FREE_DAILY_VIDEO_LIMIT
+
+
+def record_free_video_generation():
+    if not st.session_state.is_subscribed:
+        st.session_state.free_daily_videos_used += 1
+
+
+def count_free_tasks_on_day(day_name: str) -> int:
+    return sum(1 for item in st.session_state.my_schedule if item["day"] == day_name)
 
 
 def save_full_chat_snapshot(label: str, msgs: list):
@@ -461,7 +507,7 @@ if not st.session_state.logged_in:
     with c_right:
         st.info(
             "✨ تجربة مجانية 24 ساعة\n\nالباقات بعد التجربة:\n• أسبوعي:"
-            " **$5**\n• شهري: **$15**\n• سنوي: **$99**"
+            " **$2**\n• شهري: **$10**\n• سنوي: **$50**"
         )
 else:
     trial_active = False
@@ -475,15 +521,28 @@ else:
 
     has_access = st.session_state.is_subscribed or trial_active
 
-    status_badge = (
-        f"✅ مشترك ({st.session_state.subscription_plan})"
-        if st.session_state.is_subscribed
-        else (
-            f"⏳ تجربة مجانية: {hours_left} ساعة"
-            if trial_active
-            else "🔒 انتهت التجربة المجانية"
+    if st.session_state.is_subscribed:
+        status_badge = f"✅ مشترك ({st.session_state.subscription_plan})"
+    else:
+        rem_msgs = max(0, FREE_MSG_LIMIT - st.session_state.free_messages_used)
+        rem_imgs = max(
+            0, FREE_IMG_PROMPT_LIMIT - st.session_state.free_image_prompts_used
         )
-    )
+        rem_secs = max(
+            0, FREE_SECTION_LIMIT - len(st.session_state.free_allowed_sections)
+        )
+        rem_day_imgs = max(
+            0, FREE_DAILY_IMAGE_LIMIT - st.session_state.free_daily_images_used
+        )
+        rem_day_vids = max(
+            0, FREE_DAILY_VIDEO_LIMIT - st.session_state.free_daily_videos_used
+        )
+        trial_txt = f"⏳ {hours_left}س" if trial_active else "🔒 انتهت التجربة"
+        status_badge = (
+            f"{trial_txt} | 💬 {rem_msgs}/25 | 🖼️ {rem_imgs}/3 وصف | 📷"
+            f" {rem_day_imgs}/4 صور/يوم | 🎬 {rem_day_vids}/1 فيديو/يوم | 📂"
+            f" {rem_secs}/2 قسم"
+        )
 
     st.markdown(
         f"""
@@ -594,8 +653,10 @@ else:
         art_sec_key: (
             "🖼️",
             (
-                f"{base_system_prompt} You are an image generation and visual"
-                " design assistant."
+                f"{base_system_prompt} You are an image description and prompt"
+                " design specialist (describe scenes, lighting, composition,"
+                " colors, and write clear image prompts without claiming to"
+                " render raw image files)."
             ),
         ),
         "صانع الفيديوهات والأفكار": (
@@ -621,6 +682,13 @@ else:
                 f"<h3 style='text-align: center;'>{t_choose_sec}</h3>",
                 unsafe_allow_html=True,
             )
+            if not st.session_state.is_subscribed:
+                used_secs = ", ".join(st.session_state.free_allowed_sections) or "لا يوجد بعد"
+                st.info(
+                    "🔒 لغير المشتركين: **قسمين فقط** (المختارة حالياً:"
+                    f" {used_secs})، حد **25 رسالة**، **3 أوصاف صور**، و**4"
+                    " صور + 1 فيديو يومياً**."
+                )
             grid_cols = 4 if is_screen_mode else 3
             cols = st.columns(grid_cols)
             for index, (sec_name, (emoji, _)) in enumerate(SECTIONS.items()):
@@ -630,9 +698,16 @@ else:
                         "<div class='grid-card-wrap'>", unsafe_allow_html=True
                     )
                     if st.button(f"{emoji}\n\n{sec_name}", key=f"sec_btn_{index}"):
-                        st.session_state.selected_section = sec_name
-                        st.session_state.browsing_archive = None
-                        st.rerun()
+                        if can_use_free_section(sec_name):
+                            register_free_section(sec_name)
+                            st.session_state.selected_section = sec_name
+                            st.session_state.browsing_archive = None
+                            st.rerun()
+                        else:
+                            st.warning(
+                                "🔒 وصلتِ للحد المسموح لغير المشتركين (قسمين فقط)."
+                                " اشتركي لفتح جميع الأقسام."
+                            )
                     st.markdown("</div>", unsafe_allow_html=True)
         else:
             sec_name = st.session_state.selected_section
@@ -679,11 +754,62 @@ else:
                     st.rerun()
 
             with st.expander(t_file_upload, expanded=False):
-                st.file_uploader(
+                uploaded_media = st.file_uploader(
                     "File:",
                     type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"],
                     key=f"up_{sec_name}",
                 )
+                if uploaded_media is not None:
+                    raw_m = uploaded_media.getvalue()
+                    up_sig = f"{TODAY_STR}:{sec_name}:{uploaded_media.name}:{len(raw_m)}:{hash(raw_m[:128])}"
+                    if up_sig not in st.session_state.processed_upload_ids:
+                        is_vid_file = uploaded_media.name.lower().endswith(
+                            ".mp4"
+                        )
+                        is_img_file = uploaded_media.name.lower().endswith(
+                            (".png", ".jpg", ".jpeg", ".webp")
+                        )
+                        if (is_vid_file or is_img_file) and not st.session_state.is_subscribed:
+                            if not can_upload_free_media(is_vid_file):
+                                if is_vid_file:
+                                    st.warning(
+                                        "🔒 يُسمح بإرسال **فيديو واحد فقط في"
+                                        " اليوم** لغير المشتركين."
+                                    )
+                                else:
+                                    st.warning(
+                                        "🔒 يُسمح بإرسال **4 صور فقط في"
+                                        " اليوم** لغير المشتركين."
+                                    )
+                            else:
+                                st.session_state.processed_upload_ids.append(
+                                    up_sig
+                                )
+                                record_free_media_upload(is_vid_file)
+                                if is_img_file:
+                                    st.image(
+                                        raw_m,
+                                        caption=uploaded_media.name,
+                                        use_container_width=True,
+                                    )
+                                else:
+                                    st.video(raw_m)
+                        else:
+                            st.session_state.processed_upload_ids.append(
+                                up_sig
+                            )
+                            if is_img_file:
+                                st.image(
+                                    raw_m,
+                                    caption=uploaded_media.name,
+                                    use_container_width=True,
+                                )
+                            elif is_vid_file:
+                                st.video(raw_m)
+                            else:
+                                st.success(
+                                    f"تم إرفاق الملف: {uploaded_media.name}"
+                                )
 
             is_ads_section = any(
                 w in sec_name for w in ["إعلانات", "Ads", "ڕیکلام"]
@@ -704,7 +830,13 @@ else:
                 if st.button(
                     "توليد نص الإعلان الآن", type="primary", key="gen_ad_btn"
                 ):
-                    if ad_store.strip() and ad_offer.strip():
+                    if not can_send_free_message():
+                        st.warning(
+                            "🔒 انتهى حد الـ 25 رسالة لغير المشتركين. اشتركي"
+                            " للمتابعة."
+                        )
+                    elif ad_store.strip() and ad_offer.strip():
+                        record_free_message()
                         ad_out = get_ai_answer(
                             (
                                 f"{system_prompt} Create a persuasive ad for"
@@ -732,34 +864,61 @@ else:
                 w in sec_name for w in ["الصور", "Image", "وێنە"]
             )
             if is_img_section and browsing_item is None:
-                st.markdown("### 🖼️ توليد الصور الذكية مباشرة")
+                st.markdown("### 📝 وصف وتصميم برومبت الصورة")
+                if not st.session_state.is_subscribed:
+                    st.caption(
+                        "المتبقي من وصف الصور:"
+                        f" {max(0, FREE_IMG_PROMPT_LIMIT - st.session_state.free_image_prompts_used)}/{FREE_IMG_PROMPT_LIMIT}"
+                        " | المتبقي من إرسال الصور اليوم:"
+                        f" {max(0, FREE_DAILY_IMAGE_LIMIT - st.session_state.free_daily_images_used)}/{FREE_DAILY_IMAGE_LIMIT}"
+                    )
                 img_idea = st.text_input(
-                    "اكتبي وصف الصورة التي تريدين توليدها:",
-                    key="real_img_prompt",
+                    "اكتبي فكرة الصورة التي تريدين وصفها:",
+                    key="desc_img_prompt",
                 )
                 if st.button(
-                    "✨ توليد الصورة الآن",
+                    "✨ توليد وصف الصورة الآن",
                     type="primary",
-                    key="gen_real_img_btn",
+                    key="gen_desc_img_btn",
                 ):
-                    if img_idea.strip():
-                        with st.spinner("جاري توليد الصورة..."):
-                            img_result = generate_real_image(img_idea)
-                        if img_result:
-                            st.session_state.generated_images.insert(
-                                0,
-                                {"prompt": img_idea.strip(), "data": img_result},
+                    if not can_generate_free_image_prompt():
+                        st.warning(
+                            "🔒 وصلتِ للحد الأقصى (3 أوصاف صور فقط) لغير"
+                            " المشتركين. اشتركي لفتح المزيد."
+                        )
+                    elif not can_send_free_message():
+                        st.warning(
+                            "🔒 انتهى حد الـ 25 رسالة لغير المشتركين. اشتركي"
+                            " للمتابعة."
+                        )
+                    elif img_idea.strip():
+                        record_free_image_prompt()
+                        record_free_message()
+                        with st.spinner("جاري كتابة وصف الصورة..."):
+                            desc_out = get_ai_answer(
+                                (
+                                    f"{system_prompt} Write a detailed visual"
+                                    " description of the requested image"
+                                    " (subject, setting, lighting, mood,"
+                                    " colors, composition) and provide a"
+                                    " clean English image prompt ready to"
+                                    " copy."
+                                ),
+                                [{"role": "user", "content": img_idea.strip()}],
                             )
-                            st.rerun()
+                        st.session_state.generated_images.insert(
+                            0, {"prompt": img_idea.strip(), "desc": desc_out}
+                        )
+                        st.session_state.section_messages.setdefault(
+                            sec_name, []
+                        ).append({"role": "assistant", "content": desc_out})
+                        st.rerun()
                     else:
-                        st.info("اكتبي وصف الصورة أولاً.")
+                        st.info("اكتبي فكرة الصورة أولاً.")
 
-                for item in st.session_state.generated_images[:4]:
-                    st.image(
-                        item["data"],
-                        caption=item["prompt"],
-                        use_container_width=True,
-                    )
+                for item in st.session_state.generated_images[:3]:
+                    with st.expander(f"🎨 وصف: {item['prompt']}", expanded=True):
+                        st.markdown(item["desc"])
                 st.markdown("---")
 
             is_vid_section = any(
@@ -767,6 +926,11 @@ else:
             )
             if is_vid_section and browsing_item is None:
                 st.markdown("### 🎬 استوديو الفيديوهات والأفكار")
+                if not st.session_state.is_subscribed:
+                    st.caption(
+                        "المتبقي من الفيديوهات اليوم:"
+                        f" {max(0, FREE_DAILY_VIDEO_LIMIT - st.session_state.free_daily_videos_used)}/{FREE_DAILY_VIDEO_LIMIT}"
+                    )
                 vid_idea = st.text_area(
                     "اكتبي فكرة الفيديو أو المشهد:", key="vid_studio_idea"
                 )
@@ -785,7 +949,19 @@ else:
                     type="primary",
                     key="gen_vid_btn",
                 ):
-                    if vid_idea.strip():
+                    if not can_generate_free_video():
+                        st.warning(
+                            "🔒 وصلتِ للحد اليومي لغير المشتركين (**1 فيديو في"
+                            " اليوم**)."
+                        )
+                    elif not can_send_free_message():
+                        st.warning(
+                            "🔒 انتهى حد الـ 25 رسالة لغير المشتركين. اشتركي"
+                            " للمتابعة."
+                        )
+                    elif vid_idea.strip():
+                        record_free_video_generation()
+                        record_free_message()
                         with st.spinner("جاري تجهيز السيناريو والمشاهد..."):
                             vid_plan = get_ai_answer(
                                 (
@@ -797,20 +973,12 @@ else:
                                 ),
                                 [{"role": "user", "content": vid_idea.strip()}],
                             )
-                            preview_img = generate_real_image(
-                                f"{vid_style} video keyframe scene: {vid_idea.strip()}"
-                            )
-                            video_url = generate_real_video(
-                                vid_idea.strip(), vid_style
-                            )
                         st.session_state.generated_videos.insert(
                             0,
                             {
                                 "idea": vid_idea.strip(),
                                 "style": vid_style,
                                 "script": vid_plan,
-                                "preview_img": preview_img,
-                                "video_url": video_url,
                             },
                         )
                         st.rerun()
@@ -819,14 +987,6 @@ else:
 
                 for v in st.session_state.generated_videos[:3]:
                     st.markdown(f"**{v['style']}:** {v['idea']}")
-                    if v.get("video_url"):
-                        st.video(v["video_url"])
-                    elif v.get("preview_img"):
-                        st.image(
-                            v["preview_img"],
-                            caption="لقطة مشهد مرجعية للفيديو",
-                            use_container_width=True,
-                        )
                     st.markdown(v["script"])
                     st.divider()
                 st.markdown("---")
@@ -852,24 +1012,39 @@ else:
                 final_prompt = user_spoken_text if user_spoken_text else typed_prompt
 
                 if final_prompt:
-                    st.session_state.section_messages[sec_name].append(
-                        {"role": "user", "content": final_prompt}
-                    )
-                    with st.chat_message("user"):
-                        st.markdown(final_prompt)
-
-                    with st.chat_message("assistant"):
-                        full_response = get_ai_answer(
-                            system_prompt,
-                            st.session_state.section_messages[sec_name],
+                    if not can_send_free_message():
+                        st.warning(
+                            "🔒 وصلتِ للحد الأقصى (25 رسالة فقط) لغير"
+                            " المشتركين. اختاري باقة اشتراك للمتابعة."
                         )
-                        reply_with_voice(full_response)
+                    else:
+                        record_free_message()
                         st.session_state.section_messages[sec_name].append(
-                            {"role": "assistant", "content": full_response}
+                            {"role": "user", "content": final_prompt}
                         )
+                        with st.chat_message("user"):
+                            st.markdown(final_prompt)
+
+                        with st.chat_message("assistant"):
+                            full_response = get_ai_answer(
+                                system_prompt,
+                                st.session_state.section_messages[sec_name],
+                            )
+                            reply_with_voice(full_response)
+                            st.session_state.section_messages[sec_name].append(
+                                {
+                                    "role": "assistant",
+                                    "content": full_response,
+                                }
+                            )
 
     elif nav_mode == t_sec_schedule:
         st.header(t_schedule_title)
+        if not st.session_state.is_subscribed:
+            st.info(
+                "🔒 لغير المشتركين: يُسمح بمهمة واحدة في اليوم (**1/يوم**) و3"
+                " مهام في الأسبوع (**3/أسبوع**)."
+            )
         with st.form("sch_form"):
             task_desc = st.text_input(t_task_input)
             col_d, col_t = st.columns(2)
@@ -890,12 +1065,31 @@ else:
                 task_time = st.text_input(t_time_label, value="12:00")
 
             if st.form_submit_button(t_add_task_btn) and task_desc.strip():
-                st.session_state.my_schedule.append({
-                    "day": task_day,
-                    "time": task_time.strip() or "12:00",
-                    "task": task_desc.strip(),
-                })
-                st.success(t_task_added)
+                if not st.session_state.is_subscribed:
+                    if len(st.session_state.my_schedule) >= FREE_WEEKLY_TASK_LIMIT:
+                        st.warning(
+                            "🔒 وصلتِ للحد الأسبوعي (3 مهام في الأسبوع) لغير"
+                            " المشتركين."
+                        )
+                    elif count_free_tasks_on_day(task_day) >= FREE_DAILY_TASK_LIMIT:
+                        st.warning(
+                            f"🔒 يُسمح بمهمة واحدة فقط في يوم {task_day} لغير"
+                            " المشتركين."
+                        )
+                    else:
+                        st.session_state.my_schedule.append({
+                            "day": task_day,
+                            "time": task_time.strip() or "12:00",
+                            "task": task_desc.strip(),
+                        })
+                        st.success(t_task_added)
+                else:
+                    st.session_state.my_schedule.append({
+                        "day": task_day,
+                        "time": task_time.strip() or "12:00",
+                        "task": task_desc.strip(),
+                    })
+                    st.success(t_task_added)
 
         if st.session_state.my_schedule:
             st.subheader(t_schedule_list)
@@ -943,36 +1137,36 @@ else:
         p1, p2, p3 = st.columns(3)
         with p1:
             st.markdown(
-                "<div class='plan-box'><h3>أسبوعي</h3><h2>$5</h2><p>صلاحية 7"
+                "<div class='plan-box'><h3>أسبوعي</h3><h2>$2</h2><p>صلاحية 7"
                 " أيام</p></div>",
                 unsafe_allow_html=True,
             )
-            if st.button("اشتراك أسبوعي ($5)", key="plan_w"):
+            if st.button("اشتراك أسبوعي ($2)", key="plan_w"):
                 st.session_state.is_subscribed = True
-                st.session_state.subscription_plan = "أسبوعي - $5"
-                st.success("تم تفعيل الباقة الأسبوعية ($5)!")
+                st.session_state.subscription_plan = "أسبوعي - $2"
+                st.success("تم تفعيل الباقة الأسبوعية ($2)!")
                 st.rerun()
         with p2:
             st.markdown(
-                "<div class='plan-box'><h3>شهري</h3><h2>$15</h2><p>صلاحية 30"
+                "<div class='plan-box'><h3>شهري</h3><h2>$10</h2><p>صلاحية 30"
                 " يوماً</p></div>",
                 unsafe_allow_html=True,
             )
-            if st.button("اشتراك شهري ($15)", key="plan_m"):
+            if st.button("اشتراك شهري ($10)", key="plan_m"):
                 st.session_state.is_subscribed = True
-                st.session_state.subscription_plan = "شهري - $15"
-                st.success("تم تفعيل الباقة الشهرية ($15)!")
+                st.session_state.subscription_plan = "شهري - $10"
+                st.success("تم تفعيل الباقة الشهرية ($10)!")
                 st.rerun()
         with p3:
             st.markdown(
-                "<div class='plan-box'><h3>سنوي</h3><h2>$99</h2><p>صلاحية 365"
+                "<div class='plan-box'><h3>سنوي</h3><h2>$50</h2><p>صلاحية 365"
                 " يوماً</p></div>",
                 unsafe_allow_html=True,
             )
-            if st.button("اشتراك سنوي ($99)", key="plan_y"):
+            if st.button("اشتراك سنوي ($50)", key="plan_y"):
                 st.session_state.is_subscribed = True
-                st.session_state.subscription_plan = "سنوي - $99"
-                st.success("تم تفعيل الباقة السنوية ($99)!")
+                st.session_state.subscription_plan = "سنوي - $50"
+                st.success("تم تفعيل الباقة السنوية ($50)!")
                 st.rerun()
 
         st.radio(
