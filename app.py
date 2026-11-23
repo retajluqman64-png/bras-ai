@@ -1,186 +1,62 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 from openai import OpenAI
 
-# إعداد الصفحة لتكون واسعة بالكامل
+# إعداد الصفحة الرئيسية
 st.set_page_config(
     page_title="BRAS AI - المنصة الشاملة الذكية",
     page_icon="💜",
-    layout="wide"
+    layout="wide",
 )
 
-# إدارة الحالة لتخزين الذاكرة والجدول وتوليد الصور
-if "logged_in" not in st.session_state:
-    
-    st.session_state.logged_in = False
-    st.session_state.username = "ريتاج لقمان گەرگەری"
-    st.session_state.user_email = "retaj@brasai.com"
-    st.session_state.theme = "داكن (Dark)"
-    st.session_state.voice = "صوت بنت نقي وواضح (Nova)"
-    st.session_state.language = "العربية (Arabic)"
-    st.session_state.selected_section = None
-    st.session_state.my_schedule = []
-    st.session_state.section_messages = {}
-    import streamlit as st
-from datetime import datetime, timedelta
+# تهيئة بيانات الجلسة
+defaults = {
+    "logged_in": False,
+    "is_subscribed": False,
+    "subscription_plan": None,
+    "trial_start": None,
+    "username": "ريتاج لقمان گەرگەری",
+    "user_email": "retaj@brasai.com",
+    "theme": "داكن (Dark)",
+    "voice": "صوت بنت نقي وواضح (Nova)",
+    "language": "العربية (Arabic)",
+    "screen_mode": "عادي (Normal)",
+    "selected_section": None,
+    "my_schedule": [],
+    "section_messages": {},
+    "archives": [],
+    "current_archive_title": None,
+    "messages": [],
+    "generated_prompts": [],
+    "last_audio_sig": None,
+}
 
-# إعدادات الصفحة الرئيسية
-st.set_page_config(page_title="Bras AI", page_icon="🤖", layout="wide")
+for key, val in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
 
-# تهيئة بيانات الجلسة (للتجربة المؤقتة)
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "is_subscribed" not in st.session_state:
-    st.session_state.is_subscribed = False
-if "trial_start" not in st.session_state:
-    st.session_state.trial_start = None
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# 1. شاشة تسجيل الدخول
-if not st.session_state.logged_in:
-    st.title("مرحباً بك في Bras AI 🤖")
-    st.subheader("سجّل الدخول للبدء في تجربتك المجانية لمدة 24 ساعة")
-    
-    email = st.text_input("البريد الإلكتروني")
-    password = st.text_input("كلمة المرور", type="password")
-    
-    if st.button("تسجيل الدخول / إنشاء حساب"):
-        if email and password:
-            st.session_state.logged_in = True
-            st.session_state.user_email = email
-            # بدء حساب الـ 24 ساعة المجانية عند أول دخول
-            if st.session_state.trial_start is None:
-                st.session_state.trial_start = datetime.now()
-            st.rerun()
-        else:
-            st.warning("يرجى إدخال البريد الإلكتروني وكلمة المرور.")
-
-# 2. واجهة التطبيق بعد تسجيل الدخول
-else:
-    # حساب الوقت المتبقي من الـ 24 ساعة المجانية
-    elapsed_time = datetime.now() - st.session_state.trial_start
-    trial_active = elapsed_time < timedelta(hours=24)
-    has_access = st.session_state.is_subscribed or trial_active
-
-    # القائمة الجانبية للتنقل بين الأقسام
-    with st.sidebar:
-        st.title("Bras AI 🚀")
-        st.write(f"أهلاً: {st.session_state.user_email}")
-        
-        if st.session_state.is_subscribed:
-            st.success("الحساب: مشترك (وصول كامل ومفتوح) ✅")
-        elif trial_active:
-            remaining = timedelta(hours=24) - elapsed_time
-            hours_left = int(remaining.total_seconds() // 3600)
-            st.info(f"فترة تجريبية مجانية: متبقي {hours_left} ساعة ⏳")
-        else:
-            st.error("انتهت الفترة المجانية (24 ساعة) 🔒")
-
-        menu = st.radio(
-            "الأقسام:",
-            [
-                "💬 المحادثة الحرة",
-                "📢 قسم الإعلانات والمتاجر",
-                "🎬 استوديو الفيديوهات (Deal 3)",
-                "💳 الاشتراك والدفع"
-            ]
-        )
-        
-        if st.button("تسجيل الخروج"):
-            st.session_state.logged_in = False
-            st.rerun()
-
-    # التحقق من الصلاحية قبل فتح الأقسام (ما عدا صفحة الدفع)
-    if not has_access and menu != "💳 الاشتراك والدفع":
-        st.warning("انتهت فترة الـ 24 ساعة المجانية. يرجى الانتقال إلى قسم (الاشتراك والدفع) لفتح جميع الميزات بلا حدود.")
-    
-    else:
-        # --- القسم الأول: المحادثة الحرة ---
-        if menu == "💬 المحادثة الحرة":
-            st.header("المحادثة الحرة بالذكاء الاصطناعي")
-            for msg in st.session_state.messages:
-                with st.chat_message(msg["role"]):
-                    st.write(msg["content"])
-
-            user_prompt = st.chat_input("اكتب رسالتك هنا...")
-            if user_prompt:
-                st.session_state.messages.append({"role": "user", "content": user_prompt})
-                with st.chat_message("user"):
-                    st.write(user_prompt)
-                
-                # هنا يتم ربط نموذج الذكاء الاصطناعي للرد
-                ai_reply = f"رد تجريبي من Bras AI على: {user_prompt}"
-                st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-                with st.chat_message("assistant"):
-                    st.write(ai_reply)
-
-        # --- القسم الثاني: الإعلانات والمتاجر ---
-        elif menu == "📢 قسم الإعلانات والمتاجر":
-            st.header("صانع الإعلانات للمتاجر والمشاريع")
-            store_name = st.text_input("اسم المتجر أو المشروع")
-            product_desc = st.text_area("وصف المنتج أو العرض")
-            platform = st.selectbox("منصة النشر", ["إنستغرام", "تيك توك", "فيسبوك", "سناب شات"])
-            
-            if st.button("توليد نص وفكرة الإعلان"):
-                if store_name and product_desc:
-                    st.success("تم تجهيز الإعلان!")
-                    st.write(f"🔥 **عرض خاص من {store_name}!** 🔥\n\n{product_desc}\n\nاطلب الآن واستفد من العرض المميز! #كردستان #{store_name}")
-                else:
-                    st.warning("يرجى كتابة اسم المتجر ووصف المنتج.")
-
-        # --- القسم الثالث: الفيديوهات و Deal 3 ---
-        elif menu == "🎬 استوديو الفيديوهات (Deal 3)":
-            st.header("إنشاء الفيديوهات بالذكاء الاصطناعي")
-            video_prompt = st.text_area("اكتب وصف المشهد الذي تريد تحويله إلى فيديو")
-            video_style = st.selectbox("نمط الفيديو", ["سينمائي", "إعلان تجاري", "أنيميشن", "واقعي"])
-            
-            if st.button("بدء صناعة الفيديو"):
-                if video_prompt:
-                    st.info("جاري معالجة الفيديو... (سيتم ربط هذه الواجهة بخدمة توليد الفيديو API)")
-                else:
-                    st.warning("يرجى كتابة وصف للفيديو أولاً.")
-
-        # --- القسم الرابع: الاشتراك والدفع ---
-        elif menu == "💳 الاشتراك والدفع":
-            st.header("ترقية الحساب إلى الباقة الكاملة")
-            st.write("احصل على وصول غير محدود للمحادثات، الإعلانات، وصناعة الفيديوهات.")
-            
-            payment_method = st.radio("اختر طريقة الدفع:", ["بطاقة فيزا / ماستركارد (Visa / Mastercard)", "كي نت / كي كارد (K-Net / Qi Card)"])
-            
-            st.info("ملاحظة تقنية: يتم توجيه المستخدم هنا إلى بوابة الدفع الرسمية الآمنة لإدخال بيانات بطاقته الخاصة.")
-            
-            # زر محاكاة نجاح الدفع للتجربة البرمجية
-            if st.button("متابعة إلى بوابة الدفع الآمنة"):
-                st.session_state.is_subscribed = True
-                st.success("تم تفعيل اشتراكك بنجاح! جميع الميزات مفتوحة الآن.")
-                st.rerun()
-
-    st.session_state.archives = []
-    st.session_state.current_archive_title = None
-    st.session_state.messages = []
-    st.session_state.generated_prompts = []
-
-# ترجمة نصوص الواجهة والأقسام بالكامل حسب اللغة المختارة
 lang = st.session_state.language
+is_screen_mode = "شاشة" in st.session_state.screen_mode or "Screen" in st.session_state.screen_mode
 
 if "English" in lang:
     t_title = "💜 BRAS AI - Smart Comprehensive Platform 💜"
     t_login_title = "🔐 Login to Your Smart Platform"
     t_email = "Email:"
     t_password = "Password:"
-    t_login_btn = "Login"
+    t_login_btn = "Login / Start 24h Trial"
+    t_logout_btn = "Logout"
     t_nav = "Navigate Your Platform:"
     t_sec_main = "🏠 Main Grid (Sections)"
-    t_sec_settings = "⚙️ BRAS AI & Account Settings"
+    t_sec_pricing = "💳 Plans & Pricing"
     t_sec_secretary = "🧑‍💼 Smart Secretary (Voice, Mic & Optional Camera)"
     t_sec_archive = "📚 Saved Archives"
+    t_sec_settings = "⚙️ BRAS AI & Account Settings"
     t_account = "Account"
     t_lang_label = "App Language"
     t_theme = "Theme"
     t_voice = "Voice"
+    t_screen_mode = "Screen Mode"
     t_settings_header = "⚙️ Settings"
     t_username = "Username:"
     t_save = "Save Settings & Apply Changes"
@@ -205,7 +81,6 @@ if "English" in lang:
     t_archive_header = "📚 Archives"
     t_no_archive = "No archived conversations."
     t_browse = "📖 Browse"
-    
     art_sec_key = "AI Art & Image Design"
     SECTIONS_NAMES = {
         "المساعد الشامل": "Comprehensive Assistant",
@@ -221,27 +96,30 @@ if "English" in lang:
         "الصحة، الدايت والجيم": "Fitness & Health",
         "نصائح وتطوير الذات": "Life Advisor",
         art_sec_key: "AI Art & Image Design",
-        "صانع الفيديوهات والأفكار": "Video & Ideas Creator (AI Video Engine)"
+        "صانع الفيديوهات والأفكار": "Video & Ideas Creator (AI Video Engine)",
     }
 elif "Kurdish" in lang:
     t_title = "💜 BRAS AI - سەکۆی گشتگیری هۆشمەند 💜"
     t_login_title = "🔐 چوونه‌ژووره‌وه‌ بۆ سەکۆ هۆشمەندەکەت"
     t_email = "ئیمەیڵ:"
     t_password = "وشەی نهێنی:"
-    t_login_btn = "چوونه‌ژووره‌وه‌"
+    t_login_btn = "چوونە ژوورەوە / تاقیکردنەوەی ٢٤ کاتژمێر"
+    t_logout_btn = "چوونە دەرەوە"
     t_nav = "گه‌شت بكه‌ له‌ سەکۆکەت:"
     t_sec_main = "🏠 تۆڕی سەرەکی (بەشەکان)"
-    t_sec_settings = "⚙️ ڕێکخستنەکانی BRAS AI"
+    t_sec_pricing = "💳 پاکێج و نرخەکان"
     t_sec_secretary = "🧑‍💼 ئەمینداری هۆشمەند (دەنگ، مایکرۆفۆن و کامێرا)"
     t_sec_archive = "📚 ئەرشیفی گفتوگۆکان"
+    t_sec_settings = "⚙️ ڕێکخستنەکانی BRAS AI"
     t_account = "هەژمار"
     t_lang_label = "زمانی بەرنامە"
     t_theme = "ڕوکار"
     t_voice = "دەنگ"
+    t_screen_mode = "دۆخی شاشە (Screen Mode)"
     t_settings_header = "⚙️ ڕێکخستنەکان"
     t_username = "ناوی بەکارهێنەر:"
     t_save = "پاشەکەوتکردنی ڕێکخستنەکان"
-    t_saved_ok = "ڕێکخستنەکان بە سەرکەوتوویی پاشەکەوت کرan!"
+    t_saved_ok = "ڕێکخستنەکان بە سەرکەوتوویی پاشەکەوت کران!"
     t_secretary_title = "🧑‍💼 ئەمینداری هۆشمەند (فرەزمان، مایکرۆفۆن و ئاگادارکردنەوە)"
     t_schedule_title = "📅 خشتەی ئەرکەکان بە دیاریکردنی ڕۆژ و کات"
     t_task_input = "ئەرکێک بنووسە:"
@@ -262,7 +140,6 @@ elif "Kurdish" in lang:
     t_archive_header = "📚 ئەرشیف"
     t_no_archive = "هیچ گفتوگۆیەکی ئەرشیفکراو نییە."
     t_browse = "📖 پشکنین"
-
     art_sec_key = "هونەر و دیزاینی وێنە (AI)"
     SECTIONS_NAMES = {
         "المساعد الشامل": "یاریدەدەری گشتی",
@@ -278,23 +155,26 @@ elif "Kurdish" in lang:
         "الصحة، الدايت والجيم": "تەندروستی و لەشجوانی",
         "نصائح وتطوير الذات": "پەرەپێدانی خۆی",
         art_sec_key: "هونەر و دیزاینی وێنە (AI)",
-        "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ (مۆدێلی AI)"
+        "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ (مۆدێلی AI)",
     }
 elif "Türkçe" in lang:
     t_title = "💜 BRAS AI - Akıllı Kapsamlı Platform 💜"
     t_login_title = "🔐 Akıllı Platformunuza Giriş Yapın"
     t_email = "E-posta:"
     t_password = "Şifre:"
-    t_login_btn = "Giriş Yap"
+    t_login_btn = "Giriş Yap / 24 Saat Deneme"
+    t_logout_btn = "Çıkış Yap"
     t_nav = "Platformda Gezin:"
     t_sec_main = "🏠 Ana Izgara (Bölümler)"
-    t_sec_settings = "⚙️ BRAS AI ve Hesap Ayarları"
+    t_sec_pricing = "💳 Paketler ve Fiyatlar"
     t_sec_secretary = "🧑‍💼 Akıllı Sekreter (Ses, Mikrofon ve Kamera)"
     t_sec_archive = "📚 Kayıtlı Arşivler"
+    t_sec_settings = "⚙️ BRAS AI ve Hesap Ayarları"
     t_account = "Hesap"
     t_lang_label = "Uygulama Dili"
     t_theme = "Tema"
     t_voice = "Ses"
+    t_screen_mode = "Ekran Modu (Screen Mode)"
     t_settings_header = "⚙️ Ayarlar"
     t_username = "Kullanıcı Adı:"
     t_save = "Ayarları Kaydet ve Uygula"
@@ -319,7 +199,6 @@ elif "Türkçe" in lang:
     t_archive_header = "📚 Arşiv"
     t_no_archive = "Arşivlenmiş sohbet yok."
     t_browse = "📖 Gözat"
-
     art_sec_key = "Yapay Zeka Resim Tasarımı"
     SECTIONS_NAMES = {
         "المساعد الشامل": "Genel Asistan",
@@ -335,23 +214,26 @@ elif "Türkçe" in lang:
         "الصحة، الدايت والجيم": "Sağlık ve Fitness",
         "نصائح وتطوير الذات": "Kişisel Gelişim",
         art_sec_key: "Yapay Zeka Resim Tasarımı",
-        "صانع الفيديوهات والأفكار": "Video ve Fikir Üreticisi (AI Video)"
+        "صانع الفيديوهات والأفكار": "Video ve Fikir Üreticisi (AI Video)",
     }
 else:
     t_title = "💜 BRAS AI - المنصة الشاملة الذكية 💜"
     t_login_title = "🔐 تسجيل الدخول إلى منصتكِ الذكية"
     t_email = "البريد الإلكتروني:"
     t_password = "كلمة المرور:"
-    t_login_btn = "دخول المنصة"
+    t_login_btn = "دخول المنصة (بدء تجربة 24 ساعة)"
+    t_logout_btn = "تسجيل الخروج"
     t_nav = "📍 تنقلي في منصتكِ:"
     t_sec_main = "🏠 الشبكة الرئيسية (الأقسام)"
-    t_sec_settings = "⚙️ إعدادات BRAS AI والحساب"
+    t_sec_pricing = "💳 الباقات والاشتراك"
     t_sec_secretary = "🧑‍💼 وضع السكرتير الذكي (صوت، ميكروفون، وكاميرا اختيارية)"
     t_sec_archive = "📚 أرشيف المحادثات المحفوظة"
+    t_sec_settings = "⚙️ إعدادات BRAS AI والحساب"
     t_account = "الحساب"
     t_lang_label = "🌐 لغة التطبيق وتفضيل المحادثة (أكثر من 40 لغة):"
     t_theme = "المظهر:"
     t_voice = "الصوت:"
+    t_screen_mode = "🖥️ وضع الشاشة (Screen Mode):"
     t_settings_header = "🎛️ الإعدادات"
     t_username = "اسم المستخدم:"
     t_save = "💾 حفظ الإعدادات وتطبيق التغييرات"
@@ -376,7 +258,6 @@ else:
     t_archive_header = "📚 الأرشيف"
     t_no_archive = "لا توجد محادثات مؤرشفة."
     t_browse = "📖 استعراض"
-
     art_sec_key = "قسم الرسم وتصميم الصور"
     SECTIONS_NAMES = {
         "المساعد الشامل": "المساعد الشامل",
@@ -392,10 +273,9 @@ else:
         "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
         "نصائح وتطوير الذات": "نصائح وتطوير الذات",
         art_sec_key: "قسم الرسم وتصميم الصور",
-        "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار (مولد الفيديوهات الذكي)"
+        "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار (مولد الفيديوهات الذكي)",
     }
 
-# تحديد الألوان الذكية حسب اختيار الثيم (داكن / فاتح)
 is_dark = "داكن" in st.session_state.theme or "Dark" in st.session_state.theme
 bg_color = "#0d0614" if is_dark else "#fcf8ff"
 text_color = "#ffffff" if is_dark else "#111111"
@@ -403,56 +283,55 @@ card_bg = "#1a1026" if is_dark else "#ffffff"
 border_color = "#9b5de5"
 accent_color = "#9b5de5"
 
-st.markdown(f"""
+# تنسيق وضع الشاشة (عادي / سكرين مود واسع)
+container_max_width = "100%" if is_screen_mode else "1180px"
+block_padding = "1rem 1.2rem" if is_screen_mode else "1.5rem 2.5rem"
+
+st.markdown(
+    f"""
 <style>
 .stApp {{
     background-color: {bg_color};
     color: {text_color};
 }}
+.main .block-container {{
+    max-width: {container_max_width};
+    padding: {block_padding};
+}}
 .main-title {{
     text-align: center;
     color: {accent_color};
     font-weight: bold;
-    font-size: 3rem;
-    margin-bottom: 20px;
+    font-size: {"3rem" if is_screen_mode else "2.4rem"};
+    margin-bottom: 14px;
 }}
 .user-info {{
     background-color: {card_bg};
     color: {text_color};
-    padding: 15px;
+    padding: 14px;
     border-radius: 15px;
     border: 1px solid {border_color};
-    margin-bottom: 20px;
+    margin-bottom: 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 4px 10px rgba(155, 93, 229, 0.2);
+    flex-wrap: wrap;
+    gap: 8px;
 }}
-.stButton>button {{
-    width: 100%;
-    height: 110px;
+.plan-box {{
     background-color: {card_bg};
     color: {text_color};
-    border: 2px solid {border_color};
-    border-radius: 20px;
-    font-size: 1.1rem;
-    font-weight: bold;
-    transition: 0.3s;
-    box-shadow: 0 4px 15px rgba(155, 93, 229, 0.3);
-}}
-.stButton>button:hover {{
-    background-color: {accent_color};
-    color: #ffffff;
-    border-color: #f15bb5;
-    box-shadow: 0 6px 25px rgba(241, 91, 181, 0.5);
-    transform: translateY(-4px);
+    padding: 18px;
+    border-radius: 16px;
+    border: 1.5px solid {border_color};
+    margin-bottom: 12px;
 }}
 .secretary-circle {{
-    width: 200px;
-    height: 200px;
+    width: {"220px" if is_screen_mode else "170px"};
+    height: {"220px" if is_screen_mode else "170px"};
     border-radius: 50%;
     background: radial-gradient(circle, #9b5de5, #38135e, #0d0614);
-    margin: 20px auto;
+    margin: 18px auto;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -460,13 +339,7 @@ st.markdown(f"""
     font-weight: bold;
     font-size: 1.2rem;
     text-align: center;
-    box-shadow: 0 0 60px #9b5de5, inset 0 0 30px #f15bb5;
-    animation: pulse 2s infinite;
-}}
-@keyframes pulse {{
-    0% {{ transform: scale(1); box-shadow: 0 0 40px #9b5de5; }}
-    50% {{ transform: scale(1.08); box-shadow: 0 0 80px #f15bb5; }}
-    100% {{ transform: scale(1); box-shadow: 0 0 40px #9b5de5; }}
+    box-shadow: 0 0 60px #9b5de5, inset 0 0 28px #f15bb5;
 }}
 .settings-panel {{
     background-color: {card_bg};
@@ -474,20 +347,60 @@ st.markdown(f"""
     padding: 20px;
     border-radius: 20px;
     border: 2px solid {border_color};
-    margin-top: 20px;
-}}
-p, span, label, h1, h2, h3, h4 {{
-    color: {text_color} !important;
+    margin-top: 16px;
 }}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 st.markdown(f"<h1 class='main-title'>{t_title}</h1>", unsafe_allow_html=True)
 
 api_key = st.secrets.get("OPENAI_API_KEY")
+client = OpenAI(api_key=api_key) if api_key else None
+
+
+def get_voice_api() -> str:
+    return "onyx" if "رجل" in st.session_state.voice or "Onyx" in st.session_state.voice else "nova"
+
+
+def speak_and_show(text: str):
+    st.markdown(text)
+    if client and text:
+        try:
+            audio_resp = client.audio.speech.create(
+                model="tts-1",
+                voice=get_voice_api(),
+                input=text[:1500],
+            )
+            st.audio(audio_resp.read(), format="audio/mp3", autoplay=True)
+        except Exception as e:
+            st.caption(f"تنبيه الصوت: {e}")
+
+
+def transcribe_audio_once(audio_file, sig_key: str):
+    if audio_file is None or not client:
+        return None
+    raw = audio_file.getvalue()
+    sig = (sig_key, len(raw), raw[:64])
+    if sig == st.session_state.last_audio_sig:
+        return None
+    st.session_state.last_audio_sig = sig
+    try:
+        audio_file.seek(0)
+        tr = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=("input.wav", audio_file, "audio/wav"),
+        )
+        return (tr.text or "").strip() or None
+    except Exception as e:
+        st.error(f"تعذر تحويل الصوت: {e}")
+        return None
+
 
 def render_optional_camera():
-    camera_html = """
+    vid_h = "520px" if is_screen_mode else "380px"
+    camera_html = f"""
     <div style="width: 100%; text-align: center; background: #1a1026; padding: 15px; border-radius: 20px; border: 2px solid #9b5de5;">
         <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
             <button onclick="startCamera()" style="background: #9b5de5; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
@@ -497,330 +410,398 @@ def render_optional_camera():
                 ⏹️ Stop Camera
             </button>
         </div>
-        <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: 400px; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5; transform: scaleX(-1);"></video>
+        <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: {vid_h}; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5; transform: scaleX(-1);"></video>
         <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">Optional Camera</p>
     </div>
 
     <script>
         let currentStream = null;
-        async function startCamera() {
+        async function startCamera() {{
             stopCamera();
-            try {
-                currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            try {{
+                currentStream = await navigator.mediaDevices.getUserMedia({{ video: true, audio: true }});
                 document.getElementById('liveVideo').srcObject = currentStream;
                 document.getElementById('camStatus').innerText = "🟢 Camera Active";
-            } catch (err) {
+            }} catch (err) {{
                 document.getElementById('camStatus').innerText = "⚠️ Please allow camera access";
-            }
-        }
-        function stopCamera() {
-            if (currentStream) {
+            }}
+        }}
+        function stopCamera() {{
+            if (currentStream) {{
                 currentStream.getTracks().forEach(track => track.stop());
                 currentStream = null;
                 document.getElementById('liveVideo').srcObject = null;
                 document.getElementById('camStatus').innerText = "⏹️ Camera Stopped";
-            }
-        }
+            }}
+        }}
     </script>
     """
-    components.html(camera_html, height=520)
+    components.html(camera_html, height=640 if is_screen_mode else 500)
 
-if not api_key:
-    st.error("يرجى ضبط مفتاح OpenAI API في إعدادات Streamlit Secrets.")
-else:
-    client = OpenAI(api_key=api_key)
 
-    if not st.session_state.logged_in:
-        st.markdown(f"<h3 style='text-align: center;'>{t_login_title}</h3>", unsafe_allow_html=True)
+if not client:
+    st.warning("يرجى ضبط مفتاح `OPENAI_API_KEY` في إعدادات Streamlit Secrets لتفعيل الذكاء الاصطناعي والصوت.")
+
+if not st.session_state.logged_in:
+    st.markdown(f"<h3 style='text-align: center;'>{t_login_title}</h3>", unsafe_allow_html=True)
+    c_left, c_right = st.columns([2, 1])
+    with c_left:
         with st.form("login_form"):
             email = st.text_input(t_email, value=st.session_state.user_email)
-            password = st.text_input(t_password, type="password", value="••••••••")
+            password = st.text_input(t_password, type="password")
             submit_button = st.form_submit_button(t_login_btn)
             if submit_button:
-                st.session_state.logged_in = True
-                st.rerun()
-    else:
-        st.markdown(f"""
-        <div class='user-info'>
-            <span>👤 {t_account}: <b>{st.session_state.username}</b> ({st.session_state.user_email}) | 🌐 Lang: {st.session_state.language}</span>
-            <span>🎨 Theme: {st.session_state.theme} | 🎙️ Voice: {st.session_state.voice}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        nav_mode = st.sidebar.radio(
-            t_nav,
-            (t_sec_main, t_sec_settings, t_sec_secretary, t_sec_archive)
-        )
-
-        base_system_prompt = (
-            f"You are BRAS AI, a helpful assistant created exclusively by Retaj Luqman ismail Gargary (ريتاج لقمان گەرگەری). "
-            f"If anyone asks who created you or where you are from, you must proudly answer that you are from Kurdistan Iraq (كردستان العراق). "
-            f"The current user language setting is: {st.session_state.language}. Respond fluently in this language. "
-            "Always remember previous conversations with Retaj in this session, and when she asks if you remember something she said earlier, confirm enthusiastically ('إيه أتذكر'). "
-            "Pronounce the letter 'گ' (Ga) correctly and clearly."
-        )
-
-        BASE_SECTIONS = {
-            "المساعد الشامل": ("🤖", f"{base_system_prompt} You are a versatile assistant."),
-            "المعلم الشامل": ("📚", f"{base_system_prompt} You are an expert school teacher."),
-            "قسم كرة القدم": ("⚽", f"{base_system_prompt} You are an expert football analyst covering FC Barcelona."),
-            "تعليم اللغات": ("🗣️", f"{base_system_prompt} You are a multilingual tutor."),
-            "البرمجة": ("💻", f"{base_system_prompt} You are an expert programmer."),
-            "الطبخ والوصفات": ("🍳", f"{base_system_prompt} You are a master chef."),
-            "مكياج وسكين كير": ("💄", f"{base_system_prompt} You are an expert makeup artist and skincare consultant."),
-            "ديزاين وملابس وشوبينغ": ("🛍️", f"{base_system_prompt} You are a fashion designer and shopping advisor."),
-            "أفكار دول وسفرات": ("✈️", f"{base_system_prompt} You are a travel planner expert."),
-            "قسم التاريخ": ("📜", f"{base_system_prompt} You are a historian expert."),
-            "الصحة، الدايت والجيم": ("💪", f"{base_system_prompt} You are a fitness coach."),
-            "نصائح وتطوير الذات": ("💡", f"{base_system_prompt} You are a life advisor."),
-            art_sec_key: ("🎨", f"{base_system_prompt} You are an expert AI image prompt engineer and visual design consultant."),
-            "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are an advanced AI video producer and script/idea generator, creating professional video storyboards and voice scripts.")
-        }
-
-        # بناء الأقسام مع الأسماء المترجمة
-        SECTIONS = {}
-        for orig_key, (emoji, prompt) in BASE_SECTIONS.items():
-            translated_name = SECTIONS_NAMES.get(orig_key, orig_key)
-            SECTIONS[translated_name] = (emoji, prompt)
-
-        if t_sec_main in nav_mode:
-            if st.session_state.selected_section is None:
-                st.markdown(f"<h3 style='text-align: center;'>{t_choose_sec}</h3>", unsafe_allow_html=True)
-                cols = st.columns(3)
-                section_items = list(SECTIONS.items())
-                
-                for index, (sec_name, (emoji, prompt)) in enumerate(section_items):
-                    col = cols[index % 3]
-                    if col.button(f"{emoji}\n\n{sec_name}", key=f"sec_btn_{index}"):
-                        st.session_state.selected_section = sec_name
-                        st.session_state.current_archive_title = None
-                        st.rerun()
-            else:
-                sec_name = st.session_state.selected_section
-                emoji, system_prompt = SECTIONS[sec_name]
-                is_archived_view = st.session_state.current_archive_title is not None
-                
-                col1, col2 = st.columns([4, 1])
-                with col1:
-                    st.subheader(f"{sec_name} {emoji}")
-                with col2:
-                    if st.button(t_back_grid):
-                        st.session_state.selected_section = None
-                        st.session_state.current_archive_title = None
-                        st.rerun()
-                        
-                if not is_archived_view:
-                    col_new, col_arc = st.columns(2)
-                    if col_new.button(t_new_chat):
-                        st.session_state.section_messages[sec_name] = []
-                        st.rerun()
-                    if col_arc.button(t_archive_btn):
-                        if sec_name in st.session_state.section_messages and len(st.session_state.section_messages[sec_name]) > 0:
-                            archive_title = f"{sec_name} - {st.session_state.section_messages[sec_name][0]['content'][:25]}..."
-                            st.session_state.archives.append({
-                                "title": archive_title,
-                                "section": sec_name,
-                                "messages": list(st.session_state.section_messages[sec_name])
-                            })
-                            st.success(t_archived_ok)
-                else:
-                    if st.button(t_exit_arch):
-                        st.session_state.current_archive_title = None
-                        st.rerun()
-
-                with st.expander(t_file_upload, expanded=False):
-                    attached_file = st.file_uploader("File:", type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"], key=f"up_{sec_name}")
-
-                # قسم هندسة الأوصاف البصرية الذكية (بدون أي أخطاء أو رسوم)
-                is_art_section = sec_name == art_sec_key or "الرسم" in sec_name or "Art" in sec_name or "Tasarımı" in sec_name or "هونەر" in sec_name
-                if is_art_section and not is_archived_view:
-                    st.markdown("---")
-                    st.markdown("### 🎨 مبتكر ومصمم الأوصاف البصرية الذكية (AI Prompt Generator)")
-                    st.info("💡 اكتبي فكرة الصورة التي تخطر ببالكِ، وسيقوم براس بتصميم وصياغة أوصاف احترافية جاهزة لاستخدامها في أي برنامج رسومي مجاناً وبدون أي تكلفة أو أخطاء!")
-                    
-                    art_prompt_input = st.text_input("اكتبي فكرتكِ (مثلاً: صورة تجمع بين اسم براس وريتاج بتصميم مستقبلبلي):", key="ai_art_prompt_input")
-                    if st.button("✨ ابتكار ووصف التصميم الاحترافي"):
-                        if art_prompt_input:
-                            with st.spinner("جاري ابتكار أوصاف وتصاميم بصرية مبهرة... ✨"):
-                                try:
-                                    prompt_payload = [
-                                        {"role": "system", "content": "You are an expert AI art prompt engineer. Given the user's idea, write 3 professional, highly detailed English prompts for image generation (like DALL-E or Midjourney), along with creative design advice in Arabic."},
-                                        {"role": "user", "content": art_prompt_input}
-                                    ]
-                                    art_res = client.chat.completions.create(model="gpt-4o", messages=prompt_payload)
-                                    design_output = art_res.choices[0].message.content
-                                    
-                                    st.success("تم ابتكار التصميم بنجاح! تفضلي الأوصاف والأفكار:")
-                                    st.markdown(design_output)
-                                    st.session_state.generated_prompts.append({"idea": art_prompt_input, "result": design_output})
-                                except Exception as e:
-                                    st.error(f"حدث خطأ: {e}")
-                        else:
-                            st.warning("يرجى كتابة فكرة الصورة أولاً.")
-                    st.markdown("---")
-
-                if is_archived_view:
-                    active_messages = []
-                    for arch in st.session_state.archives:
-                        if arch["title"] == st.session_state.current_archive_title:
-                            active_messages = arch["messages"]
-                            break
-                else:
-                    if sec_name not in st.session_state.section_messages:
-                        st.session_state.section_messages[sec_name] = []
-                    active_messages = st.session_state.section_messages[sec_name]
-
-                for message in active_messages:
-                    with st.chat_message(message["role"]):
-                        st.markdown(message["content"])
-
-                user_spoken_text = None
-                if not is_archived_view:
-                    audio_val = st.audio_input("🎙️ Mic Input:", key=f"mic_sec_{sec_name}")
-                    if audio_val:
-                        try:
-                            transcription = client.audio.transcriptions.create(model="whisper-1", file=audio_val)
-                            user_spoken_text = transcription.text
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-
-                typed_prompt = st.chat_input("Type here...")
-                final_prompt = user_spoken_text if user_spoken_text else typed_prompt
-
-                if final_prompt and not is_archived_view:
-                    st.session_state.section_messages[sec_name].append({"role": "user", "content": final_prompt})
-                    with st.chat_message("user"):
-                        st.markdown(final_prompt)
-
-                    with st.chat_message("assistant"):
-                        try:
-                            selected_voice_api = "onyx" if "رجل" in st.session_state.voice or "Onyx" in st.session_state.voice else "nova"
-                            messages_payload = [{"role": "system", "content": f"{system_prompt} Respond fluently in {st.session_state.language}."}] + [
-                                {"role": m["role"], "content": m["content"]} for m in st.session_state.section_messages[sec_name]
-                            ]
-                            response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
-                            full_response = response.choices[0].message.content
-                            
-                            audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=full_response)
-                            audio_resp.stream_to_file("resp.mp3")
-                            st.audio("resp.mp3")
-                            
-                            st.markdown(full_response)
-                            st.session_state.section_messages[sec_name].append({"role": "assistant", "content": full_response})
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-
-        elif t_sec_settings in nav_mode:
-            st.markdown(f"<h2 style='text-align: center;'>{t_settings_header}</h2>", unsafe_allow_html=True)
-            with st.container():
-                st.markdown("<div class='settings-panel'>", unsafe_allow_html=True)
-                new_name = st.text_input(t_username, value=st.session_state.username)
-                new_theme = st.radio(t_theme, ("داكن (Dark)", "فاتح (Light)"), index=0 if "داكن" in st.session_state.theme or "Dark" in st.session_state.theme else 1)
-                new_voice = st.radio(t_voice, ("صوت بنت نقي وواضح (Nova)", "صوت رجل نقي وواضح (Onyx)"), index=0 if "بنت" in st.session_state.voice or "Nova" in st.session_state.voice else 1)
-                
-                languages_40 = [
-                    "العربية (Arabic)", "الإنجليزية (English)", "الكوردية (Kurdish Badini)", "التركية (Türkçe)",
-                    "الفرنسية (Français)", "الألمانية (Deutsch)", "الإسبانية (Español)", "الإيطالية (Italiano)",
-                    "الروسية (Русский)", "الصينية المبسطة (中文)", "اليابانية (日本語)", "الكورية (한국어)",
-                    "الفارسية (فارسی)", "الأوردو (اردو)", "الهندية (हिन्दी)", "البرتغالية (Português)",
-                    "البنغالية (বাংলা)", "البنجابية (ਪੰਜਾਬੀ)", "الإندونيسية (Bahasa Indonesia)", "الماليزية (Bahasa Melayu)",
-                    "الفيتنامية (Tiếng Việt)", "التايلاندية (ไทย)", "الهولندية (Nederlands)", "البولندية (Polski)",
-                    "الأوكرانية (Українська)", "اليونانية (Ελληνικά)", "السويدية (Svenska)", "النرويجية (Norsk)",
-                    "الدنماركية (Dansk)", "الفنلندية (Suomi)", "المجرية (Magyar)", "التشيكية (Čeština)",
-                    "الرومانية (Română)", "البلغارية (Български)", "السلوفاكية (Slovenčina)", "الكرواتية (Hrvatski)",
-                    "العبرية (עברית)", "الفلبينية (Tagalog)", "السواحلية (Kiswahili)", "الأمهرية (አማርኛ)"
-                ]
-                
-                current_lang_idx = languages_40.index(st.session_state.language) if st.session_state.language in languages_40 else 0
-                new_lang = st.selectbox(t_lang_label, languages_40, index=current_lang_idx)
-
-                st.markdown("---")
-                st.checkbox("Enable notifications on app open", value=True)
-
-                if st.button(t_save):
-                    st.session_state.username = new_name
-                    st.session_state.theme = new_theme
-                    st.session_state.voice = new_voice
-                    st.session_state.language = new_lang
-                    st.success(t_saved_ok)
+                if email.strip() and password.strip():
+                    st.session_state.logged_in = True
+                    st.session_state.user_email = email.strip()
+                    if st.session_state.trial_start is None:
+                        st.session_state.trial_start = datetime.now()
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
+                else:
+                    st.warning("يرجى إدخال البريد الإلكتروني وكلمة المرور.")
+    with c_right:
+        st.info("✨ تجربة مجانية 24 ساعة\n\nالباقات بعد التجربة:\n• أسبوعي: **$5**\n• شهري: **$15**\n• سنوي: **$99**")
+else:
+    trial_active = False
+    hours_left = 0
+    if st.session_state.trial_start is not None:
+        elapsed_time = datetime.now() - st.session_state.trial_start
+        remaining = timedelta(hours=24) - elapsed_time
+        if remaining.total_seconds() > 0:
+            trial_active = True
+            hours_left = max(1, int(remaining.total_seconds() // 3600))
 
-        elif t_sec_secretary in nav_mode:
-            st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_secretary_title}</h2>", unsafe_allow_html=True)
-            st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
-            
-            with st.expander("🎥 Camera / الكاميرا", expanded=False):
-                render_optional_camera()
+    has_access = st.session_state.is_subscribed or trial_active
 
-            st.markdown("---")
-            st.subheader(t_schedule_title)
-            
-            with st.form("sch_form"):
-                task_desc = st.text_input(t_task_input)
-                col_d, col_t = st.columns(2)
-                with col_d:
-                    task_day = st.selectbox(t_day_label, ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"])
-                with col_t:
-                    task_time = st.text_input(t_time_label, value="12:00")
+    status_badge = (
+        f"✅ مشترك ({st.session_state.subscription_plan})"
+        if st.session_state.is_subscribed
+        else (f"⏳ تجربة مجانية: {hours_left} ساعة" if trial_active else "🔒 انتهت التجربة المجانية")
+    )
 
-                if st.form_submit_button(t_add_task_btn) and task_desc:
-                    full_task_info = f"📅 {task_day} - {task_time} ⏰ - {task_desc}"
-                    st.session_state.my_schedule.append(full_task_info)
-                    st.success(t_task_added)
+    st.markdown(
+        f"""
+        <div class='user-info'>
+            <span>👤 {t_account}: <b>{st.session_state.username}</b> ({st.session_state.user_email}) | 🌐 {st.session_state.language}</span>
+            <span>{status_badge} | 🖥️ {st.session_state.screen_mode} | 🎙️ {st.session_state.voice}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-            if st.session_state.my_schedule:
-                st.info(t_schedule_list)
-                for idx, t in enumerate(st.session_state.my_schedule, 1):
-                    st.write(f"{idx}. {t}")
+    # زر تبديل وضع الشاشة السريع في الشريط الجانبي
+    screen_toggle = st.sidebar.toggle(
+        "🖥️ وضع الشاشة الكاملة (Screen Mode)",
+        value=is_screen_mode,
+    )
+    new_screen_val = "شاشة كاملة (Screen Mode)" if screen_toggle else "عادي (Normal)"
+    if new_screen_val != st.session_state.screen_mode:
+        st.session_state.screen_mode = new_screen_val
+        st.rerun()
 
-            st.markdown("---")
-            st.subheader(t_mic_prompt)
-            
-            for message in st.session_state.messages:
+    nav_mode = st.sidebar.radio(
+        t_nav,
+        (t_sec_main, t_sec_pricing, t_sec_secretary, t_sec_archive, t_sec_settings),
+    )
+
+    st.sidebar.divider()
+    if st.sidebar.button(t_logout_btn):
+        st.session_state.logged_in = False
+        st.rerun()
+
+    if not has_access and nav_mode not in (t_sec_pricing, t_sec_settings):
+        st.warning("🔒 انتهت فترة الـ 24 ساعة المجانية. يرجى اختيار باقة اشتراك لمتابعة استخدام الأقسام.")
+        nav_mode = t_sec_pricing
+
+    base_system_prompt = (
+        f"You are BRAS AI, a helpful assistant created exclusively by Retaj Luqman ismail Gargary (ريتاج لقمان گەرگەری). "
+        f"If anyone asks who created you or where you are from, you must proudly answer that you are from Kurdistan Iraq (كردستان العراق). "
+        f"The current user language setting is: {st.session_state.language}. Respond fluently in this language. "
+        "Always remember previous conversations with Retaj in this session, and when she asks if you remember something she said earlier, confirm enthusiastically ('إيه أتذكر'). "
+        "Pronounce the letter 'گ' (Ga) correctly and clearly."
+    )
+
+    BASE_SECTIONS = {
+        "المساعد الشامل": ("🤖", f"{base_system_prompt} You are a versatile assistant."),
+        "المعلم الشامل": ("📚", f"{base_system_prompt} You are an expert school teacher."),
+        "قسم كرة القدم": ("⚽", f"{base_system_prompt} You are an expert football analyst covering FC Barcelona."),
+        "تعليم اللغات": ("🗣️", f"{base_system_prompt} You are a multilingual tutor."),
+        "البرمجة": ("💻", f"{base_system_prompt} You are an expert programmer."),
+        "الطبخ والوصفات": ("🍳", f"{base_system_prompt} You are a master chef."),
+        "مكياج وسكين كير": ("💄", f"{base_system_prompt} You are an expert makeup artist and skincare consultant."),
+        "ديزاين وملابس وشوبينغ": ("🛍️", f"{base_system_prompt} You are a fashion designer and shopping advisor."),
+        "أفكار دول وسفرات": ("✈️", f"{base_system_prompt} You are a travel planner expert."),
+        "قسم التاريخ": ("📜", f"{base_system_prompt} You are a historian expert."),
+        "الصحة، الدايت والجيم": ("💪", f"{base_system_prompt} You are a fitness coach."),
+        "نصائح وتطوير الذات": ("💡", f"{base_system_prompt} You are a life advisor."),
+        art_sec_key: ("🎨", f"{base_system_prompt} You are an expert AI image prompt engineer and visual design consultant."),
+        "صانع الفيديوهات والأفكار": ("🎬", f"{base_system_prompt} You are an advanced AI video producer and script/idea generator, creating professional video storyboards and voice scripts."),
+    }
+
+    SECTIONS = {SECTIONS_NAMES.get(k, k): v for k, v in BASE_SECTIONS.items()}
+
+    if nav_mode == t_sec_main:
+        if st.session_state.selected_section is None:
+            st.markdown(f"<h3 style='text-align: center;'>{t_choose_sec}</h3>", unsafe_allow_html=True)
+            grid_cols = 4 if is_screen_mode else 3
+            cols = st.columns(grid_cols)
+            for index, (sec_name, (emoji, _)) in enumerate(SECTIONS.items()):
+                col = cols[index % grid_cols]
+                if col.button(f"{emoji}\n\n{sec_name}", key=f"sec_btn_{index}"):
+                    st.session_state.selected_section = sec_name
+                    st.session_state.current_archive_title = None
+                    st.rerun()
+        else:
+            sec_name = st.session_state.selected_section
+            emoji, system_prompt = SECTIONS[sec_name]
+            is_archived_view = st.session_state.current_archive_title is not None
+
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.subheader(f"{sec_name} {emoji}")
+            with col2:
+                if st.button(t_back_grid):
+                    st.session_state.selected_section = None
+                    st.session_state.current_archive_title = None
+                    st.rerun()
+
+            if not is_archived_view:
+                col_new, col_arc = st.columns(2)
+                if col_new.button(t_new_chat):
+                    st.session_state.section_messages[sec_name] = []
+                    st.rerun()
+                if col_arc.button(t_archive_btn):
+                    msgs = st.session_state.section_messages.get(sec_name, [])
+                    if msgs:
+                        archive_title = f"{sec_name} - {msgs[0]['content'][:25]}..."
+                        st.session_state.archives.append({
+                            "title": archive_title,
+                            "section": sec_name,
+                            "messages": list(msgs),
+                        })
+                        st.success(t_archived_ok)
+            else:
+                if st.button(t_exit_arch):
+                    st.session_state.current_archive_title = None
+                    st.rerun()
+
+            with st.expander(t_file_upload, expanded=False):
+                st.file_uploader("File:", type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"], key=f"up_{sec_name}")
+
+            is_art_section = (
+                sec_name == art_sec_key
+                or any(w in sec_name for w in ["الرسم", "Art", "Tasarımı", "هونەر"])
+            )
+            if is_art_section and not is_archived_view and client:
+                st.markdown("---")
+                st.markdown("### 🎨 مبتكر ومصمم الأوصاف البصرية الذكية (AI Prompt Generator)")
+                art_prompt_input = st.text_input("اكتبي فكرتكِ:", key="ai_art_prompt_input")
+                if st.button("✨ ابتكار ووصف التصميم الاحترافي"):
+                    if art_prompt_input:
+                        with st.spinner("جاري ابتكار أوصاف وتصاميم بصرية... ✨"):
+                            try:
+                                art_res = client.chat.completions.create(
+                                    model="gpt-4o",
+                                    messages=[
+                                        {"role": "system", "content": "You are an expert AI art prompt engineer. Write 3 detailed English image prompts plus advice in Arabic."},
+                                        {"role": "user", "content": art_prompt_input},
+                                    ],
+                                )
+                                design_output = art_res.choices[0].message.content
+                                st.success("تم ابتكار التصميم بنجاح!")
+                                st.markdown(design_output)
+                                st.session_state.generated_prompts.append({"idea": art_prompt_input, "result": design_output})
+                            except Exception as e:
+                                st.error(f"حدث خطأ: {e}")
+                    else:
+                        st.warning("يرجى كتابة فكرة الصورة أولاً.")
+                st.markdown("---")
+
+            if is_archived_view:
+                active_messages = next(
+                    (a["messages"] for a in st.session_state.archives if a["title"] == st.session_state.current_archive_title),
+                    [],
+                )
+            else:
+                st.session_state.section_messages.setdefault(sec_name, [])
+                active_messages = st.session_state.section_messages[sec_name]
+
+            for message in active_messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-            sec_spoken_text = None
-            sec_audio_val = st.audio_input("🎙️ Mic:", key="mic_secretary")
-            if sec_audio_val:
-                try:
-                    transcription = client.audio.transcriptions.create(model="whisper-1", file=sec_audio_val)
-                    sec_spoken_text = transcription.text
-                except Exception as e:
-                    st.error(f"Error: {e}")
+            user_spoken_text = None
+            if not is_archived_view:
+                audio_val = st.audio_input("🎙️ Mic Input:", key=f"mic_sec_{sec_name}")
+                user_spoken_text = transcribe_audio_once(audio_val, f"sec_{sec_name}")
 
-            sec_typed_prompt = st.chat_input(t_type_prompt)
-            final_sec_prompt = sec_spoken_text if sec_spoken_text else sec_typed_prompt
+            typed_prompt = st.chat_input("Type here...")
+            final_prompt = user_spoken_text if user_spoken_text else typed_prompt
 
-            if final_sec_prompt:
-                st.session_state.messages.append({"role": "user", "content": final_sec_prompt})
+            if final_prompt and not is_archived_view and client:
+                st.session_state.section_messages[sec_name].append({"role": "user", "content": final_prompt})
                 with st.chat_message("user"):
-                    st.markdown(final_sec_prompt)
+                    st.markdown(final_prompt)
+
                 with st.chat_message("assistant"):
                     try:
-                        selected_voice_api = "onyx" if "رجل" in st.session_state.voice or "Onyx" in st.session_state.voice else "nova"
-                        sec_sys = f"{base_system_prompt} You are Retaj's smart secretary. Current language setting: {st.session_state.language}. Current schedule: {st.session_state.my_schedule}. Always respond fluently in {st.session_state.language}."
-                        resp = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": sec_sys}] + st.session_state.messages)
-                        f_resp = resp.choices[0].message.content
-                        
-                        audio_resp = client.audio.speech.create(model="tts-1", voice=selected_voice_api, input=f_resp)
-                        audio_resp.stream_to_file("sec.mp3")
-                        st.audio("sec.mp3")
-                        
-                        st.markdown(f_resp)
-                        st.session_state.messages.append({"role": "assistant", "content": f_resp})
+                        messages_payload = [
+                            {"role": "system", "content": f"{system_prompt} Respond fluently in {st.session_state.language}."}
+                        ] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.section_messages[sec_name]]
+                        response = client.chat.completions.create(model="gpt-4o", messages=messages_payload)
+                        full_response = response.choices[0].message.content
+                        speak_and_show(full_response)
+                        st.session_state.section_messages[sec_name].append({"role": "assistant", "content": full_response})
                     except Exception as e:
                         st.error(f"Error: {e}")
 
-        elif t_sec_archive in nav_mode:
-            st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_archive_header}</h2>", unsafe_allow_html=True)
-            if not st.session_state.archives:
-                st.info(t_no_archive)
-            else:
-                for idx, arch in enumerate(st.session_state.archives):
-                    with st.expander(f"📁 {arch['title']}"):
-                        if st.button(t_browse, key=f"arch_{idx}"):
-                            st.session_state.selected_section = arch["section"]
-                            st.session_state.current_archive_title = arch["title"]
-                            st.rerun()
+    elif nav_mode == t_sec_pricing:
+        st.header("💳 الباقات والاشتراك (BRAS AI)")
+        st.write("اختاري الباقة المناسبة لفتح الوصول الكامل غير المحدود:")
+        p1, p2, p3 = st.columns(3)
+        with p1:
+            st.markdown("<div class='plan-box'><h3>أسبوعي</h3><h2>$5</h2><p>صلاحية 7 أيام</p></div>", unsafe_allow_html=True)
+            if st.button("اشتراك أسبوعي ($5)", key="plan_w"):
+                st.session_state.is_subscribed = True
+                st.session_state.subscription_plan = "أسبوعي - $5"
+                st.success("تم تفعيل الباقة الأسبوعية ($5)!")
+                st.rerun()
+        with p2:
+            st.markdown("<div class='plan-box'><h3>شهري</h3><h2>$15</h2><p>صلاحية 30 يوماً</p></div>", unsafe_allow_html=True)
+            if st.button("اشتراك شهري ($15)", key="plan_m"):
+                st.session_state.is_subscribed = True
+                st.session_state.subscription_plan = "شهري - $15"
+                st.success("تم تفعيل الباقة الشهرية ($15)!")
+                st.rerun()
+        with p3:
+            st.markdown("<div class='plan-box'><h3>سنوي</h3><h2>$99</h2><p>صلاحية 365 يوماً</p></div>", unsafe_allow_html=True)
+            if st.button("اشتراك سنوي ($99)", key="plan_y"):
+                st.session_state.is_subscribed = True
+                st.session_state.subscription_plan = "سنوي - $99"
+                st.success("تم تفعيل الباقة السنوية ($99)!")
+                st.rerun()
+
+        st.radio("طريقة الدفع:", ["Visa / Mastercard", "K-Net / QiCard / زين كاش"])
+
+    elif nav_mode == t_sec_secretary:
+        st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_secretary_title}</h2>", unsafe_allow_html=True)
+        st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
+
+        with st.expander("🎥 Camera / الكاميرا", expanded=is_screen_mode):
+            render_optional_camera()
+
+        st.markdown("---")
+        st.subheader(t_schedule_title)
+
+        with st.form("sch_form"):
+            task_desc = st.text_input(t_task_input)
+            col_d, col_t = st.columns(2)
+            with col_d:
+                task_day = st.selectbox(t_day_label, ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"])
+            with col_t:
+                task_time = st.text_input(t_time_label, value="12:00")
+
+            if st.form_submit_button(t_add_task_btn) and task_desc:
+                st.session_state.my_schedule.append(f"📅 {task_day} - {task_time} ⏰ - {task_desc}")
+                st.success(t_task_added)
+
+        if st.session_state.my_schedule:
+            st.info(t_schedule_list)
+            for idx, t in enumerate(st.session_state.my_schedule, 1):
+                st.write(f"{idx}. {t}")
+
+        st.markdown("---")
+        st.subheader(t_mic_prompt)
+
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        sec_audio_val = st.audio_input("🎙️ Mic:", key="mic_secretary")
+        sec_spoken_text = transcribe_audio_once(sec_audio_val, "secretary")
+        sec_typed_prompt = st.chat_input(t_type_prompt)
+        final_sec_prompt = sec_spoken_text if sec_spoken_text else sec_typed_prompt
+
+        if final_sec_prompt and client:
+            st.session_state.messages.append({"role": "user", "content": final_sec_prompt})
+            with st.chat_message("user"):
+                st.markdown(final_sec_prompt)
+            with st.chat_message("assistant"):
+                try:
+                    sec_sys = (
+                        f"{base_system_prompt} You are Retaj's smart secretary. "
+                        f"Current language setting: {st.session_state.language}. "
+                        f"Current schedule: {st.session_state.my_schedule}. "
+                        f"Always respond fluently in {st.session_state.language}."
+                    )
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": sec_sys}] + st.session_state.messages,
+                    )
+                    f_resp = resp.choices[0].message.content
+                    speak_and_show(f_resp)
+                    st.session_state.messages.append({"role": "assistant", "content": f_resp})
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+    elif nav_mode == t_sec_archive:
+        st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_archive_header}</h2>", unsafe_allow_html=True)
+        if not st.session_state.archives:
+            st.info(t_no_archive)
+        else:
+            for idx, arch in enumerate(st.session_state.archives):
+                with st.expander(f"📁 {arch['title']}"):
+                    if st.button(t_browse, key=f"arch_{idx}"):
+                        st.session_state.selected_section = arch["section"]
+                        st.session_state.current_archive_title = arch["title"]
+                        st.rerun()
+
+    elif nav_mode == t_sec_settings:
+        st.markdown(f"<h2 style='text-align: center;'>{t_settings_header}</h2>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown("<div class='settings-panel'>", unsafe_allow_html=True)
+            new_name = st.text_input(t_username, value=st.session_state.username)
+            new_theme = st.radio(
+                t_theme,
+                ("داكن (Dark)", "فاتح (Light)"),
+                index=0 if "داكن" in st.session_state.theme or "Dark" in st.session_state.theme else 1,
+            )
+            new_voice = st.radio(
+                t_voice,
+                ("صوت بنت نقي وواضح (Nova)", "صوت رجل نقي وواضح (Onyx)"),
+                index=0 if "بنت" in st.session_state.voice or "Nova" in st.session_state.voice else 1,
+            )
+            new_screen = st.radio(
+                t_screen_mode,
+                ("عادي (Normal)", "شاشة كاملة (Screen Mode)"),
+                index=1 if is_screen_mode else 0,
+            )
+
+            languages_40 = [
+                "العربية (Arabic)", "الإنجليزية (English)", "الكوردية (Kurdish Badini)", "التركية (Türkçe)",
+                "الفرنسية (Français)", "الألمانية (Deutsch)", "الإسبانية (Español)", "الإيطالية (Italiano)",
+                "الروسية (Русский)", "الصينية المبسطة (中文)", "اليابانية (日本語)", "الكورية (한국어)",
+                "الفارسية (فارسی)", "الأوردو (اردو)", "الهندية (हिन्दी)", "البرتغالية (Português)",
+                "البنغالية (বাংলা)", "البنجابية (ਪੰਜਾਬੀ)", "الإندونيسية (Bahasa Indonesia)", "الماليزية (Bahasa Melayu)",
+                "الفيتنامية (Tiếng Việt)", "التايلاندية (ไทย)", "الهولندية (Nederlands)", "البولندية (Polski)",
+                "الأوكرانية (Українська)", "اليونانية (Ελληνικά)", "السويدية (Svenska)", "النرويجية (Norsk)",
+                "الدنماركية (Dansk)", "الفنلندية (Suomi)", "المجرية (Magyar)", "التشيكية (Čeština)",
+                "الرومانية (Română)", "البلغارية (Български)", "السلوفاكية (Slovenčina)", "الكرواتية (Hrvatski)",
+                "العبرية (עברית)", "الفلبينية (Tagalog)", "السواحلية (Kiswahili)", "الأمهرية (አማርኛ)",
+            ]
+
+            current_lang_idx = languages_40.index(st.session_state.language) if st.session_state.language in languages_40 else 0
+            new_lang = st.selectbox(t_lang_label, languages_40, index=current_lang_idx)
+
+            st.markdown("---")
+            st.checkbox("Enable notifications on app open", value=True)
+
+            if st.button(t_save):
+                st.session_state.username = new_name
+                st.session_state.theme = new_theme
+                st.session_state.voice = new_voice
+                st.session_state.screen_mode = new_screen
+                st.session_state.language = new_lang
+                st.success(t_saved_ok)
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
