@@ -1,6 +1,6 @@
+import base64
 from datetime import datetime, timedelta
 import json
-from urllib.parse import quote
 from openai import OpenAI
 import requests
 import streamlit as st
@@ -387,19 +387,32 @@ def generate_real_image(prompt_text: str):
     if not prompt_text.strip():
         st.warning("اكتبي وصف الصورة التي تريدين توليدها أولاً.")
         return None
-    try:
-        encoded_prompt = quote(prompt_text.strip())
-        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
-        resp = requests.get(url, timeout=90)
-        if resp.ok and resp.headers.get("content-type", "").startswith(
-            "image/"
-        ):
-            return resp.content
-        st.warning(
-            "تعذر توليد الصورة حالياً؛ جرّبي وصفاً أبسط أو أعيدي المحاولة."
-        )
-    except Exception:
-        st.warning("حدث انقطاع أثناء الاتصال بخدمة الصور؛ جرّبي مجدداً.")
+    if not client:
+        st.error("مفتاح OPENAI_API_KEY غير متوفر في Streamlit Secrets.")
+        return None
+
+    errors = []
+    for model_name in ("dall-e-3", "gpt-image-1"):
+        try:
+            kwargs = {
+                "model": model_name,
+                "prompt": prompt_text.strip(),
+                "size": "1024x1024",
+            }
+            if model_name == "dall-e-3":
+                kwargs["response_format"] = "b64_json"
+            res = client.images.generate(**kwargs)
+            b64_data = res.data[0].b64_json
+            if b64_data:
+                return base64.b64decode(b64_data)
+            if getattr(res.data[0], "url", None):
+                return res.data[0].url
+        except Exception as exc:
+            errors.append(f"{model_name}: {exc}")
+
+    st.error("تعذر توليد الصورة من OpenAI. التفاصيل التقنية:")
+    for err in errors:
+        st.code(err, language="text")
     return None
 
 
@@ -743,10 +756,11 @@ else:
                 ):
                     if img_idea.strip():
                         with st.spinner("جاري توليد الصورة..."):
-                            img_url = generate_real_image(img_idea)
-                        if img_url:
+                            img_result = generate_real_image(img_idea)
+                        if img_result:
                             st.session_state.generated_images.insert(
-                                0, {"prompt": img_idea.strip(), "url": img_url}
+                                0,
+                                {"prompt": img_idea.strip(), "data": img_result},
                             )
                             st.rerun()
                     else:
@@ -754,7 +768,7 @@ else:
 
                 for item in st.session_state.generated_images[:4]:
                     st.image(
-                        item["url"],
+                        item["data"],
                         caption=item["prompt"],
                         use_container_width=True,
                     )
