@@ -1,7 +1,6 @@
 import json
 from datetime import datetime, timedelta
 import streamlit as st
-import streamlit.components.v1 as components
 from openai import OpenAI
 
 # إعداد الصفحة لتكون واسعة بالكامل
@@ -28,6 +27,7 @@ defaults = {
     "section_messages": {},
     "archives": [],
     "saved_chats": [],
+    "browsing_archive": None,
     "current_archive_title": None,
     "messages": [],
     "generated_images": [],
@@ -51,9 +51,9 @@ if "English" in lang:
     t_logout_btn = "Logout"
     t_nav = "Navigate Your Platform:"
     t_sec_main = "🏠 Main Grid (Sections)"
-    t_sec_chats = "💬 Saved Chats (Side Panel)"
+    t_sec_schedule = "📅 Schedule & Reminders"
+    t_sec_chats = "💬 Saved Chats"
     t_sec_pricing = "💳 Plans & Pricing"
-    t_sec_secretary = "🧑‍💼 Smart Secretary (Voice, Mic & Optional Camera)"
     t_sec_archive = "📚 Saved Archives"
     t_sec_settings = "⚙️ BRAS AI & Account Settings"
     t_account = "Account"
@@ -65,22 +65,19 @@ if "English" in lang:
     t_username = "Username:"
     t_save = "Save Settings & Apply Changes"
     t_saved_ok = "Settings saved and language applied successfully!"
-    t_secretary_title = "🧑‍💼 Smart Secretary (Multilingual, Mic & Alerts)"
-    t_schedule_title = "📅 Schedule with Day & Time"
-    t_task_input = "Enter task (e.g., Math exam):"
+    t_schedule_title = "📅 Your Schedule & Smart Reminders"
+    t_task_input = "Enter task (e.g., Math exam or family visit):"
     t_day_label = "Select Day:"
     t_time_label = "Time (e.g., 4:00 PM):"
-    t_add_task_btn = "Add Task with Alert"
-    t_task_added = "Task added successfully!"
+    t_add_task_btn = "Add Task to Schedule"
+    t_task_added = "Task added to your schedule!"
     t_schedule_list = "📌 Your Schedule & Recorded Tasks:"
-    t_mic_prompt = "🎙️ Click the microphone to speak with your secretary directly:"
-    t_type_prompt = "Or type to your secretary here..."
     t_choose_sec = "Choose the right section to start creating:"
     t_back_grid = "⬅️ Back to Grid"
     t_new_chat = "✨ New Chat"
     t_archive_btn = "💾 Save & Archive"
     t_archived_ok = "Conversation archived successfully!"
-    t_exit_arch = "↩️ Exit Archive"
+    t_exit_arch = "↩️ Exit Archive View"
     t_file_upload = "➕ Add File or Image"
     t_archive_header = "📚 Archives"
     t_no_archive = "No archived conversations."
@@ -113,9 +110,9 @@ elif "Kurdish" in lang:
     t_logout_btn = "چوونە دەرەوە"
     t_nav = "گه‌شت بكه‌ له‌ سەکۆکەت:"
     t_sec_main = "🏠 تۆڕی سەرەکی (بەشەکان)"
+    t_sec_schedule = "📅 خشتە و بیرخەرەوەکان"
     t_sec_chats = "💬 گفتوگۆ پاشەکەوتکراوەکان"
     t_sec_pricing = "💳 پاکێج و نرخەکان"
-    t_sec_secretary = "🧑‍💼 ئەمینداری هۆشمەند (دەنگ، مایکرۆفۆن و کامێرا)"
     t_sec_archive = "📚 ئەرشیفی گفتوگۆکان"
     t_sec_settings = "⚙️ ڕێکخستنەکانی BRAS AI"
     t_account = "هەژمار"
@@ -127,16 +124,13 @@ elif "Kurdish" in lang:
     t_username = "ناوی بەکارهێنەر:"
     t_save = "پاشەکەوتکردنی ڕێکخستنەکان"
     t_saved_ok = "ڕێکخستنەکان بە سەرکەوتوویی پاشەکەوت کران!"
-    t_secretary_title = "🧑‍💼 ئەمینداری هۆشمەند (فرەزمان، مایکرۆفۆن و ئاگادارکردنەوە)"
-    t_schedule_title = "📅 خشتەی ئەرکەکان بە دیاریکردنی ڕۆژ و کات"
+    t_schedule_title = "📅 خشتەی ئەرکەکان و بیرخەرەوە"
     t_task_input = "ئەرکێک بنووسە:"
     t_day_label = "ڕۆژ هەڵبژێرە:"
     t_time_label = "کات:"
-    t_add_task_btn = "زیادکردنی ئەرک"
-    t_task_added = "ئەرکەکە بە سەرکەوتوویی زیادکرا!"
+    t_add_task_btn = "زیادکردنی ئەرک بۆ خشتە"
+    t_task_added = "ئەرکەکە زیادکرا!"
     t_schedule_list = "📌 خشتەی ئەرکە تۆمارکراوەکانت:"
-    t_mic_prompt = "🎙️ کلیک لەسەر مایکرۆفۆن بکە بۆ قسەکردن:"
-    t_type_prompt = "یان لێرە بنووسە..."
     t_choose_sec = "بەشی گونجاو هەڵبژێرە بۆ دەستپێکردن:"
     t_back_grid = "⬅️ گەڕانەوە بۆ تۆڕ"
     t_new_chat = "✨ گفتوگۆی نوێ"
@@ -175,9 +169,9 @@ else:
     t_logout_btn = "تسجيل الخروج"
     t_nav = "📍 تنقلي في منصتكِ:"
     t_sec_main = "🏠 الشبكة الرئيسية (الأقسام)"
+    t_sec_schedule = "📅 الجدول والتذكير"
     t_sec_chats = "💬 سجل الدردشة الكاملة"
     t_sec_pricing = "💳 الباقات والاشتراك"
-    t_sec_secretary = "🧑‍💼 وضع السكرتير الذكي (صوت، ميكروفون، وكاميرا اختيارية)"
     t_sec_archive = "📚 أرشيف المحادثات المحفوظة"
     t_sec_settings = "⚙️ إعدادات BRAS AI والحساب"
     t_account = "الحساب"
@@ -189,16 +183,13 @@ else:
     t_username = "اسم المستخدم:"
     t_save = "💾 حفظ الإعدادات وتطبيق التغييرات"
     t_saved_ok = "تم حفظ الإعدادات وتطبيق اللغة بنجاح!"
-    t_secretary_title = "🧑‍💼 السكرتير الذكي (متعدد اللغات، ميكروفون، وتنبيهات)"
-    t_schedule_title = "📅 جدول المهمات مع تحديد اليوم والساعة"
-    t_task_input = "اكتبي المهمة (مثلاً: امتحان رياضيات أو لقاء العائلة):"
+    t_schedule_title = "📅 جدول المواعيد والمهمات والتذكير"
+    t_task_input = "اكتبي المهمة أو الموعد (مثلاً: امتحان رياضيات أو موعد طبيب):"
     t_day_label = "اختر اليوم:"
     t_time_label = "الساعة:"
-    t_add_task_btn = "إضافة للمهمات مع التنبيه"
-    t_task_added = "تمت إضافة المهمة بنجاح وسيتم تذكيركِ بها فوراً!"
-    t_schedule_list = "📌 جدول مهماتكِ والمواعيد المسجلة:"
-    t_mic_prompt = "🎙️ اضغطي على الميكروفون للتحدث مع السكرتير مباشرة:"
-    t_type_prompt = "أو اكتبي لسكرتيركِ هنا..."
+    t_add_task_btn = "إضافة إلى الجدول"
+    t_task_added = "تمت إضافة الموعد إلى جدولكِ!"
+    t_schedule_list = "📌 جدول مواعيدكِ ومهامكِ المسجلة:"
     t_choose_sec = "اخترِ القسم المناسب لبدء الإبداع:"
     t_back_grid = "⬅️ العودة للشبكة"
     t_new_chat = "✨ محادثة جديدة"
@@ -300,21 +291,6 @@ st.markdown(
     border: 1.5px solid {border_color};
     margin-bottom: 12px;
 }}
-.secretary-circle {{
-    width: {"210px" if is_screen_mode else "170px"};
-    height: {"210px" if is_screen_mode else "170px"};
-    border-radius: 50%;
-    background: radial-gradient(circle, #9b5de5, #38135e, #0d0614);
-    margin: 18px auto;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: white;
-    font-weight: bold;
-    font-size: 1.15rem;
-    text-align: center;
-    box-shadow: 0 0 55px #9b5de5, inset 0 0 25px #f15bb5;
-}}
 .settings-panel {{
     background-color: {card_bg};
     color: {text_color};
@@ -413,47 +389,6 @@ def generate_real_image(prompt_text: str):
     return None
 
 
-def render_optional_camera():
-    vid_h = "500px" if is_screen_mode else "380px"
-    camera_html = f"""
-    <div style="width: 100%; text-align: center; background: #1a1026; padding: 15px; border-radius: 20px; border: 2px solid #9b5de5;">
-        <div style="margin-bottom: 12px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
-            <button onclick="startCamera()" style="background: #9b5de5; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
-                🔴 Camera On
-            </button>
-            <button onclick="stopCamera()" style="background: #38135e; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;">
-                ⏹️ Stop Camera
-            </button>
-        </div>
-        <video id="liveVideo" autoplay playsinline style="width: 100%; max-height: {vid_h}; object-fit: cover; border-radius: 16px; background: #000; border: 2px solid #f15bb5; transform: scaleX(-1);"></video>
-        <p id="camStatus" style="color: #ffffff; margin-top: 10px; font-family: sans-serif;">Optional Camera</p>
-    </div>
-
-    <script>
-        let currentStream = null;
-        async function startCamera() {{
-            stopCamera();
-            try {{
-                currentStream = await navigator.mediaDevices.getUserMedia({{ video: true, audio: true }});
-                document.getElementById('liveVideo').srcObject = currentStream;
-                document.getElementById('camStatus').innerText = "🟢 Camera Active";
-            }} catch (err) {{
-                document.getElementById('camStatus').innerText = "⚠️ Please allow camera access";
-            }}
-        }}
-        function stopCamera() {{
-            if (currentStream) {{
-                currentStream.getTracks().forEach(track => track.stop());
-                currentStream = null;
-                document.getElementById('liveVideo').srcObject = null;
-                document.getElementById('camStatus').innerText = "⏹️ Camera Stopped";
-            }}
-        }}
-    </script>
-    """
-    components.html(camera_html, height=620 if is_screen_mode else 490)
-
-
 def save_full_chat_snapshot(label: str, msgs: list):
     if not msgs:
         return
@@ -523,29 +458,13 @@ else:
         t_nav,
         (
             t_sec_main,
+            t_sec_schedule,
             t_sec_chats,
             t_sec_pricing,
-            t_sec_secretary,
             t_sec_archive,
             t_sec_settings,
         ),
     )
-
-    # جهة مستقلة سريعة لعرض وحفظ الدردشة الكاملة في الشريط الجانبي
-    with st.sidebar.expander("💾 حفظ الدردشة الحالية في جهة", expanded=False):
-        if st.button("حفظ دردشة السكرتير / القسم", key="quick_save_chat_btn"):
-            active_sec = st.session_state.selected_section
-            target_msgs = (
-                st.session_state.section_messages.get(active_sec, [])
-                if active_sec
-                else st.session_state.messages
-            )
-            if target_msgs:
-                save_full_chat_snapshot(active_sec or "السكرتير الذكي", target_msgs)
-                st.success("تم حفظ الدردشة الكاملة في جهة سجل الدردشة!")
-            else:
-                st.info("لا توجد رسائل بعد لحفظها.")
-        st.caption(f"عدد الدردشات المحفوظة: {len(st.session_state.saved_chats)}")
 
     st.sidebar.divider()
     if st.sidebar.button(t_logout_btn):
@@ -592,13 +511,13 @@ else:
                     st.markdown("<div class='grid-card-wrap'>", unsafe_allow_html=True)
                     if st.button(f"{emoji}\n\n{sec_name}", key=f"sec_btn_{index}"):
                         st.session_state.selected_section = sec_name
-                        st.session_state.current_archive_title = None
+                        st.session_state.browsing_archive = None
                         st.rerun()
                     st.markdown("</div>", unsafe_allow_html=True)
         else:
             sec_name = st.session_state.selected_section
             emoji, system_prompt = SECTIONS[sec_name]
-            is_archived_view = st.session_state.current_archive_title is not None
+            browsing_item = st.session_state.browsing_archive
 
             col1, col2 = st.columns([4, 1])
             with col1:
@@ -606,10 +525,10 @@ else:
             with col2:
                 if st.button(t_back_grid):
                     st.session_state.selected_section = None
-                    st.session_state.current_archive_title = None
+                    st.session_state.browsing_archive = None
                     st.rerun()
 
-            if not is_archived_view:
+            if browsing_item is None:
                 col_new, col_arc, col_save_side = st.columns(3)
                 if col_new.button(t_new_chat):
                     st.session_state.section_messages[sec_name] = []
@@ -621,25 +540,25 @@ else:
                         st.session_state.archives.append({
                             "title": archive_title,
                             "section": sec_name,
-                            "messages": list(msgs),
+                            "messages": [dict(m) for m in msgs],
                         })
                         st.success(t_archived_ok)
                 if col_save_side.button("📌 حفظ في سجل الدردشة"):
                     msgs = st.session_state.section_messages.get(sec_name, [])
                     if msgs:
                         save_full_chat_snapshot(sec_name, msgs)
-                        st.success("تم حفظ الدردشة كاملة في جهة سجل الدردشة!")
+                        st.success("تم حفظ الدردشة كاملة في سجل الدردشة!")
             else:
+                st.info(f"📖 استعراض أرشيف: {browsing_item['title']}")
                 if st.button(t_exit_arch):
-                    st.session_state.current_archive_title = None
+                    st.session_state.browsing_archive = None
                     st.rerun()
 
             with st.expander(t_file_upload, expanded=False):
                 st.file_uploader("File:", type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"], key=f"up_{sec_name}")
 
-            # 1) قسم الإعلانات والمتاجر
             is_ads_section = any(w in sec_name for w in ["إعلانات", "Ads", "ڕیکلام"])
-            if is_ads_section and not is_archived_view:
+            if is_ads_section and browsing_item is None:
                 st.markdown("### 📢 مولد إعلانات المتاجر والمشاريع")
                 ad_store = st.text_input("اسم المتجر أو النشاط التجاري", key="ad_store_name")
                 ad_offer = st.text_area("تفاصيل المنتج أو العرض أو الخدمة", key="ad_offer_desc")
@@ -658,9 +577,8 @@ else:
                         st.info("اكتبي اسم المتجر ووصف العرض أولاً.")
                 st.markdown("---")
 
-            # 2) قسم الصور والتصميم (توليد صورة حقيقية مباشرة)
             is_img_section = any(w in sec_name for w in ["الصور", "Image", "وێنە"])
-            if is_img_section and not is_archived_view:
+            if is_img_section and browsing_item is None:
                 st.markdown("### 🖼️ توليد الصور الذكية مباشرة")
                 img_idea = st.text_input("اكتبي وصف الصورة التي تريدين توليدها:", key="real_img_prompt")
                 if st.button("✨ توليد الصورة الآن", type="primary", key="gen_real_img_btn"):
@@ -679,9 +597,8 @@ else:
                     st.image(item["url"], caption=item["prompt"], use_container_width=True)
                 st.markdown("---")
 
-            # 3) قسم الفيديوهات والأفكار
             is_vid_section = any(w in sec_name for w in ["الفيديوهات", "Video", "ڤیدیۆ"])
-            if is_vid_section and not is_archived_view:
+            if is_vid_section and browsing_item is None:
                 st.markdown("### 🎬 استوديو الفيديوهات والأفكار")
                 vid_idea = st.text_area("اكتبي فكرة الفيديو أو المشهد:", key="vid_studio_idea")
                 vid_style = st.selectbox("نمط الفيديو", ["سينمائي", "إعلان تجاري", "سوشيال ميديا / Reels", "أنيميشن"], key="vid_studio_style")
@@ -713,11 +630,8 @@ else:
                     st.divider()
                 st.markdown("---")
 
-            if is_archived_view:
-                active_messages = next(
-                    (a["messages"] for a in st.session_state.archives if a["title"] == st.session_state.current_archive_title),
-                    [],
-                )
+            if browsing_item is not None:
+                active_messages = browsing_item.get("messages", [])
             else:
                 st.session_state.section_messages.setdefault(sec_name, [])
                 active_messages = st.session_state.section_messages[sec_name]
@@ -726,43 +640,59 @@ else:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-            user_spoken_text = None
-            if not is_archived_view:
+            if browsing_item is None:
+                user_spoken_text = None
                 audio_val = st.audio_input("🎙️ تحدثِ هنا للرد الفوري:", key=f"mic_sec_{sec_name}")
                 user_spoken_text = transcribe_once(audio_val, f"sec_{sec_name}")
 
-            typed_prompt = st.chat_input("اكتبي رسالتكِ هنا...")
-            final_prompt = user_spoken_text if user_spoken_text else typed_prompt
+                typed_prompt = st.chat_input("اكتبي رسالتكِ هنا...")
+                final_prompt = user_spoken_text if user_spoken_text else typed_prompt
 
-            if final_prompt and not is_archived_view:
-                st.session_state.section_messages[sec_name].append({"role": "user", "content": final_prompt})
-                with st.chat_message("user"):
-                    st.markdown(final_prompt)
+                if final_prompt:
+                    st.session_state.section_messages[sec_name].append({"role": "user", "content": final_prompt})
+                    with st.chat_message("user"):
+                        st.markdown(final_prompt)
 
-                with st.chat_message("assistant"):
-                    full_response = get_ai_answer(system_prompt, st.session_state.section_messages[sec_name])
-                    reply_with_voice(full_response)
-                    st.session_state.section_messages[sec_name].append({"role": "assistant", "content": full_response})
+                    with st.chat_message("assistant"):
+                        full_response = get_ai_answer(system_prompt, st.session_state.section_messages[sec_name])
+                        reply_with_voice(full_response)
+                        st.session_state.section_messages[sec_name].append({"role": "assistant", "content": full_response})
 
-    # جهة مستقلة كاملة لعرض وإدارة الدردشات المحفوظة
+    elif nav_mode == t_sec_schedule:
+        st.header(t_schedule_title)
+        with st.form("sch_form"):
+            task_desc = st.text_input(t_task_input)
+            col_d, col_t = st.columns(2)
+            with col_d:
+                task_day = st.selectbox(t_day_label, ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"])
+            with col_t:
+                task_time = st.text_input(t_time_label, value="12:00")
+
+            if st.form_submit_button(t_add_task_btn) and task_desc.strip():
+                st.session_state.my_schedule.append({
+                    "day": task_day,
+                    "time": task_time.strip() or "12:00",
+                    "task": task_desc.strip(),
+                })
+                st.success(t_task_added)
+
+        if st.session_state.my_schedule:
+            st.subheader(t_schedule_list)
+            for idx, item in enumerate(st.session_state.my_schedule):
+                c_txt, c_del = st.columns([5, 1])
+                with c_txt:
+                    st.info(f"⏰ **تذكير:** {item['day']} الساعة **{item['time']}** — {item['task']}")
+                with c_del:
+                    if st.button("حذف", key=f"del_sch_{idx}"):
+                        st.session_state.my_schedule.pop(idx)
+                        st.rerun()
+        else:
+            st.info("لا توجد مواعيد مضافة في جدولكِ حالياً.")
+
     elif nav_mode == t_sec_chats:
         st.header("💬 سجل الدردشة الكاملة")
-        col_a, col_b = st.columns([2, 1])
-        with col_a:
-            if st.button("💾 حفظ محادثة السكرتير الحالية الآن", type="primary"):
-                if st.session_state.messages:
-                    save_full_chat_snapshot("السكرتير الذكي", st.session_state.messages)
-                    st.success("تم حفظ الدردشة كاملة!")
-                    st.rerun()
-                else:
-                    st.info("لا توجد رسائل في محادثة السكرتير حالياً.")
-        with col_b:
-            if st.session_state.saved_chats and st.button("🗑️ مسح سجل الدردشات المحفوظة"):
-                st.session_state.saved_chats = []
-                st.rerun()
-
         if not st.session_state.saved_chats:
-            st.info("لم يتم حفظ أي دردشة بعد. اضغطي على زر الحفظ لحفظ الدردشة كاملة في هذه الجهة.")
+            st.info("لم يتم حفظ أي دردشة كاملة بعد. اضغطي على «حفظ في سجل الدردشة» داخل أي قسم لحفظها هنا.")
         else:
             for idx, chat_item in enumerate(st.session_state.saved_chats):
                 with st.expander(f"🗂️ {chat_item['title']} ({chat_item['saved_at']})", expanded=(idx == 0)):
@@ -805,68 +735,16 @@ else:
 
         st.radio("طريقة الدفع:", ["Visa / Mastercard", "K-Net / QiCard / زين كاش"])
 
-    elif nav_mode == t_sec_secretary:
-        st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_secretary_title}</h2>", unsafe_allow_html=True)
-        st.markdown("<div class='secretary-circle'><span>✨ SECRETARY ✨</span></div>", unsafe_allow_html=True)
-
-        with st.expander("🎥 Camera / الكاميرا", expanded=is_screen_mode):
-            render_optional_camera()
-
-        st.markdown("---")
-        st.subheader(t_schedule_title)
-
-        with st.form("sch_form"):
-            task_desc = st.text_input(t_task_input)
-            col_d, col_t = st.columns(2)
-            with col_d:
-                task_day = st.selectbox(t_day_label, ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"])
-            with col_t:
-                task_time = st.text_input(t_time_label, value="12:00")
-
-            if st.form_submit_button(t_add_task_btn) and task_desc:
-                st.session_state.my_schedule.append(f"📅 {task_day} - {task_time} ⏰ - {task_desc}")
-                st.success(t_task_added)
-
-        if st.session_state.my_schedule:
-            st.info(t_schedule_list)
-            for idx, t in enumerate(st.session_state.my_schedule, 1):
-                st.write(f"{idx}. {t}")
-
-        st.markdown("---")
-        st.subheader(t_mic_prompt)
-
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-
-        sec_audio_val = st.audio_input("🎙️ Mic:", key="mic_secretary")
-        sec_spoken_text = transcribe_once(sec_audio_val, "secretary")
-        sec_typed_prompt = st.chat_input(t_type_prompt)
-        final_sec_prompt = sec_spoken_text if sec_spoken_text else sec_typed_prompt
-
-        if final_sec_prompt:
-            st.session_state.messages.append({"role": "user", "content": final_sec_prompt})
-            with st.chat_message("user"):
-                st.markdown(final_sec_prompt)
-            with st.chat_message("assistant"):
-                sec_sys = (
-                    f"{base_system_prompt} You are Retaj's smart secretary. "
-                    f"Schedule: {st.session_state.my_schedule}."
-                )
-                f_resp = get_ai_answer(sec_sys, st.session_state.messages)
-                reply_with_voice(f_resp)
-                st.session_state.messages.append({"role": "assistant", "content": f_resp})
-
     elif nav_mode == t_sec_archive:
         st.markdown(f"<h2 style='text-align: center; color: #9b5de5;'>{t_archive_header}</h2>", unsafe_allow_html=True)
         if not st.session_state.archives:
             st.info(t_no_archive)
         else:
             for idx, arch in enumerate(st.session_state.archives):
-                with st.expander(f"📁 {arch['title']}"):
+                with st.expander(f"📁 {arch['title']}", expanded=True):
                     if st.button(t_browse, key=f"arch_{idx}"):
                         st.session_state.selected_section = arch["section"]
-                        st.session_state.current_archive_title = arch["title"]
+                        st.session_state.browsing_archive = arch
                         st.rerun()
 
     elif nav_mode == t_sec_settings:
