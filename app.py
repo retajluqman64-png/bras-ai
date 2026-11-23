@@ -13,6 +13,22 @@ st.set_page_config(
 
 TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 
+# الحسابات المعتمدة وكلمات السر الخاصة بكل حساب (البريد الإلكتروني: {"password": "...", "username": "..."})
+AUTHORIZED_ACCOUNTS = {
+    "retaj@brasai.com": {
+        "password": "Retaj@2026",
+        "username": "ريتاج لقمان أسماعيل",
+    },
+    "user1@brasai.com": {
+        "password": "BrasUser#1",
+        "username": "مستخدم 1",
+    },
+    "user2@brasai.com": {
+        "password": "BrasUser#2",
+        "username": "مستخدم 2",
+    },
+}
+
 defaults = {
     "logged_in": False,
     "is_subscribed": False,
@@ -20,7 +36,6 @@ defaults = {
     "trial_start": None,
     "username": "",
     "user_email": "",
-    "registered_users": {},
     "theme": "داكن (Dark)",
     "voice": "صوت بنت نقي وواضح (Nova)",
     "language": "العربية (Arabic)",
@@ -68,12 +83,6 @@ def is_valid_email(email_str: str) -> bool:
     return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_str.strip()))
 
 
-def derive_name_from_email(email_str: str) -> str:
-    local_part = email_str.split("@")[0]
-    cleaned = re.sub(r"[._-]+", " ", local_part).strip()
-    return cleaned.title() if cleaned else "مستخدم BRAS AI"
-
-
 lang = st.session_state.language
 is_screen_mode = (
     "شاشة" in st.session_state.screen_mode
@@ -82,10 +91,10 @@ is_screen_mode = (
 
 if "English" in lang:
     t_title = "💜 BRAS AI - Smart Comprehensive Platform 💜"
-    t_login_title = "🔐 Sign In to Your Personal Account"
+    t_login_title = "🔐 Sign In with Your Account Password"
     t_email = "Email:"
-    t_password = "Password (6+ chars):"
-    t_login_btn = "Sign In / Create Account (24h Trial)"
+    t_password = "Password:"
+    t_login_btn = "Sign In"
     t_logout_btn = "Logout"
     t_nav = "Navigate Your Platform:"
     t_sec_main = "🏠 Main Grid (Sections)"
@@ -139,10 +148,10 @@ if "English" in lang:
     }
 elif "Kurdish" in lang:
     t_title = "💜 BRAS AI - سەکۆی گشتگیری هۆشمەند 💜"
-    t_login_title = "🔐 چوونەژوورەوە بۆ هەژماری تایبەتی خۆت"
+    t_login_title = "🔐 چوونەژوورەوە بە وشەی نهێنی هەژمارەکەت"
     t_email = "ئیمەیڵ:"
-    t_password = "وشەی نهێنی (٦ پیت یان زیاتر):"
-    t_login_btn = "چوونە ژوورەوە / دروستکردنی هەژمار (٢٤ کاتژمێر)"
+    t_password = "وشەی نهێنی:"
+    t_login_btn = "چوونە ژوورەوە"
     t_logout_btn = "چوونە دەرەوە"
     t_nav = "گه‌شت بكه‌ له‌ سەکۆکەت:"
     t_sec_main = "🏠 تۆڕی سەرەکی (بەشەکان)"
@@ -196,10 +205,10 @@ elif "Kurdish" in lang:
     }
 else:
     t_title = "💜 BRAS AI - المنصة الشاملة الذكية 💜"
-    t_login_title = "🔐 تسجيل الدخول إلى حسابكِ الخاص"
+    t_login_title = "🔐 تسجيل الدخول بكلمة سر الحساب"
     t_email = "البريد الإلكتروني:"
-    t_password = "كلمة المرور (6 أحرف أو أكثر):"
-    t_login_btn = "دخول / إنشاء حساب (تجربة 24 ساعة)"
+    t_password = "كلمة السر:"
+    t_login_btn = "دخول المنصة"
     t_logout_btn = "تسجيل الخروج"
     t_nav = "📍 تنقلي في منصتكِ:"
     t_sec_main = "🏠 الشبكة الرئيسية (الأقسام)"
@@ -675,42 +684,35 @@ if not st.session_state.logged_in:
                 placeholder="name@example.com",
             )
             password = st.text_input(
-                t_password, type="password", placeholder="••••••"
+                t_password, type="password", placeholder="أدخل كلمة السر الخاصة بحسابك"
             )
             submit_button = st.form_submit_button(t_login_btn)
             if submit_button:
                 clean_email = email.strip().lower()
                 if not is_valid_email(clean_email):
                     st.error(
-                        "يرجى إدخال بريد إلكتروني صحيح (مثل: user@example.com)."
+                        "يرجى إدخال بريد إلكتروني صحيح (مثل: user@brasai.com)."
                     )
-                elif len(password) < 6:
-                    st.error("كلمة المرور يجب أن تتكون من 6 أحرف أو أكثر.")
+                elif not password:
+                    st.error("يرجى إدخال كلمة السر الخاصة بحسابك.")
+                elif clean_email not in AUTHORIZED_ACCOUNTS:
+                    st.error(
+                        "هذا البريد الإلكتروني غير مسجل في المنصة؛ لا يمكن إنشاء كلمة سر جديدة من هنا."
+                    )
+                elif AUTHORIZED_ACCOUNTS[clean_email]["password"] != password:
+                    st.error("كلمة السر غير صحيحة لهذا الحساب.")
                 else:
-                    users_db = st.session_state.registered_users
-                    if clean_email in users_db:
-                        if users_db[clean_email]["password"] != password:
-                            st.error("كلمة المرور غير صحيحة لهذا الحساب.")
-                            st.stop()
-                        acc_name = users_db[clean_email]["username"]
-                    else:
-                        acc_name = derive_name_from_email(clean_email)
-                        users_db[clean_email] = {
-                            "password": password,
-                            "username": acc_name,
-                        }
-
                     st.session_state.logged_in = True
                     st.session_state.user_email = clean_email
-                    st.session_state.username = acc_name
+                    st.session_state.username = AUTHORIZED_ACCOUNTS[clean_email]["username"]
                     if st.session_state.trial_start is None:
                         st.session_state.trial_start = datetime.now()
                     st.rerun()
     with c_right:
         st.info(
-            "✨ دخول بحسابكِ الخاص\n\n• تجربة مجانية 24 ساعة\n• الباقات بعد"
-            " التجربة:\n  - أسبوعي: **$2**\n  - شهري: **$10**\n  - سنوي:"
-            " **$50**"
+            "✨ تسجيل الدخول بحسابكِ وكلمة سركِ\n\n• تجربة مجانية 24 ساعة\n•"
+            " الباقات بعد التجربة:\n  - أسبوعي: **$2**\n  - شهري: **$10**\n "
+            " - سنوي: **$50**"
         )
 else:
     trial_active = False
@@ -1529,8 +1531,6 @@ else:
             if st.button(t_save):
                 lang_changed = new_lang != st.session_state.language
                 st.session_state.username = new_name.strip() or st.session_state.username
-                if st.session_state.user_email in st.session_state.registered_users:
-                    st.session_state.registered_users[st.session_state.user_email]["username"] = st.session_state.username
                 st.session_state.theme = new_theme
                 st.session_state.voice = new_voice
                 st.session_state.screen_mode = new_screen
