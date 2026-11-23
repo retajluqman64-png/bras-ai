@@ -383,42 +383,29 @@ def get_ai_answer(system_instruction: str, chat_history: list) -> str:
 
 
 def generate_real_image(prompt_text: str):
-    if not client or not prompt_text.strip():
-        return None
-    for model_name in ("gpt-image-1", "dall-e-3"):
-        try:
-            img_resp = client.images.generate(
-                model=model_name,
-                prompt=prompt_text.strip(),
-                size="1024x1024",
-            )
-            if img_resp.data:
-                item = img_resp.data[0]
-                if getattr(item, "url", None):
-                    return item.url
-                if getattr(item, "b64_json", None):
-                    return f"data:image/png;base64,{item.b64_json}"
-        except Exception:
-            continue
+  if not client or not prompt_text.strip():
+    st.warning("تأكدي من ضبط OPENAI_API_KEY وكتابة وصف للصورة.")
     return None
-
-
-def generate_real_video(prompt_text: str, style_text: str):
-    """ترسل طلب الفيديو إلى مزود فيديو خارجي إذا تم ضبط VIDEO_API_KEY وVIDEO_API_URL."""
-    if not video_api_key or not video_api_url or not prompt_text.strip():
-        return None
+  last_error = None
+  for model_name in ("gpt-image-1", "dall-e-3"):
     try:
-        resp = requests.post(
-            video_api_url,
-            headers={
-                "Authorization": f"Bearer {video_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={"prompt": prompt_text.strip(), "style": style_text},
-            timeout=60,
-        )
-        if resp.ok:
-            data = resp.json()
+      img_resp = client.images.generate(
+          model=model_name,
+          prompt=prompt_text.strip(),
+          size="1024x1024",
+      )
+      if img_resp.data:
+        item = img_resp.data[0]
+        if getattr(item, "url", None):
+          return item.url
+        if getattr(item, "b64_json", None):
+          return f"data:image/png;base64,{item.b64_json}"
+    except Exception as e:
+      last_error = f"{model_name}: {e}"
+      continue
+  if last_error:
+    st.error(f"سبب فشل توليد الصورة من OpenAI: {last_error}")
+  return None
             return data.get("video_url") or data.get("url")
     except Exception:
         return None
