@@ -382,22 +382,13 @@ def get_ai_answer(system_instruction: str, chat_history: list) -> str:
     except Exception:
         return "تم استلام طلبكِ بنجاح؛ تحققي من رصيد أو إعدادات مفتاح API في حساب OpenAI للمتابعة."
 
-
-def generate_real_image(prompt_text: str):
-    if not prompt_text.strip():
-        st.warning("اكتبي وصف الصورة التي تريدين توليدها أولاً.")
-        return None
-    if not client:
-        st.error("مفتاح OPENAI_API_KEY غير متوفر في Streamlit Secrets.")
-        return None
-
-    errors = []
-    for model_name in ("dall-e-3", "dall-e-2"):
-        try:
-            res = client.images.generate(
-                model=model_name,
-                prompt=prompt_text.strip(),
-                size="1024x1024",
+for model_name in ("gpt-image-2.5-sunburst", "gpt-image-2.5-flare"):
+    try:
+        res = client.images.generate(
+            model=model_name,
+            prompt=prompt_text.strip(),
+            size="1024x1024",
+        )
             )
             item = res.data[0]
             if getattr(item, "b64_json", None):
