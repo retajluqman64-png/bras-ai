@@ -249,15 +249,23 @@ def create_bras_realtime_secret(character_name: str):
     return None, "أضف OPENAI_API_KEY إلى إعدادات Secrets أولاً."
   voice = "marin" if character_name == "BRAS GIRL" else "cedar"
   instructions = (
-      "You are " + character_name + ", a friendly, respectful, natural voice assistant "
-      "inside BRAS AI. Speak naturally and warmly. Speak Iraqi Arabic when the user "
-      "uses Arabic, and try to understand and answer in Kurmanji when requested. "
-      "Keep replies conversational and concise, not like a formal announcer. "
-      "Use light, kind humor when it fits; you may chuckle briefly at a genuinely funny "
-      "moment, but do not laugh at the user, force laughter, or laugh in every reply. "
-      "If the user interrupts, stop speaking and listen to the user. "
-      "Do not claim to see the camera unless an image was actually sent. "
-      "If asked about schoolwork, help explain clearly and encourage learning."
+      "You are " + character_name + ", the BRAS AI assistant, designed and developed by Retaj Luqman Ismail (ريتاح لقمان إسماعيل). "
+      "If anyone asks who made you, who created BRAS AI, or who its developer/owner is, always answer clearly: "
+      "BRAS AI was designed and developed by ريتاج لقمان إسماعيل. OpenAI provides the underlying AI technology; "
+      "do not claim that Retaj created OpenAI or the underlying base model. Do not replace the creator's name "
+      "with OpenAI, ChatGPT, or another person. If asked in Kurdish or another language, give the same fact "
+      "in the language the user is speaking while preserving the name ريتاج لقمان إسماعيل. "
+      "Understand the user's meaning and the context of this conversation. Give useful answers, "
+      "not generic agreement, and ask one short clarifying question only when needed. "
+      "For BRAS GIRL, be warm, clever, kind, attentive, naturally expressive, and lightly playful. "
+      "For BRAS BOY, be friendly, quick, thoughtful, and lightly humorous. "
+      "Speak the user's language: Iraqi Arabic when they use it; if they request Kurmanji, respond "
+      "in Kurmanji as well as you can and do not switch languages unless asked. "
+      "Notice the emotional meaning behind what the user says and respond with empathy without "
+      "overdoing it. Use occasional gentle humor and brief laughter only when genuinely fitting; "
+      "never force laughter or laugh at the user. If the user interrupts, stop promptly and listen. "
+      "Do not claim to see the camera: this version only displays the camera locally. "
+      "For schoolwork, explain steps and support learning."
   )
   payload = {
       "expires_after": {"anchor": "created_at", "seconds": 600},
@@ -266,7 +274,7 @@ def create_bras_realtime_secret(character_name: str):
           "model": "gpt-realtime-2.1",
           "instructions": instructions,
           "audio": {
-              "input": {"turn_detection": {"type": "server_vad"}},
+              "input": {"turn_detection": {"type": "server_vad", "create_response": True, "interrupt_response": True}},
               "output": {"voice": voice}
           }
       }
@@ -1953,7 +1961,7 @@ else:
         )
         st.success(f"تم اختيار {character} — جاهز للمحادثة بالصوت والصورة.")
         st.markdown("### 📞 مكالمة BRAS LIVE المباشرة")
-        st.caption("اتصال صوتي مباشر مع شخصية متحركة، ومعاينة كاميرا مستمرة ترسل لقطات متتابعة للمساعد.")
+        st.caption("مكالمة صوتية مباشرة، وشخصية تتفاعل مع صوتها، وكاميرا أمامية/خلفية بمعاينة مباشرة على جهازك.")
         start_live = st.button("▶️ بدء المكالمة المباشرة", key="bras_live_start_call", type="primary")
         if start_live:
           with st.spinner("جارٍ تجهيز اتصال آمن مع OpenAI..."):
@@ -1982,8 +1990,9 @@ else:
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
                 <button id="mic">🔇 كتم المايك</button>
-                <button id="camera">📷 تشغيل الكاميرا</button>
-                <button id="snap">إرسال لقطة</button>
+                <button id="camera">📷 تشغيل الكاميرا الأمامية</button>
+                <button id="switch-camera" disabled>🔄 تبديل أمامية / خلفية</button>
+                <button id="mirror" disabled>🪞 عكس المرآة: إيقاف</button>
                 <button id="hangup" style="background:#a83252;color:white">إنهاء المكالمة</button>
               </div>
               <div id="transcript" aria-live="polite" style="margin-top:14px;min-height:55px;max-height:150px;overflow:auto;white-space:pre-wrap;background:#ffffff12;padding:12px;border-radius:14px"></div>
@@ -1993,6 +2002,8 @@ else:
               #bras-live button:disabled{opacity:.5;cursor:not-allowed}
               #bras-live .live-avatar{width:176px;height:176px;position:relative;border-radius:50%;display:grid;place-items:center;overflow:visible;background:radial-gradient(circle at 35% 25%,#fff,#dfcaff 15%,#9977ef 48%,#34205f 82%);border:4px solid #fff9;box-shadow:0 0 0 9px #bba1ff20,0 0 40px #a78bfa99;animation:liveFloat 4s ease-in-out infinite}
               #bras-live .live-avatar.boy{background:radial-gradient(circle at 35% 25%,#fff,#c8f2ff 15%,#64bde8 48%,#183e70 82%);box-shadow:0 0 0 9px #86d9ff20,0 0 40px #66caff88}
+              #bras-live .live-avatar.speaking{animation:liveTalk .32s ease-in-out infinite alternate;box-shadow:0 0 0 12px #d9c6ff33,0 0 52px #c6a5ffcc}
+              @keyframes liveTalk{from{transform:translateY(-2px) scale(1)}to{transform:translateY(-4px) scale(1.025)}}
               #bras-live .live-face{position:relative;width:112px;height:118px;border-radius:48% 48% 45% 45%;background:radial-gradient(circle at 35% 22%,#ffe8d7,#e6b49e 65%,#ad7377);box-shadow:inset -10px -12px 20px #5b315744,0 12px 18px #160d3566;border:4px solid #fff9}
               #bras-live .live-hair{position:absolute;left:-5px;top:-9px;width:114px;height:53px;border-radius:55% 55% 28% 25%;background:linear-gradient(145deg,#67405f,#21162f 70%);box-shadow:inset 8px 5px 9px #ffffff22}
               #bras-live .live-eyes{position:absolute;top:58px;left:23px;color:#352536;font-size:17px;letter-spacing:3px;text-shadow:0 1px #fff8}
@@ -2002,7 +2013,7 @@ else:
               #bras-live .live-orbit{position:absolute;inset:-10px;border:1px solid #ffffff77;border-radius:50%;transform:rotateX(67deg);box-shadow:0 0 18px #d8c3ff88}
               #bras-live .live-name{position:absolute;bottom:-29px;font-size:12px;letter-spacing:1.4px;font-weight:800;color:#fff;text-shadow:0 2px 8px #000}
               #bras-live .live-camera-wrap{position:relative;width:min(100%,280px);height:190px;border-radius:18px;overflow:hidden;background:#080d19;border:2px solid #ffffff66;box-shadow:0 8px 24px #08051b66}
-              #bras-live #cam{display:none;width:100%;height:100%;object-fit:cover}
+              #bras-live #cam{display:none;width:100%;height:100%;object-fit:cover;transform:none}
               #bras-live #camera-placeholder{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#d7d1ed;opacity:.85}
               @keyframes liveFloat{0%,100%{transform:translateY(0) rotateY(-5deg)}50%{transform:translateY(-8px) rotateY(5deg)}}
             </style>
@@ -2016,7 +2027,7 @@ else:
               if(selectedCharacter === "BRAS BOY") { avatar.classList.remove("girl"); avatar.classList.add("boy"); avatar.querySelector(".live-name").textContent="BRAS BOY"; }
               const transcript = document.getElementById("transcript");
               const video = document.getElementById("cam");
-              let pc, dc, micStream, camStream, frameTimer=null, closed=false;
+              let pc, dc, micStream, camStream, cameraFacing="user", mirrorPreview=false, closed=false;
               const say = t => status.textContent=t;
               const log = t => { transcript.textContent += t + "\\n"; transcript.scrollTop=transcript.scrollHeight; };
               async function connect(){
@@ -2027,6 +2038,9 @@ else:
                     let audio = document.getElementById("remote-audio");
                     if(!audio){audio=document.createElement("audio");audio.id="remote-audio";audio.autoplay=true;document.body.appendChild(audio);}
                     audio.srcObject=e.streams[0];
+                    audio.onplaying=()=>avatar.classList.add("speaking");
+                    audio.onpause=()=>avatar.classList.remove("speaking");
+                    audio.onended=()=>avatar.classList.remove("speaking");
                   };
                   dc = pc.createDataChannel("oai-events");
                   dc.onopen = () => {
@@ -2063,34 +2077,43 @@ else:
                 const track=micStream?.getAudioTracks()[0];
                 if(track){track.enabled=!track.enabled;document.getElementById("mic").textContent=track.enabled?"🔇 كتم المايك":"🎙️ تشغيل المايك";}
               };
-              async function sendCameraFrame(askForReply=false){
-                if(!camStream || !dc || dc.readyState!=="open" || video.videoWidth===0) return;
-                const c=document.createElement("canvas");c.width=640;c.height=Math.round(640*video.videoHeight/video.videoWidth);
-                c.getContext("2d").drawImage(video,0,0,c.width,c.height);
-                const data=c.toDataURL("image/jpeg",.58);
-                dc.send(JSON.stringify({type:"conversation.item.create",item:{type:"message",role:"user",content:[{type:"input_image",image_url:data},{type:"input_text",text:"هذه لقطة حديثة من الكاميرا المباشرة. استخدمها لفهم ما يحدث أمام الكاميرا عند الرد."}]}}));
-                if(askForReply) dc.send(JSON.stringify({type:"response.create"}));
+              async function openCamera(facing){
+                if(camStream) camStream.getTracks().forEach(t=>t.stop());
+                camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720}},audio:false});
+                cameraFacing=facing;
+                video.srcObject=camStream;
+                video.style.display="block";
+                video.style.transform=mirrorPreview && facing==="user" ? "scaleX(-1)" : "none";
+                document.getElementById("camera-placeholder").style.display="none";
+                document.getElementById("camera").textContent="⏸ إيقاف الكاميرا";
+                document.getElementById("switch-camera").disabled=false;
+                document.getElementById("mirror").disabled=false;
+                say(facing==="user" ? "📷 الكاميرا الأمامية تعمل مباشرة على جهازك." : "📷 الكاميرا الخلفية تعمل مباشرة على جهازك.");
               }
               document.getElementById("camera").onclick=async()=>{
                 try{
-                  if(!camStream){
-                    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:1280},height:{ideal:720}}});
-                    video.srcObject=camStream;video.style.display="block";document.getElementById("camera-placeholder").style.display="none";
-                    document.getElementById("camera").textContent="⏸ إيقاف الكاميرا";
-                    say("📷 الكاميرا مباشرة. يتم إرسال لقطات متتابعة للمساعد كل بضع ثوانٍ.");
-                    frameTimer=setInterval(()=>sendCameraFrame(false),3000);
-                    setTimeout(()=>sendCameraFrame(false),900);
-                  } else {
-                    clearInterval(frameTimer);frameTimer=null;camStream.getTracks().forEach(t=>t.stop());camStream=null;video.srcObject=null;video.style.display="none";document.getElementById("camera-placeholder").style.display="grid";document.getElementById("camera").textContent="📷 تشغيل الكاميرا";say("تم إيقاف الكاميرا.");
+                  if(!camStream){await openCamera("user");}
+                  else{
+                    camStream.getTracks().forEach(t=>t.stop());camStream=null;video.srcObject=null;video.style.display="none";
+                    document.getElementById("camera-placeholder").style.display="grid";
+                    document.getElementById("camera").textContent="📷 تشغيل الكاميرا الأمامية";
+                    document.getElementById("switch-camera").disabled=true;document.getElementById("mirror").disabled=true;
+                    say("تم إيقاف الكاميرا.");
                   }
-                }catch(e){say("لم نتمكن من فتح الكاميرا: "+e.message);}
+                }catch(e){say("تعذر فتح الكاميرا: "+e.message);}
               };
-              document.getElementById("snap").onclick=async()=>{
-                if(!camStream || !dc || dc.readyState!=="open"){say("شغّل الكاميرا واتصل أولاً.");return;}
-                await sendCameraFrame(true);say("تم إرسال أحدث لقطة. اسأل BRAS عنها بالصوت.");
+              document.getElementById("switch-camera").onclick=async()=>{
+                if(!camStream)return;
+                try{await openCamera(cameraFacing==="user"?"environment":"user");}
+                catch(e){say("لم تتوفر الكاميرا الأخرى على هذا الجهاز: "+e.message);}
+              };
+              document.getElementById("mirror").onclick=()=>{
+                mirrorPreview=!mirrorPreview;
+                video.style.transform=mirrorPreview && cameraFacing==="user" ? "scaleX(-1)" : "none";
+                document.getElementById("mirror").textContent=mirrorPreview?"🪞 عكس المرآة: تشغيل":"🪞 عكس المرآة: إيقاف";
               };
               document.getElementById("hangup").onclick=()=>{
-                closed=true;if(frameTimer)clearInterval(frameTimer);pc?.close();micStream?.getTracks().forEach(t=>t.stop());camStream?.getTracks().forEach(t=>t.stop());
+                closed=true;pc?.close();micStream?.getTracks().forEach(t=>t.stop());camStream?.getTracks().forEach(t=>t.stop());
                 video.style.display="none";say("انتهت المكالمة. أعد تحميل القسم لبدء مكالمة جديدة.");
                 document.querySelectorAll("#bras-live button").forEach(b=>b.disabled=true);
               };
@@ -2105,7 +2128,8 @@ else:
               st.rerun()
         st.info(
             "تحتاج المكالمة إلى مفتاح API ورصيد فعال. لا تضع المفتاح الدائم داخل المتصفح؛ "
-            "التطبيق ينشئ رمزاً مؤقتاً قصير الصلاحية. معاينة الكاميرا مستمرة، ويُرسل للمساعد إطار مصوّر كل 3 ثوانٍ تقريباً وليس فيديو خاماً متواصلاً. اسمح للمتصفح باستخدام المايك والكاميرا، "
+            "التطبيق ينشئ رمزاً مؤقتاً قصير الصلاحية. الكاميرا هنا بث معاينة مباشر على جهازك فقط، ولا تُرسل صوراً أو فيديو إلى نموذج OpenAI. "
+            "واجهة Realtime API الحالية تقبل صوراً مرفقة بالمحادثة، لكنها لا توفر إدخال فيديو حيّاً أصلياً مستمراً؛ لذلك لن أدّعي أن BRAS يرى حركتك مباشرة. اسمح للمتصفح باستخدام المايك والكاميرا، "
             "وافتح التطبيق عبر HTTPS أو localhost."
         )
         st.markdown("---")
