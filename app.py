@@ -867,31 +867,56 @@ def transcribe_once(audio_file, scope_name: str):
 
 
 def generate_real_image(prompt_text: str):
-  if not FAL_KEY:
-    return None, "أضيفي FAL_KEY من موقع fal.ai في Streamlit Secrets."
-  try:
-    url = "https://fal.run/fal-ai/flux/schnell"
-    body = json.dumps({
-        "prompt": prompt_text,
-        "image_size": "square_hd",
-    }).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Key {FAL_KEY}",
-            "Content-Type": "application/json",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-      res_data = json.loads(resp.read().decode("utf-8"))
-      images = res_data.get("images") or []
-      if images and isinstance(images, list) and images[0].get("url"):
-        return images[0]["url"], None
-      return None, "لم يرجع رابط صورة من fal.ai."
-  except Exception as e:
-    return None, str(e)
+  last_err = ""
+  if FAL_KEY:
+    fal_endpoints = [
+        ("https://fal.run/fal-ai/flux/schnell", {"prompt": prompt_text, "image_size": "square_hd"}),
+        ("https://fal.run/fal-ai/fast-sdxl", {"prompt": prompt_text, "image_size": "square_hd"}),
+        ("https://fal.run/fal-ai/flux/dev", {"prompt": prompt_text, "image_size": "square_hd"}),
+    ]
+    for endpoint_url, payload_obj in fal_endpoints:
+      try:
+        body = json.dumps(payload_obj).encode("utf-8")
+        req = urllib.request.Request(
+            endpoint_url,
+            data=body,
+            method="POST",
+            headers={
+                "Authorization": f"Key {FAL_KEY}",
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+          res_data = json.loads(resp.read().decode("utf-8"))
+          images = res_data.get("images") or []
+          if images and isinstance(images, list) and images[0].get("url"):
+            return images[0]["url"], None
+          img_obj = res_data.get("image")
+          if isinstance(img_obj, dict) and img_obj.get("url"):
+            return img_obj["url"], None
+      except Exception as e:
+        last_err = str(e)
+
+  if client:
+    try:
+      img_res = client.images.generate(
+          model="gpt-image-1",
+          prompt=prompt_text,
+          size="1024x1024",
+      )
+      first_item = img_res.data[0]
+      b64_data = getattr(first_item, "b64_json", None)
+      if b64_data:
+        return base64.b64decode(b64_data), None
+      url = getattr(first_item, "url", None)
+      if url:
+        return url, None
+    except Exception as e:
+      last_err = str(e)
+
+  if not FAL_KEY and not client:
+    return None, "أضيفي FAL_KEY أو OPENAI_API_KEY لتفعيل إنشاء الصور."
+  return None, last_err or "لم يرجع رابط صورة من الخادم."
 
 
 def generate_real_video(prompt_text: str):
