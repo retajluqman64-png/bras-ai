@@ -1524,4 +1524,5 @@ def record_message_in_section(account_rec: dict, sec_name: str):
         )
         save_account_everywhere(account_rec["user_email"], account_rec)
 
-def
+def my_function():
+    print("Hello")
