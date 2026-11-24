@@ -1,7 +1,6 @@
 
 from io import BytesIO
 from datetime import datetime
-import base64
 import json
 import os
 import re
@@ -1482,6 +1481,13 @@ else:
   )
 
   BASE_SECTIONS = {
+      "BRAS LIVE": (
+          "🎙️",
+          (
+              f"{base_system_prompt} You are BRAS LIVE, a friendly conversational "
+              "AI companion. Speak naturally, warmly, and clearly."
+          ),
+      ),
       "المساعد الشامل": (
           "🤖",
           (
@@ -1795,6 +1801,62 @@ else:
             save_account_everywhere(rec["user_email"], rec)
             st.session_state.latest_voice_text = full_response
             st.rerun()
+
+      is_bras_live_section = sec_name == "BRAS LIVE" or "BRAS LIVE" in sec_name
+      if is_bras_live_section and browsing_item is None:
+        st.markdown("""
+        <style>
+        .bras-character-card {
+          border: 1px solid rgba(160,130,255,.38);
+          border-radius: 22px; padding: 20px 16px; text-align: center;
+          background: linear-gradient(145deg, rgba(92,62,160,.20), rgba(28,34,66,.28));
+          box-shadow: 0 10px 30px rgba(30,20,70,.12); min-height: 205px;
+        }
+        .bras-avatar {
+          width: 104px; height: 104px; margin: 0 auto 12px; border-radius: 50%;
+          display:flex; align-items:center; justify-content:center; font-size:52px;
+          background: radial-gradient(circle at 35% 25%, #fff 0%, #e9d5ff 18%, #9b78ff 48%, #39306f 100%);
+          border: 3px solid rgba(255,255,255,.75);
+          box-shadow: 0 0 24px rgba(167,139,250,.45);
+        }
+        .bras-avatar.boy { background: radial-gradient(circle at 35% 25%, #fff 0%, #c8f2ff 18%, #54a9d9 48%, #263d78 100%); }
+        .bras-character-card h3 { margin: 4px 0 6px; }
+        .bras-character-card p { opacity: .88; margin: 0; font-size: .93rem; }
+        </style>
+        <h2>🎙️ BRAS LIVE</h2>
+        <p>اختَر الشخصية التي تريد التحدث معها.</p>
+        """, unsafe_allow_html=True)
+        girl_col, boy_col = st.columns(2)
+        with girl_col:
+          st.markdown("""
+          <div class="bras-character-card">
+            <div class="bras-avatar">👩🏻‍💼</div>
+            <h3>👩 BRAS GIRL</h3>
+            <p>صوت أنثوي طبيعي · هادئة وذكية · لطيفة وعفوية</p>
+            <p>تفهم سياق الحديث وتتفاعل بشكل طبيعي</p>
+          </div>
+          """, unsafe_allow_html=True)
+        with boy_col:
+          st.markdown("""
+          <div class="bras-character-card">
+            <div class="bras-avatar boy">👨🏻‍💼</div>
+            <h3>👨 BRAS BOY</h3>
+            <p>صوت رجالي طبيعي · ذكي وسريع · خفيف بالحوار</p>
+            <p>يرد بوضوح وبأسلوب عفوي</p>
+          </div>
+          """, unsafe_allow_html=True)
+        character = st.radio(
+            "اختيار الشخصية:",
+            ["BRAS GIRL", "BRAS BOY"],
+            horizontal=True,
+            key="bras_live_character",
+        )
+        st.info(
+            f"تم اختيار {character}. هذه واجهة اختيار الشخصية؛ "
+            "المكالمة الصوتية المباشرة والمقاطعة والكاميرا تحتاج ربط خدمة صوت حيّ مستقلة، "
+            "ولم يتم تفعيلها بهذا التعديل."
+        )
+        st.markdown("---")
 
       is_ads_section = sec_name == SECTIONS_NAMES.get(
           "Ads & Stores Studio", "Ads & Stores Studio"
