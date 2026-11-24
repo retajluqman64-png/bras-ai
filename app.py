@@ -1,4 +1,5 @@
-import base64
+
+from io import BytesIO
 from datetime import datetime
 import json
 import os
@@ -20,20 +21,15 @@ PERSIST_FILE = "bras_gmail_accounts_store.json"
 FREE_MSG_LIMIT_PER_SECTION = 25
 FREE_SECTION_LIMIT = 2
 FREE_DAILY_IMAGE_LIMIT = 4
-FREE_DAILY_VIDEO_LIMIT = 1
 FREE_DAILY_TASK_LIMIT = 1
 FREE_WEEKLY_TASK_LIMIT = 3
 
-DEFAULT_FAL_KEY = (
-    "fal_sk_2be16b4d6266460ea9b698c25d0d951b:a1ce512e2365cb930b76426b0f9b9d59"
-)
 
 SUPABASE_URL = str(st.secrets.get("SUPABASE_URL", "")).strip().rstrip("/")
 SUPABASE_KEY = str(st.secrets.get("SUPABASE_KEY", "")).strip()
 GOOGLE_CLIENT_ID = str(st.secrets.get("GOOGLE_CLIENT_ID", "")).strip()
 GOOGLE_CLIENT_SECRET = str(st.secrets.get("GOOGLE_CLIENT_SECRET", "")).strip()
 APP_REDIRECT_URI = str(st.secrets.get("APP_REDIRECT_URI", "")).strip()
-FAL_KEY = str(st.secrets.get("FAL_KEY", DEFAULT_FAL_KEY)).strip()
 
 
 def is_valid_gmail(email_str: str) -> bool:
@@ -71,11 +67,9 @@ def build_empty_account_record(email_str: str) -> dict:
       "archives": [],
       "saved_chats": [],
       "browsing_archive": None,
-      "generated_videos": [],
       "free_allowed_sections": [],
       "free_daily_date": TODAY_STR,
       "free_daily_images_used": 0,
-      "free_daily_videos_used": 0,
   }
 
 
@@ -229,10 +223,11 @@ def sync_current_gmail_data():
     )
 
   rec = vault[email_key]
+  rec.pop("generated_videos", None)
+  rec.pop("free_daily_videos_used", None)
   if rec.get("free_daily_date") != TODAY_STR:
     rec["free_daily_date"] = TODAY_STR
     rec["free_daily_images_used"] = 0
-    rec["free_daily_videos_used"] = 0
 
   base_rec = build_empty_account_record(email_key)
   for field, default_val in base_rec.items():
@@ -301,12 +296,10 @@ def get_kurmanji_ui_pack() -> dict:
       "t_no_archive": "چ ئاخفتنێن ئەرشیفکری نینن.",
       "t_browse": "📖 ڤەکرن و دیتن",
       "t_ads_studio": "📢 ستودیویا ریکلام و بازاڕان",
-      "t_ai_gen_studio": "🎨🎬 ستودیویا ئافراندنا وێنە و ڤیدیۆیان",
+      "t_ai_gen_studio": "🎨 ستودیویا ئافراندنا وێنەیان",
       "t_img_edit_studio": "🛠️ ستودیویا دەستکاریکرنا وێنەی",
       "t_gen_real_image": "🖼️ وێنەیێ حەقیقی",
-      "t_gen_real_video": "🎬 ڤیدیۆیێ حەقیقی (MP4)",
       "t_media_mode_q": "BRAS AI نوکە چ ئافرینیت؟",
-      "t_media_prompt_q": "وێسفێ وێنەی یان ڤیدیۆیێ ب دەقیقی بنڤیسە:",
       "t_gen_btn": "✨ ئافراندن نوکە",
       "t_upload_img_q": "وێنەی بۆ دەستکاریکرنێ بارکە:",
       "t_img_effect_q": "چ کاریگەریەک (Effect) لسەر وێنەی بھێتە کرن؟",
@@ -325,7 +318,7 @@ def get_kurmanji_ui_pack() -> dict:
           "الصحة، الدايت والجيم": "ساخلەمی، دایت و جیم",
           "نصائح وتطوير الذات": "شیرەت و پێشئێخستنا کەسایەتیێ",
           "Ads & Stores Studio": "📢 ستودیویا ریکلام و بازاڕان",
-          "AI Generation Studio": "🎨🎬 ستودیویا ئافراندنا وێنە و ڤیدیۆیان",
+          "AI Generation Studio": "🎨 ستودیویا ئافراندنا وێنەیان",
           "Image Editor": "🛠️ ستودیویا دەستکاریکرنا وێنەی",
       },
   }
@@ -376,12 +369,10 @@ def get_sorani_ui_pack() -> dict:
       "t_no_archive": "هیچ گفتوگۆیەکی ئەرشیفکراو نییە.",
       "t_browse": "📖 پشکنین و بینین",
       "t_ads_studio": "📢 بەشی ڕیکلام و فرۆشگاکان",
-      "t_ai_gen_studio": "🎨🎬 بەشی دروستکردنی وێنە و ڤیدیۆ",
+      "t_ai_gen_studio": "🎨 بەشی دروستکردنی وێنە",
       "t_img_edit_studio": "🛠️ بەشی دەستکاریکردنی وێنە",
       "t_gen_real_image": "🖼️ وێنەی ڕاستەقینە",
-      "t_gen_real_video": "🎬 ڤیدیۆی ڕاستەقینە (MP4)",
       "t_media_mode_q": "BRAS AI ئێستا چی دروست بکات؟",
-      "t_media_prompt_q": "وەسفی وێنە یان ڤیدیۆکە بە وردی بنووسە:",
       "t_gen_btn": "✨ دروستکردن ئێستا",
       "t_upload_img_q": "وێنە بۆ دەستکاریکردن بارکە:",
       "t_img_effect_q": "چ کاراییەک (Effect) بەسەر وێنەکەدا بێت؟",
@@ -400,7 +391,7 @@ def get_sorani_ui_pack() -> dict:
           "الصحة، الدايت والجيم": "تەندروستی، دایت و جیم",
           "نصائح وتطوير الذات": "ئامۆژگاری و پەرەپێدانی خود",
           "Ads & Stores Studio": "📢 بەشی ڕیکلام و فرۆشگاکان",
-          "AI Generation Studio": "🎨🎬 بەشی دروستکردنی وێنە و ڤیدیۆ",
+          "AI Generation Studio": "🎨 بەشی دروستکردنی وێنە",
           "Image Editor": "🛠️ بەشی دەستکاریکردنی وێنە",
       },
   }
@@ -451,12 +442,11 @@ def get_arabic_ui_pack() -> dict:
       "t_no_archive": "لا توجد محادثات مؤرشفة.",
       "t_browse": "📖 استعراض",
       "t_ads_studio": "📢 قسم الإعلانات والمتاجر",
-      "t_ai_gen_studio": "🎨🎬 استوديو إنشاء الصور والفيديوهات",
+      "t_ai_gen_studio": "🎨 استوديو إنشاء الصور",
       "t_img_edit_studio": "🛠️ استوديو تعديل الصور",
       "t_gen_real_image": "🖼️ صورة حقيقية",
-      "t_gen_real_video": "🎬 فيديو حقيقي (MP4)",
       "t_media_mode_q": "ماذا تريدين أن ينشئ BRAS AI الآن؟",
-      "t_media_prompt_q": "اكتبي وصف الصورة أو الفيديو بالتفصيل:",
+      "t_media_prompt_q": "اكتبي وصف الصورة بالتفصيل:",
       "t_gen_btn": "✨ إنشاء الآن",
       "t_upload_img_q": "ارفعِ صورة لتعديلها:",
       "t_img_effect_q": "ما التأثير المطلوب تطبيقه على الصورة؟",
@@ -475,7 +465,7 @@ def get_arabic_ui_pack() -> dict:
           "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
           "نصائح وتطوير الذات": "نصائح وتطوير الذات",
           "Ads & Stores Studio": "📢 قسم الإعلانات والمتاجر",
-          "AI Generation Studio": "🎨🎬 استوديو إنشاء الصور والفيديوهات",
+          "AI Generation Studio": "🎨 استوديو إنشاء الصور",
           "Image Editor": "🛠️ استوديو تعديل الصور",
       },
   }
@@ -522,12 +512,10 @@ def get_english_ui_pack() -> dict:
       "t_no_archive": "No archived conversations.",
       "t_browse": "📖 Browse",
       "t_ads_studio": "📢 Ads & Stores Studio",
-      "t_ai_gen_studio": "🎨🎬 AI Generation Studio",
+      "t_ai_gen_studio": "🎨 AI Image Studio",
       "t_img_edit_studio": "🛠️ Image Editor",
       "t_gen_real_image": "🖼️ Real Image",
-      "t_gen_real_video": "🎬 Real Video (MP4)",
       "t_media_mode_q": "What should BRAS AI create now?",
-      "t_media_prompt_q": "Enter detailed image or video description:",
       "t_gen_btn": "✨ Generate Now",
       "t_upload_img_q": "Upload image to edit:",
       "t_img_effect_q": "What effect to apply to the image?",
@@ -680,7 +668,6 @@ t_ads_studio = ui_pack["t_ads_studio"]
 t_ai_gen_studio = ui_pack["t_ai_gen_studio"]
 t_img_edit_studio = ui_pack["t_img_edit_studio"]
 t_gen_real_image = ui_pack["t_gen_real_image"]
-t_gen_real_video = ui_pack["t_gen_real_video"]
 t_media_mode_q = ui_pack["t_media_mode_q"]
 t_media_prompt_q = ui_pack["t_media_prompt_q"]
 t_gen_btn = ui_pack["t_gen_btn"]
@@ -867,127 +854,55 @@ def transcribe_once(audio_file, scope_name: str):
 
 
 def generate_real_image(prompt_text: str):
-  last_err = ""
-  if FAL_KEY:
-    fal_endpoints = [
-        ("https://fal.run/fal-ai/flux/schnell", {"prompt": prompt_text, "image_size": "square_hd"}),
-        ("https://fal.run/fal-ai/fast-sdxl", {"prompt": prompt_text, "image_size": "square_hd"}),
-        ("https://fal.run/fal-ai/flux/dev", {"prompt": prompt_text, "image_size": "square_hd"}),
-    ]
-    for endpoint_url, payload_obj in fal_endpoints:
-      try:
-        body = json.dumps(payload_obj).encode("utf-8")
-        req = urllib.request.Request(
-            endpoint_url,
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Key {FAL_KEY}",
-                "Content-Type": "application/json",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-          res_data = json.loads(resp.read().decode("utf-8"))
-          images = res_data.get("images") or []
-          if images and isinstance(images, list) and images[0].get("url"):
-            return images[0]["url"], None
-          img_obj = res_data.get("image")
-          if isinstance(img_obj, dict) and img_obj.get("url"):
-            return img_obj["url"], None
-      except Exception as e:
-        last_err = str(e)
-
-  if client:
-    try:
-      img_res = client.images.generate(
-          model="gpt-image-1",
-          prompt=prompt_text,
-          size="1024x1024",
-      )
-      first_item = img_res.data[0]
-      b64_data = getattr(first_item, "b64_json", None)
-      if b64_data:
-        return base64.b64decode(b64_data), None
-      url = getattr(first_item, "url", None)
-      if url:
-        return url, None
-    except Exception as e:
-      last_err = str(e)
-
-  if not FAL_KEY and not client:
-    return None, "أضيفي FAL_KEY أو OPENAI_API_KEY لتفعيل إنشاء الصور."
-  return None, last_err or "لم يرجع رابط صورة من الخادم."
-
-
-def generate_real_video(prompt_text: str):
-  if not FAL_KEY:
-    return None, "أضيفي FAL_KEY من موقع fal.ai في Streamlit Secrets."
+  if not client:
+    return None, "أضيفي OPENAI_API_KEY في Streamlit Secrets لتفعيل إنشاء الصور."
   try:
-    url = "https://fal.run/fal-ai/luma-dream-machine"
-    body = json.dumps({"prompt": prompt_text}).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Key {FAL_KEY}",
-            "Content-Type": "application/json",
-        },
+    img_res = client.images.generate(
+        model="gpt-image-2.6-sunburst",
+        prompt=prompt_text,
+        size="1024x1024",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-      res_data = json.loads(resp.read().decode("utf-8"))
-      video_url = res_data.get("video", {}).get("url")
-      if video_url:
-        return video_url, None
-      return None, "لم يرجع رابط فيديو من الخادم."
+    first_item = img_res.data[0]
+    b64_data = getattr(first_item, "b64_json", None)
+    if b64_data:
+      return base64.b64decode(b64_data), None
+    url = getattr(first_item, "url", None)
+    if url:
+      return url, None
+    return None, "لم ترجع صورة من OpenAI."
   except Exception as e:
     return None, str(e)
 
 
-def edit_user_image(input_b64_img: str, mime_type: str, effect_type: str):
-  if not FAL_KEY:
-    return None, "أضيفي FAL_KEY من موقع fal.ai في Streamlit Secrets."
-
-  api_endpoints = {
-      "🖼️ تحويل لصورة كرتونية (Style Transfer)": (
-          "https://fal.run/schnell/image-to-cartoon"
-      ),
-      "🔍 تحسين الجودة ودقة الصورة (Super Resolution)": (
-          "https://fal.run/fal-ai/real-esrgan"
-      ),
-      "🧙‍♂️ تأثير سحري آخر (مثلاً: إضاءة سينمائية)": (
-          "https://fal.run/fal-ai/stable-diffusion-v1-5-img2img"
-      ),
+def edit_user_image(input_bytes: bytes, mime_type: str, effect_type: str):
+  if not client:
+    return None, "أضيفي OPENAI_API_KEY في Streamlit Secrets لتفعيل تعديل الصور."
+  effect_prompts = {
+      "🖼️ تحويل لصورة كرتونية (Style Transfer)": "Transform the uploaded image into a polished cartoon illustration while preserving the main subject and composition.",
+      "🔍 تحسين الجودة ودقة الصورة (Super Resolution)": "Enhance image clarity and detail while keeping the image natural and faithful to the original.",
+      "🧙‍♂️ تأثير سحري آخر (مثلاً: إضاءة سينمائية)": "Apply tasteful cinematic lighting and a magical atmosphere while preserving the main subject and composition.",
   }
-  api_url = api_endpoints.get(effect_type)
-  if not api_url:
+  edit_prompt = effect_prompts.get(effect_type)
+  if not edit_prompt:
     return None, "التأثير غير مدعوم."
-
   try:
-    safe_mime = mime_type if mime_type else "image/png"
-    payload = {"image_url": f"data:{safe_mime};base64,{input_b64_img}"}
-    if "img2img" in api_url:
-      payload["prompt"] = "cinematic lighting, highly detailed"
-
-    body = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        api_url,
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Key {FAL_KEY}",
-            "Content-Type": "application/json",
-        },
+    file_obj = BytesIO(input_bytes)
+    file_obj.name = "uploaded_image.webp" if mime_type == "image/webp" else ("uploaded_image.jpg" if mime_type == "image/jpeg" else "uploaded_image.png")
+    edited = client.images.edit(
+        model="gpt-image-2.6-sunburst",
+        image=file_obj,
+        prompt=edit_prompt,
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-      res_data = json.loads(resp.read().decode("utf-8"))
-      out_url = res_data.get("image", {}).get("url")
-      if out_url:
-        return out_url, None
-      return None, "لم يرجع رابط الصورة المعدلة."
+    first_item = edited.data[0]
+    b64_data = getattr(first_item, "b64_json", None)
+    if b64_data:
+      return base64.b64decode(b64_data), None
+    url = getattr(first_item, "url", None)
+    if url:
+      return url, None
+    return None, "لم ترجع الصورة المعدلة من OpenAI."
   except Exception as e:
     return None, str(e)
-
 
 def record_subscriber_lesson_memory(account_rec: dict, sec_name: str, msgs: list):
   if not account_rec.get("is_subscribed") or not msgs:
@@ -1156,40 +1071,18 @@ def register_free_section(account_rec: dict, sec_name: str):
       save_account_everywhere(account_rec["user_email"], account_rec)
 
 
-def can_upload_free_media(account_rec: dict, is_video: bool) -> bool:
+def can_upload_free_media(account_rec: dict, is_video: bool = False) -> bool:
   if account_rec.get("is_subscribed"):
     return True
-  if is_video:
-    return account_rec.get("free_daily_videos_used", 0) < FREE_DAILY_VIDEO_LIMIT
   return account_rec.get("free_daily_images_used", 0) < FREE_DAILY_IMAGE_LIMIT
 
 
-def record_free_media_upload(account_rec: dict, is_video: bool):
+def record_free_media_upload(account_rec: dict, is_video: bool = False):
   if not account_rec.get("is_subscribed"):
-    if is_video:
-      account_rec["free_daily_videos_used"] = (
-          account_rec.get("free_daily_videos_used", 0) + 1
-      )
-    else:
-      account_rec["free_daily_images_used"] = (
-          account_rec.get("free_daily_images_used", 0) + 1
-      )
-    save_account_everywhere(account_rec["user_email"], account_rec)
-
-
-def can_generate_free_video(account_rec: dict) -> bool:
-  if account_rec.get("is_subscribed"):
-    return True
-  return account_rec.get("free_daily_videos_used", 0) < FREE_DAILY_VIDEO_LIMIT
-
-
-def record_free_video_generation(account_rec: dict):
-  if not account_rec.get("is_subscribed"):
-    account_rec["free_daily_videos_used"] = (
-        account_rec.get("free_daily_videos_used", 0) + 1
+    account_rec["free_daily_images_used"] = (
+        account_rec.get("free_daily_images_used", 0) + 1
     )
     save_account_everywhere(account_rec["user_email"], account_rec)
-
 
 def count_free_tasks_on_day(account_rec: dict, day_name: str) -> int:
   return sum(
@@ -1308,7 +1201,6 @@ t_ads_studio = ui_pack["t_ads_studio"]
 t_ai_gen_studio = ui_pack["t_ai_gen_studio"]
 t_img_edit_studio = ui_pack["t_img_edit_studio"]
 t_gen_real_image = ui_pack["t_gen_real_image"]
-t_gen_real_video = ui_pack["t_gen_real_video"]
 t_media_mode_q = ui_pack["t_media_mode_q"]
 t_media_prompt_q = ui_pack["t_media_prompt_q"]
 t_gen_btn = ui_pack["t_gen_btn"]
@@ -1538,12 +1430,9 @@ else:
     rem_day_imgs = max(
         0, FREE_DAILY_IMAGE_LIMIT - rec.get("free_daily_images_used", 0)
     )
-    rem_day_vids = max(
-        0, FREE_DAILY_VIDEO_LIMIT - rec.get("free_daily_videos_used", 0)
-    )
     status_badge = (
         f"📂 {rem_secs}/2 قسم متاح | 💬 25 رسالة/قسم | 📷 {rem_day_imgs}/4"
-        f" صور/يوم | 🎬 {rem_day_vids}/1 فيديو/يوم"
+        " صور/يوم"
     )
 
   st.markdown(
@@ -1668,7 +1557,7 @@ else:
           "🎨🎬",
           (
               f"{base_system_prompt} You are a creative studio assistant that can"
-              " generate and edit real images and videos."
+              " generate and edit real images."
           ),
       ),
       "Image Editor": (
@@ -1700,8 +1589,7 @@ else:
         )
         st.info(
             "🔒 لغير المشتركين: **قسمين فقط** (المختارة حالياً:"
-            f" {used_secs}) ولكل قسم **25 رسالة**، و**4 صور + 1 فيديو"
-            " يومياً**."
+            f" {used_secs}) ولكل قسم **25 رسالة**، و**4 صور يومياً**."
         )
       grid_cols = 4 if is_screen_mode else 3
       cols = st.columns(grid_cols)
@@ -1964,72 +1852,28 @@ else:
           "AI Generation Studio", "AI Generation Studio"
       )
       if is_gen_section and browsing_item is None:
-        st.markdown(f"### 🎨🎬 {t_ai_gen_studio}")
+        st.markdown(f"### 🎨 {t_ai_gen_studio}")
         if not rec.get("is_subscribed"):
-          st.caption(
-              "المتبقي من الفيديوهات اليوم:"
-              f" {max(0, FREE_DAILY_VIDEO_LIMIT - rec.get('free_daily_videos_used', 0))}/{FREE_DAILY_VIDEO_LIMIT}"
-          )
+          remaining_images = max(0, FREE_DAILY_IMAGE_LIMIT - rec.get("free_daily_images_used", 0))
+          st.caption(f"المتبقي من الصور اليوم: {remaining_images}/{FREE_DAILY_IMAGE_LIMIT}")
 
-        media_mode = st.radio(
-            f"{t_media_mode_q}",
-            [f"{t_gen_real_image}", f"{t_gen_real_video}"],
-            horizontal=True,
-            key="media_gen_mode",
-        )
         media_prompt = st.text_area(
-            f"{t_media_prompt_q}", key="media_gen_prompt"
+            "اكتبي وصف الصورة بالتفصيل:", key="media_gen_prompt"
         )
-
         if st.button(f"{t_gen_btn}", type="primary", key="gen_real_media_btn"):
           if not media_prompt.strip():
             st.info("اكتبي وصفاً أولاً.")
-          elif media_mode == f"{t_gen_real_image}":
-            if not can_upload_free_media(rec, is_video=False):
-              st.warning(
-                  "🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم)."
-              )
-            else:
-              with st.spinner("جاري رسم الصورة..."):
-                img_out, err = generate_real_image(media_prompt.strip())
-              if img_out:
-                record_free_media_upload(rec, is_video=False)
-                st.image(
-                    img_out,
-                    caption=media_prompt.strip(),
-                    use_container_width=True,
-                )
-              else:
-                st.error(f"تعذر إنشاء الصورة: {err}")
+          elif not can_upload_free_media(rec, is_video=False):
+            st.warning("🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم).")
           else:
-            if not can_generate_free_video(rec):
-              st.warning(
-                  "🔒 وصلتِ للحد اليومي للفيديو لغير المشتركين (**1 فيديو في"
-                  " اليوم**)."
-              )
+            with st.spinner("جاري رسم الصورة باستخدام OpenAI..."):
+              img_out, err = generate_real_image(media_prompt.strip())
+            if img_out:
+              record_free_media_upload(rec, is_video=False)
+              st.image(img_out, caption=media_prompt.strip(), use_container_width=True)
             else:
-              with st.spinner("جاري توليد الفيديو (قد يستغرق دقيقة)..."):
-                vid_url, err = generate_real_video(media_prompt.strip())
-              if vid_url:
-                record_free_video_generation(rec)
-                rec["generated_videos"].insert(
-                    0,
-                    {
-                        "idea": media_prompt.strip(),
-                        "style": "MP4",
-                        "video_url": vid_url,
-                    },
-                )
-                save_account_everywhere(rec["user_email"], rec)
-                st.video(vid_url)
-              else:
-                st.error(err)
-
+              st.error(f"تعذر إنشاء الصورة: {err}")
         st.markdown("---")
-        for v in rec.get("generated_videos", [])[:2]:
-          st.markdown(f"**{v['style']}:** {v['idea']}")
-          st.video(v["video_url"])
-          st.divider()
 
       is_edit_section = sec_name == SECTIONS_NAMES.get(
           "Image Editor", "Image Editor"
@@ -2062,7 +1906,6 @@ else:
           mime_e = (
               "image/jpeg" if ext_e in ["jpg", "jpeg"] else f"image/{ext_e}"
           )
-          b64_e = base64.b64encode(raw_e).decode("utf-8")
           st.image(raw_e, caption="الصورة الأصلية", use_container_width=True)
 
           if st.button(
@@ -2074,7 +1917,7 @@ else:
               )
             else:
               with st.spinner("جاري معالجة الصورة..."):
-                edited_url, err_e = edit_user_image(b64_e, mime_e, edit_effect)
+                edited_url, err_e = edit_user_image(raw_e, mime_e, edit_effect)
               if edited_url:
                 record_free_media_upload(rec, is_video=False)
                 st.success("✅ تم تعديل الصورة بنجاح!")
@@ -2083,7 +1926,10 @@ else:
                     caption=f"نتيجة: {edit_effect}",
                     use_container_width=True,
                 )
-                st.link_button("⬇️ تحميل الصورة", edited_url)
+                if isinstance(edited_url, (bytes, bytearray)):
+                  st.download_button("⬇️ تحميل الصورة", data=edited_url, file_name="bras_ai_edited.png", mime="image/png", key="download_edited_image")
+                elif isinstance(edited_url, str):
+                  st.link_button("⬇️ تحميل الصورة", edited_url)
               else:
                 st.error(f"تعذر تعديل الصورة: {err_e}")
 
