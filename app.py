@@ -24,12 +24,16 @@ FREE_DAILY_VIDEO_LIMIT = 1
 FREE_DAILY_TASK_LIMIT = 1
 FREE_WEEKLY_TASK_LIMIT = 3
 
+DEFAULT_FAL_KEY = (
+    "fal_sk_2be16b4d6266460ea9b698c25d0d951b:a1ce512e2365cb930b76426b0f9b9d59"
+)
+
 SUPABASE_URL = str(st.secrets.get("SUPABASE_URL", "")).strip().rstrip("/")
 SUPABASE_KEY = str(st.secrets.get("SUPABASE_KEY", "")).strip()
 GOOGLE_CLIENT_ID = str(st.secrets.get("GOOGLE_CLIENT_ID", "")).strip()
 GOOGLE_CLIENT_SECRET = str(st.secrets.get("GOOGLE_CLIENT_SECRET", "")).strip()
 APP_REDIRECT_URI = str(st.secrets.get("APP_REDIRECT_URI", "")).strip()
-FAL_KEY = str(st.secrets.get("FAL_KEY", "")).strip()
+FAL_KEY = str(st.secrets.get("FAL_KEY", DEFAULT_FAL_KEY)).strip()
 
 
 def is_valid_gmail(email_str: str) -> bool:
@@ -863,22 +867,29 @@ def transcribe_once(audio_file, scope_name: str):
 
 
 def generate_real_image(prompt_text: str):
-  if not client:
-    return None, "أضيفي OPENAI_API_KEY أولاً في Secrets."
+  if not FAL_KEY:
+    return None, "أضيفي FAL_KEY من موقع fal.ai في Streamlit Secrets."
   try:
-    img_res = client.images.generate(
-        model="gpt-image-1",
-        prompt=prompt_text,
-        size="1024x1024",
+    url = "https://fal.run/fal-ai/flux/schnell"
+    body = json.dumps({
+        "prompt": prompt_text,
+        "image_size": "square_hd",
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": f"Key {FAL_KEY}",
+            "Content-Type": "application/json",
+        },
     )
-    first_item = img_res.data[0]
-    b64_data = getattr(first_item, "b64_json", None)
-    if b64_data:
-      return base64.b64decode(b64_data), None
-    url = getattr(first_item, "url", None)
-    if url:
-      return url, None
-    return None, "لم يرجع بيانات صورة من الخادم."
+    with urllib.request.urlopen(req, timeout=60) as resp:
+      res_data = json.loads(resp.read().decode("utf-8"))
+      images = res_data.get("images") or []
+      if images and isinstance(images, list) and images[0].get("url"):
+        return images[0]["url"], None
+      return None, "لم يرجع رابط صورة من fal.ai."
   except Exception as e:
     return None, str(e)
 
