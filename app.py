@@ -1860,20 +1860,24 @@ else:
         st.markdown("""
         <style>
         .bras-character-card {
-          border: 1px solid rgba(160,130,255,.38);
-          border-radius: 22px; padding: 20px 16px; text-align: center;
-          background: linear-gradient(145deg, rgba(92,62,160,.20), rgba(28,34,66,.28));
-          box-shadow: 0 10px 30px rgba(30,20,70,.12); min-height: 205px;
+          position:relative; overflow:hidden; border:1px solid rgba(190,170,255,.42);
+          border-radius:26px; padding:22px 16px; text-align:center;
+          background:radial-gradient(ellipse at 50% 0%,rgba(170,135,255,.28),transparent 62%),linear-gradient(145deg,rgba(35,25,68,.96),rgba(14,35,60,.96));
+          box-shadow:0 18px 42px rgba(18,12,48,.30),inset 0 1px rgba(255,255,255,.12); min-height:245px;
+          transform:perspective(900px) rotateX(1deg); transition:transform .25s,box-shadow .25s;
         }
+        .bras-character-card:hover { transform:perspective(900px) rotateX(0) translateY(-4px); box-shadow:0 24px 50px rgba(80,55,150,.30); }
         .bras-avatar {
-          width: 104px; height: 104px; margin: 0 auto 12px; border-radius: 50%;
+          position:relative; width:142px; height:142px; margin:0 auto 15px; border-radius:50%;
           display:flex; align-items:center; justify-content:center; overflow:hidden;
-          background: radial-gradient(circle at 35% 25%, #fff 0%, #e9d5ff 18%, #9b78ff 48%, #39306f 100%);
-          border: 3px solid rgba(255,255,255,.75);
-          box-shadow: 0 0 24px rgba(167,139,250,.45);
+          background:radial-gradient(circle at 32% 22%,#fff 0%,#f2ddff 12%,#bd9bff 35%,#7052bd 67%,#30204f 100%);
+          border:3px solid rgba(255,255,255,.84); box-shadow:0 0 0 7px rgba(177,145,255,.10),0 0 36px rgba(167,139,250,.52),inset 0 -10px 24px rgba(28,14,62,.32);
+          animation:brasFloat 4s ease-in-out infinite;
         }
-        .bras-avatar.boy { background: radial-gradient(circle at 35% 25%, #fff 0%, #c8f2ff 18%, #54a9d9 48%, #263d78 100%); }
-        .bras-avatar svg { width: 88%; height: 88%; filter: drop-shadow(0 5px 8px rgba(0,0,0,.22)); }
+        .bras-avatar:before { content:'';position:absolute;inset:8px;border:1px solid rgba(255,255,255,.25);border-radius:50%;pointer-events:none; }
+        .bras-avatar.boy { background:radial-gradient(circle at 32% 22%,#fff 0%,#d8f6ff 12%,#82d8ff 35%,#397bb4 67%,#172b57 100%);box-shadow:0 0 0 7px rgba(110,200,255,.10),0 0 36px rgba(83,185,255,.48),inset 0 -10px 24px rgba(10,30,60,.32); }
+        .bras-avatar svg { width:100%; height:100%; filter:drop-shadow(0 9px 9px rgba(0,0,0,.32)); }
+        @keyframes brasFloat { 0%,100%{transform:translateY(0) rotateY(-4deg)} 50%{transform:translateY(-7px) rotateY(4deg)} }
         .bras-character-card h3 { margin: 4px 0 6px; }
         .bras-character-card p { opacity: .88; margin: 0; font-size: .93rem; }
         </style>
@@ -1885,15 +1889,26 @@ else:
           st.markdown("""
           <div class="bras-character-card">
             <div class="bras-avatar">
-              <svg viewBox="0 0 120 120" role="img" aria-label="BRAS GIRL avatar">
-                <path d="M22 112 Q22 78 60 76 Q98 78 98 112Z" fill="#283b75"/>
-                <path d="M31 57 Q23 10 60 10 Q99 12 89 66 L83 84 Q60 99 37 82Z" fill="#30223c"/>
-                <ellipse cx="60" cy="53" rx="27" ry="34" fill="#f3c9a9"/>
-                <path d="M33 49 Q29 12 60 12 Q94 13 88 51 Q78 33 61 31 Q46 31 33 49Z" fill="#30223c"/>
-                <path d="M39 48 Q45 42 51 48 M69 48 Q75 42 81 48" fill="none" stroke="#49313a" stroke-width="3" stroke-linecap="round"/>
-                <circle cx="47" cy="54" r="3" fill="#30223c"/><circle cx="73" cy="54" r="3" fill="#30223c"/>
-                <path d="M52 68 Q60 75 68 68" fill="none" stroke="#b85e69" stroke-width="3" stroke-linecap="round"/>
-                <path d="M47 84 L60 99 L73 84" fill="#fff"/><path d="M60 99 L53 112 L67 112Z" fill="#9b78ff"/>
+              <svg viewBox="0 0 160 160" role="img" aria-label="BRAS GIRL original 3D style avatar">
+                <defs>
+                  <linearGradient id="gHair" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#67405f"/><stop offset=".48" stop-color="#291c39"/><stop offset="1" stop-color="#100f27"/></linearGradient>
+                  <radialGradient id="gSkin" cx="35%" cy="25%"><stop stop-color="#ffe9d8"/><stop offset=".68" stop-color="#edbda7"/><stop offset="1" stop-color="#b87578"/></radialGradient>
+                  <linearGradient id="gCoat" x2="1" y2="1"><stop stop-color="#c6a7ff"/><stop offset="1" stop-color="#5542a1"/></linearGradient>
+                </defs>
+                <ellipse cx="80" cy="151" rx="48" ry="10" fill="#160d35" opacity=".35"/>
+                <path d="M25 151Q26 112 54 105L80 119 106 105Q135 114 137 151Z" fill="url(#gCoat)"/>
+                <path d="M47 111L80 143 113 111 103 103H57Z" fill="#fff0fa"/>
+                <path d="M34 76Q17 16 75 9Q133 8 127 81L119 126Q106 143 95 117L103 58Q78 31 51 61L57 122Q45 144 33 117Z" fill="url(#gHair)"/>
+                <ellipse cx="80" cy="69" rx="35" ry="43" fill="url(#gSkin)"/>
+                <path d="M45 57Q43 13 83 15Q123 14 116 61Q99 40 81 40Q59 39 45 57Z" fill="url(#gHair)"/>
+                <path d="M48 62Q39 88 49 111Q30 106 29 80Q28 51 45 39Z" fill="#382440"/><path d="M111 55Q128 79 112 113Q132 107 134 78Q132 49 117 37Z" fill="#21172f"/>
+                <path d="M57 66Q66 59 73 66M88 66Q96 59 104 66" stroke="#573747" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <ellipse cx="66" cy="73" rx="4.2" ry="5.5" fill="#34263b"/><ellipse cx="95" cy="73" rx="4.2" ry="5.5" fill="#34263b"/>
+                <circle cx="67.5" cy="71" r="1.5" fill="white"/><circle cx="96.5" cy="71" r="1.5" fill="white"/>
+                <ellipse cx="53" cy="85" rx="7" ry="4" fill="#e98e9c" opacity=".35"/><ellipse cx="107" cy="85" rx="7" ry="4" fill="#e98e9c" opacity=".35"/>
+                <path d="M72 94Q80 101 89 94" stroke="#a64f68" stroke-width="3" fill="none" stroke-linecap="round"/>
+                <path d="M79 82L76 88 81 89" stroke="#c4867d" stroke-width="2" fill="none" stroke-linecap="round"/>
+                <path d="M53 39Q65 18 89 26" stroke="#d7a7cb" stroke-width="3" opacity=".55" fill="none" stroke-linecap="round"/>
               </svg>
             </div>
             <h3>👩 BRAS GIRL</h3>
@@ -1905,15 +1920,24 @@ else:
           st.markdown("""
           <div class="bras-character-card">
             <div class="bras-avatar boy">
-              <svg viewBox="0 0 120 120" role="img" aria-label="BRAS BOY avatar">
-                <path d="M20 112 Q22 78 60 76 Q98 78 100 112Z" fill="#245477"/>
-                <path d="M32 46 Q28 12 60 12 Q94 12 89 50 L84 81 Q60 97 36 81Z" fill="#392b25"/>
-                <ellipse cx="60" cy="53" rx="27" ry="33" fill="#e9b991"/>
-                <path d="M33 45 Q31 17 58 13 Q85 10 89 39 L83 43 Q68 28 48 34 L36 48Z" fill="#392b25"/>
-                <path d="M40 48 L53 46 M67 46 L80 48" stroke="#392b25" stroke-width="4" stroke-linecap="round"/>
-                <circle cx="47" cy="55" r="3" fill="#28232a"/><circle cx="73" cy="55" r="3" fill="#28232a"/>
-                <path d="M51 69 Q60 73 69 69" fill="none" stroke="#99515a" stroke-width="3" stroke-linecap="round"/>
-                <path d="M47 84 L60 99 L73 84" fill="#fff"/><path d="M60 99 L53 112 L67 112Z" fill="#59b8e8"/>
+              <svg viewBox="0 0 160 160" role="img" aria-label="BRAS BOY original 3D style avatar">
+                <defs>
+                  <linearGradient id="bHair" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#72513d"/><stop offset=".5" stop-color="#302a35"/><stop offset="1" stop-color="#111b31"/></linearGradient>
+                  <radialGradient id="bSkin" cx="35%" cy="25%"><stop stop-color="#ffe5c9"/><stop offset=".7" stop-color="#dfad8d"/><stop offset="1" stop-color="#a86d67"/></radialGradient>
+                  <linearGradient id="bCoat" x2="1" y2="1"><stop stop-color="#8bdcff"/><stop offset="1" stop-color="#315e9b"/></linearGradient>
+                </defs>
+                <ellipse cx="80" cy="151" rx="48" ry="10" fill="#07162e" opacity=".35"/>
+                <path d="M23 151Q26 112 54 105L80 119 106 105Q134 113 137 151Z" fill="url(#bCoat)"/>
+                <path d="M53 108L80 142 107 108 98 103H62Z" fill="#effaff"/>
+                <path d="M42 66Q31 16 80 12Q129 13 119 74L111 104Q101 120 94 103L102 55Q80 34 56 55L64 105Q52 122 42 101Z" fill="url(#bHair)"/>
+                <ellipse cx="80" cy="69" rx="35" ry="43" fill="url(#bSkin)"/>
+                <path d="M45 57Q39 19 75 15Q112 8 119 48L110 57Q94 38 76 40Q58 39 45 61Z" fill="url(#bHair)"/>
+                <path d="M55 65Q65 59 73 65M88 65Q97 59 105 65" stroke="#44323a" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <ellipse cx="66" cy="73" rx="4.2" ry="5.5" fill="#26303a"/><ellipse cx="95" cy="73" rx="4.2" ry="5.5" fill="#26303a"/>
+                <circle cx="67.5" cy="71" r="1.5" fill="white"/><circle cx="96.5" cy="71" r="1.5" fill="white"/>
+                <path d="M80 78L76 89 82 90" stroke="#b77b69" stroke-width="2" fill="none" stroke-linecap="round"/>
+                <path d="M71 96Q80 101 90 96" stroke="#995665" stroke-width="3" fill="none" stroke-linecap="round"/>
+                <path d="M51 39Q65 19 91 26" stroke="#c5a38d" stroke-width="3" opacity=".55" fill="none" stroke-linecap="round"/>
               </svg>
             </div>
             <h3>👨 BRAS BOY</h3>
@@ -1928,20 +1952,8 @@ else:
             key="bras_live_character",
         )
         st.success(f"تم اختيار {character} — جاهز للمحادثة بالصوت والصورة.")
-        st.markdown(
-            "**📷 كاميرا المحادثة** — التقط صورة بالكاميرا وأرسل سؤالك صوتياً أو كتابةً."
-        )
-        camera_frame = st.camera_input(
-            "افتح الكاميرا والتقط صورة", key="bras_live_camera_frame"
-        )
-        if camera_frame is not None:
-          frame_bytes = camera_frame.getvalue()
-          st.session_state.pending_image_b64 = base64.b64encode(frame_bytes).decode("utf-8")
-          st.session_state.pending_image_mime = camera_frame.type or "image/jpeg"
-          st.session_state.pending_image_name = "bras_live_camera.jpg"
-          st.caption("تم التقاط الصورة. اكتب سؤالك أو تحدث بالميكروفون لإرسالها مع رسالتك.")
         st.markdown("### 📞 مكالمة BRAS LIVE المباشرة")
-        st.caption("اتصال صوتي مباشر قابل للمقاطعة، مع معاينة الكاميرا وإرسال لقطات للمساعد.")
+        st.caption("اتصال صوتي مباشر مع شخصية متحركة، ومعاينة كاميرا مستمرة ترسل لقطات متتابعة للمساعد.")
         start_live = st.button("▶️ بدء المكالمة المباشرة", key="bras_live_start_call", type="primary")
         if start_live:
           with st.spinner("جارٍ تجهيز اتصال آمن مع OpenAI..."):
@@ -1959,13 +1971,14 @@ else:
           else:
             ephemeral = st.session_state["bras_live_ephemeral_secret"]
             live_html = r"""
-            <div id="bras-live" style="font-family:system-ui;color:var(--text-color,#eee);background:linear-gradient(135deg,#20133d,#102b45);padding:18px;border-radius:20px">
-              <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-                <div style="flex:1;min-width:180px">
-                  <div style="font-size:22px;font-weight:700">💜 BRAS LIVE</div>
-                  <div id="status" style="opacity:.85;margin-top:6px">جاهز للاتصال</div>
-                </div>
-                <video id="cam" autoplay playsinline muted style="width:150px;max-height:115px;object-fit:cover;border-radius:14px;background:#111;display:none"></video>
+            <div id="bras-live" style="font-family:system-ui;color:#f7f4ff;background:radial-gradient(circle at 50% 0%,#4a3478 0%,#20183e 48%,#101d35 100%);padding:20px;border:1px solid #7560a8;border-radius:26px;box-shadow:0 18px 48px #120b2c55">
+              <div style="text-align:center;padding:5px 0 14px">
+                <div style="font-size:25px;font-weight:800;letter-spacing:1px">✦ BRAS LIVE ✦</div>
+                <div id="status" style="opacity:.9;margin-top:7px">جاهز للاتصال</div>
+              </div>
+              <div style="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap">
+                <div id="live-avatar" class="live-avatar girl"><div class="live-orbit"></div><div class="live-face"><span class="live-hair"></span><span class="live-eyes">●　●</span><span class="live-mouth"></span></div><div class="live-name">BRAS GIRL</div></div>
+                <div class="live-camera-wrap"><video id="cam" autoplay playsinline muted></video><div id="camera-placeholder">📷<br>الكاميرا متوقفة</div></div>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
                 <button id="mic">🔇 كتم المايك</button>
@@ -1973,20 +1986,37 @@ else:
                 <button id="snap">إرسال لقطة</button>
                 <button id="hangup" style="background:#a83252;color:white">إنهاء المكالمة</button>
               </div>
-              <div id="transcript" aria-live="polite" style="margin-top:14px;min-height:55px;white-space:pre-wrap"></div>
+              <div id="transcript" aria-live="polite" style="margin-top:14px;min-height:55px;max-height:150px;overflow:auto;white-space:pre-wrap;background:#ffffff12;padding:12px;border-radius:14px"></div>
             </div>
             <style>
-              #bras-live button{border:0;border-radius:12px;padding:10px 13px;background:#8b6cf6;color:white;font-weight:650;cursor:pointer}
+              #bras-live button{border:0;border-radius:14px;padding:11px 15px;background:linear-gradient(135deg,#9d80ff,#6c55d9);color:white;font-weight:700;cursor:pointer;box-shadow:0 5px 15px #08051b55}
               #bras-live button:disabled{opacity:.5;cursor:not-allowed}
+              #bras-live .live-avatar{width:176px;height:176px;position:relative;border-radius:50%;display:grid;place-items:center;overflow:visible;background:radial-gradient(circle at 35% 25%,#fff,#dfcaff 15%,#9977ef 48%,#34205f 82%);border:4px solid #fff9;box-shadow:0 0 0 9px #bba1ff20,0 0 40px #a78bfa99;animation:liveFloat 4s ease-in-out infinite}
+              #bras-live .live-avatar.boy{background:radial-gradient(circle at 35% 25%,#fff,#c8f2ff 15%,#64bde8 48%,#183e70 82%);box-shadow:0 0 0 9px #86d9ff20,0 0 40px #66caff88}
+              #bras-live .live-face{position:relative;width:112px;height:118px;border-radius:48% 48% 45% 45%;background:radial-gradient(circle at 35% 22%,#ffe8d7,#e6b49e 65%,#ad7377);box-shadow:inset -10px -12px 20px #5b315744,0 12px 18px #160d3566;border:4px solid #fff9}
+              #bras-live .live-hair{position:absolute;left:-5px;top:-9px;width:114px;height:53px;border-radius:55% 55% 28% 25%;background:linear-gradient(145deg,#67405f,#21162f 70%);box-shadow:inset 8px 5px 9px #ffffff22}
+              #bras-live .live-eyes{position:absolute;top:58px;left:23px;color:#352536;font-size:17px;letter-spacing:3px;text-shadow:0 1px #fff8}
+              #bras-live .live-mouth{position:absolute;left:47px;top:91px;width:19px;height:8px;border-bottom:3px solid #a34f65;border-radius:50%}
+              #bras-live .live-avatar.boy .live-face{background:radial-gradient(circle at 35% 22%,#ffe7cf,#dcae8e 65%,#9c6967)}
+              #bras-live .live-avatar.boy .live-hair{background:linear-gradient(145deg,#72513d,#17243a 75%);height:45px}
+              #bras-live .live-orbit{position:absolute;inset:-10px;border:1px solid #ffffff77;border-radius:50%;transform:rotateX(67deg);box-shadow:0 0 18px #d8c3ff88}
+              #bras-live .live-name{position:absolute;bottom:-29px;font-size:12px;letter-spacing:1.4px;font-weight:800;color:#fff;text-shadow:0 2px 8px #000}
+              #bras-live .live-camera-wrap{position:relative;width:min(100%,280px);height:190px;border-radius:18px;overflow:hidden;background:#080d19;border:2px solid #ffffff66;box-shadow:0 8px 24px #08051b66}
+              #bras-live #cam{display:none;width:100%;height:100%;object-fit:cover}
+              #bras-live #camera-placeholder{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#d7d1ed;opacity:.85}
+              @keyframes liveFloat{0%,100%{transform:translateY(0) rotateY(-5deg)}50%{transform:translateY(-8px) rotateY(5deg)}}
             </style>
             <script>
             (() => {
               const token = "__EPHEMERAL__";
               const model = "gpt-realtime-2.1";
               const status = document.getElementById("status");
+              const avatar = document.getElementById("live-avatar");
+              const selectedCharacter = "__CHARACTER__";
+              if(selectedCharacter === "BRAS BOY") { avatar.classList.remove("girl"); avatar.classList.add("boy"); avatar.querySelector(".live-name").textContent="BRAS BOY"; }
               const transcript = document.getElementById("transcript");
               const video = document.getElementById("cam");
-              let pc, dc, micStream, camStream, audioSender, closed=false;
+              let pc, dc, micStream, camStream, frameTimer=null, closed=false;
               const say = t => status.textContent=t;
               const log = t => { transcript.textContent += t + "\\n"; transcript.scrollTop=transcript.scrollHeight; };
               async function connect(){
@@ -2033,22 +2063,34 @@ else:
                 const track=micStream?.getAudioTracks()[0];
                 if(track){track.enabled=!track.enabled;document.getElementById("mic").textContent=track.enabled?"🔇 كتم المايك":"🎙️ تشغيل المايك";}
               };
+              async function sendCameraFrame(askForReply=false){
+                if(!camStream || !dc || dc.readyState!=="open" || video.videoWidth===0) return;
+                const c=document.createElement("canvas");c.width=640;c.height=Math.round(640*video.videoHeight/video.videoWidth);
+                c.getContext("2d").drawImage(video,0,0,c.width,c.height);
+                const data=c.toDataURL("image/jpeg",.58);
+                dc.send(JSON.stringify({type:"conversation.item.create",item:{type:"message",role:"user",content:[{type:"input_image",image_url:data},{type:"input_text",text:"هذه لقطة حديثة من الكاميرا المباشرة. استخدمها لفهم ما يحدث أمام الكاميرا عند الرد."}]}}));
+                if(askForReply) dc.send(JSON.stringify({type:"response.create"}));
+              }
               document.getElementById("camera").onclick=async()=>{
                 try{
-                  if(!camStream){camStream=await navigator.mediaDevices.getUserMedia({video:true});video.srcObject=camStream;video.style.display="block";say("الكاميرا تعمل — اضغط إرسال لقطة عندما تريد مشاركة صورة.");}
-                  else{camStream.getTracks().forEach(t=>t.stop());camStream=null;video.srcObject=null;video.style.display="none";}
+                  if(!camStream){
+                    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:1280},height:{ideal:720}}});
+                    video.srcObject=camStream;video.style.display="block";document.getElementById("camera-placeholder").style.display="none";
+                    document.getElementById("camera").textContent="⏸ إيقاف الكاميرا";
+                    say("📷 الكاميرا مباشرة. يتم إرسال لقطات متتابعة للمساعد كل بضع ثوانٍ.");
+                    frameTimer=setInterval(()=>sendCameraFrame(false),3000);
+                    setTimeout(()=>sendCameraFrame(false),900);
+                  } else {
+                    clearInterval(frameTimer);frameTimer=null;camStream.getTracks().forEach(t=>t.stop());camStream=null;video.srcObject=null;video.style.display="none";document.getElementById("camera-placeholder").style.display="grid";document.getElementById("camera").textContent="📷 تشغيل الكاميرا";say("تم إيقاف الكاميرا.");
+                  }
                 }catch(e){say("لم نتمكن من فتح الكاميرا: "+e.message);}
               };
-              document.getElementById("snap").onclick=()=>{
+              document.getElementById("snap").onclick=async()=>{
                 if(!camStream || !dc || dc.readyState!=="open"){say("شغّل الكاميرا واتصل أولاً.");return;}
-                const c=document.createElement("canvas");c.width=video.videoWidth;c.height=video.videoHeight;
-                c.getContext("2d").drawImage(video,0,0);
-                const data=c.toDataURL("image/jpeg",.72).split(",")[1];
-                dc.send(JSON.stringify({type:"conversation.item.create",item:{type:"message",role:"user",content:[{type:"input_image",image_url:"data:image/jpeg;base64,"+data},{type:"input_text",text:"انظر إلى هذه الصورة وأجب عن سؤالي."}]}}));
-                dc.send(JSON.stringify({type:"response.create"}));say("تم إرسال لقطة الكاميرا.");
+                await sendCameraFrame(true);say("تم إرسال أحدث لقطة. اسأل BRAS عنها بالصوت.");
               };
               document.getElementById("hangup").onclick=()=>{
-                closed=true;pc?.close();micStream?.getTracks().forEach(t=>t.stop());camStream?.getTracks().forEach(t=>t.stop());
+                closed=true;if(frameTimer)clearInterval(frameTimer);pc?.close();micStream?.getTracks().forEach(t=>t.stop());camStream?.getTracks().forEach(t=>t.stop());
                 video.style.display="none";say("انتهت المكالمة. أعد تحميل القسم لبدء مكالمة جديدة.");
                 document.querySelectorAll("#bras-live button").forEach(b=>b.disabled=true);
               };
@@ -2056,13 +2098,14 @@ else:
             })();
             </script>
             """.replace("__EPHEMERAL__", ephemeral)
-            components.html(live_html, height=300, scrolling=False)
+            live_html = live_html.replace("__CHARACTER__", character)
+            components.html(live_html, height=570, scrolling=False)
             if st.button("🧹 إغلاق وإلغاء رمز المكالمة", key="bras_live_clear_secret"):
               st.session_state.pop("bras_live_ephemeral_secret", None)
               st.rerun()
         st.info(
             "تحتاج المكالمة إلى مفتاح API ورصيد فعال. لا تضع المفتاح الدائم داخل المتصفح؛ "
-            "التطبيق ينشئ رمزاً مؤقتاً قصير الصلاحية. اسمح للمتصفح باستخدام المايك والكاميرا، "
+            "التطبيق ينشئ رمزاً مؤقتاً قصير الصلاحية. معاينة الكاميرا مستمرة، ويُرسل للمساعد إطار مصوّر كل 3 ثوانٍ تقريباً وليس فيديو خاماً متواصلاً. اسمح للمتصفح باستخدام المايك والكاميرا، "
             "وافتح التطبيق عبر HTTPS أو localhost."
         )
         st.markdown("---")
