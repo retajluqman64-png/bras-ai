@@ -1,5 +1,6 @@
 
 from io import BytesIO
+import base64
 from datetime import datetime
 import json
 import os
@@ -8,6 +9,7 @@ import urllib.parse
 import urllib.request
 from openai import OpenAI
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="BRAS AI - المنصة الشاملة الذكية",
@@ -192,6 +194,8 @@ session_defaults = {
     "pending_image_mime": None,
     "pending_image_name": None,
     "latest_voice_text": None,
+    "bras_live_ephemeral_secret": None,
+    "bras_live_active_character": None,
     "ui_translations_cache": {},
 }
 
@@ -236,6 +240,55 @@ def sync_current_gmail_data():
 
   save_account_everywhere(email_key, rec)
   return rec
+
+
+
+def create_bras_realtime_secret(character_name: str):
+  """Create a short-lived browser credential; never expose the permanent API key."""
+  if not api_key:
+    return None, "أضف OPENAI_API_KEY إلى إعدادات Secrets أولاً."
+  voice = "marin" if character_name == "BRAS GIRL" else "cedar"
+  instructions = (
+      "You are " + character_name + ", a friendly, respectful, natural voice assistant "
+      "inside BRAS AI. Speak naturally and warmly. Speak Iraqi Arabic when the user "
+      "uses Arabic, and try to understand and answer in Kurmanji when requested. "
+      "Keep replies conversational and concise, not like a formal announcer. "
+      "Use light, kind humor when it fits; you may chuckle briefly at a genuinely funny "
+      "moment, but do not laugh at the user, force laughter, or laugh in every reply. "
+      "If the user interrupts, stop speaking and listen to the user. "
+      "Do not claim to see the camera unless an image was actually sent. "
+      "If asked about schoolwork, help explain clearly and encourage learning."
+  )
+  payload = {
+      "expires_after": {"anchor": "created_at", "seconds": 600},
+      "session": {
+          "type": "realtime",
+          "model": "gpt-realtime-2.1",
+          "instructions": instructions,
+          "audio": {
+              "input": {"turn_detection": {"type": "server_vad"}},
+              "output": {"voice": voice}
+          }
+      }
+  }
+  try:
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/realtime/client_secrets",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=20) as response:
+      result = json.loads(response.read().decode("utf-8"))
+    secret = result.get("value") or result.get("client_secret", {}).get("value")
+    if not secret:
+      return None, "لم يصل رمز جلسة Realtime من OpenAI."
+    return secret, None
+  except Exception as exc:
+    return None, f"تعذر بدء المكالمة: {exc}"
 
 
 api_key = st.secrets.get("OPENAI_API_KEY")
@@ -1814,12 +1867,13 @@ else:
         }
         .bras-avatar {
           width: 104px; height: 104px; margin: 0 auto 12px; border-radius: 50%;
-          display:flex; align-items:center; justify-content:center; font-size:52px;
+          display:flex; align-items:center; justify-content:center; overflow:hidden;
           background: radial-gradient(circle at 35% 25%, #fff 0%, #e9d5ff 18%, #9b78ff 48%, #39306f 100%);
           border: 3px solid rgba(255,255,255,.75);
           box-shadow: 0 0 24px rgba(167,139,250,.45);
         }
         .bras-avatar.boy { background: radial-gradient(circle at 35% 25%, #fff 0%, #c8f2ff 18%, #54a9d9 48%, #263d78 100%); }
+        .bras-avatar svg { width: 88%; height: 88%; filter: drop-shadow(0 5px 8px rgba(0,0,0,.22)); }
         .bras-character-card h3 { margin: 4px 0 6px; }
         .bras-character-card p { opacity: .88; margin: 0; font-size: .93rem; }
         </style>
@@ -1830,7 +1884,18 @@ else:
         with girl_col:
           st.markdown("""
           <div class="bras-character-card">
-            <div class="bras-avatar">👩🏻‍💼</div>
+            <div class="bras-avatar">
+              <svg viewBox="0 0 120 120" role="img" aria-label="BRAS GIRL avatar">
+                <path d="M22 112 Q22 78 60 76 Q98 78 98 112Z" fill="#283b75"/>
+                <path d="M31 57 Q23 10 60 10 Q99 12 89 66 L83 84 Q60 99 37 82Z" fill="#30223c"/>
+                <ellipse cx="60" cy="53" rx="27" ry="34" fill="#f3c9a9"/>
+                <path d="M33 49 Q29 12 60 12 Q94 13 88 51 Q78 33 61 31 Q46 31 33 49Z" fill="#30223c"/>
+                <path d="M39 48 Q45 42 51 48 M69 48 Q75 42 81 48" fill="none" stroke="#49313a" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="47" cy="54" r="3" fill="#30223c"/><circle cx="73" cy="54" r="3" fill="#30223c"/>
+                <path d="M52 68 Q60 75 68 68" fill="none" stroke="#b85e69" stroke-width="3" stroke-linecap="round"/>
+                <path d="M47 84 L60 99 L73 84" fill="#fff"/><path d="M60 99 L53 112 L67 112Z" fill="#9b78ff"/>
+              </svg>
+            </div>
             <h3>👩 BRAS GIRL</h3>
             <p>صوت أنثوي طبيعي · هادئة وذكية · لطيفة وعفوية</p>
             <p>تفهم سياق الحديث وتتفاعل بشكل طبيعي</p>
@@ -1839,7 +1904,18 @@ else:
         with boy_col:
           st.markdown("""
           <div class="bras-character-card">
-            <div class="bras-avatar boy">👨🏻‍💼</div>
+            <div class="bras-avatar boy">
+              <svg viewBox="0 0 120 120" role="img" aria-label="BRAS BOY avatar">
+                <path d="M20 112 Q22 78 60 76 Q98 78 100 112Z" fill="#245477"/>
+                <path d="M32 46 Q28 12 60 12 Q94 12 89 50 L84 81 Q60 97 36 81Z" fill="#392b25"/>
+                <ellipse cx="60" cy="53" rx="27" ry="33" fill="#e9b991"/>
+                <path d="M33 45 Q31 17 58 13 Q85 10 89 39 L83 43 Q68 28 48 34 L36 48Z" fill="#392b25"/>
+                <path d="M40 48 L53 46 M67 46 L80 48" stroke="#392b25" stroke-width="4" stroke-linecap="round"/>
+                <circle cx="47" cy="55" r="3" fill="#28232a"/><circle cx="73" cy="55" r="3" fill="#28232a"/>
+                <path d="M51 69 Q60 73 69 69" fill="none" stroke="#99515a" stroke-width="3" stroke-linecap="round"/>
+                <path d="M47 84 L60 99 L73 84" fill="#fff"/><path d="M60 99 L53 112 L67 112Z" fill="#59b8e8"/>
+              </svg>
+            </div>
             <h3>👨 BRAS BOY</h3>
             <p>صوت رجالي طبيعي · ذكي وسريع · خفيف بالحوار</p>
             <p>يرد بوضوح وبأسلوب عفوي</p>
@@ -1851,10 +1927,143 @@ else:
             horizontal=True,
             key="bras_live_character",
         )
+        st.success(f"تم اختيار {character} — جاهز للمحادثة بالصوت والصورة.")
+        st.markdown(
+            "**📷 كاميرا المحادثة** — التقط صورة بالكاميرا وأرسل سؤالك صوتياً أو كتابةً."
+        )
+        camera_frame = st.camera_input(
+            "افتح الكاميرا والتقط صورة", key="bras_live_camera_frame"
+        )
+        if camera_frame is not None:
+          frame_bytes = camera_frame.getvalue()
+          st.session_state.pending_image_b64 = base64.b64encode(frame_bytes).decode("utf-8")
+          st.session_state.pending_image_mime = camera_frame.type or "image/jpeg"
+          st.session_state.pending_image_name = "bras_live_camera.jpg"
+          st.caption("تم التقاط الصورة. اكتب سؤالك أو تحدث بالميكروفون لإرسالها مع رسالتك.")
+        st.markdown("### 📞 مكالمة BRAS LIVE المباشرة")
+        st.caption("اتصال صوتي مباشر قابل للمقاطعة، مع معاينة الكاميرا وإرسال لقطات للمساعد.")
+        start_live = st.button("▶️ بدء المكالمة المباشرة", key="bras_live_start_call", type="primary")
+        if start_live:
+          with st.spinner("جارٍ تجهيز اتصال آمن مع OpenAI..."):
+            live_secret, live_error = create_bras_realtime_secret(character)
+          if live_error:
+            st.error(live_error)
+          else:
+            st.session_state["bras_live_ephemeral_secret"] = live_secret
+            st.session_state["bras_live_active_character"] = character
+
+        if st.session_state.get("bras_live_ephemeral_secret"):
+          if st.session_state.get("bras_live_active_character") != character:
+            st.session_state.pop("bras_live_ephemeral_secret", None)
+            st.warning("غيّرت الشخصية. اضغط بدء المكالمة مرة أخرى.")
+          else:
+            ephemeral = st.session_state["bras_live_ephemeral_secret"]
+            live_html = r"""
+            <div id="bras-live" style="font-family:system-ui;color:var(--text-color,#eee);background:linear-gradient(135deg,#20133d,#102b45);padding:18px;border-radius:20px">
+              <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+                <div style="flex:1;min-width:180px">
+                  <div style="font-size:22px;font-weight:700">💜 BRAS LIVE</div>
+                  <div id="status" style="opacity:.85;margin-top:6px">جاهز للاتصال</div>
+                </div>
+                <video id="cam" autoplay playsinline muted style="width:150px;max-height:115px;object-fit:cover;border-radius:14px;background:#111;display:none"></video>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+                <button id="mic">🔇 كتم المايك</button>
+                <button id="camera">📷 تشغيل الكاميرا</button>
+                <button id="snap">إرسال لقطة</button>
+                <button id="hangup" style="background:#a83252;color:white">إنهاء المكالمة</button>
+              </div>
+              <div id="transcript" aria-live="polite" style="margin-top:14px;min-height:55px;white-space:pre-wrap"></div>
+            </div>
+            <style>
+              #bras-live button{border:0;border-radius:12px;padding:10px 13px;background:#8b6cf6;color:white;font-weight:650;cursor:pointer}
+              #bras-live button:disabled{opacity:.5;cursor:not-allowed}
+            </style>
+            <script>
+            (() => {
+              const token = "__EPHEMERAL__";
+              const model = "gpt-realtime-2.1";
+              const status = document.getElementById("status");
+              const transcript = document.getElementById("transcript");
+              const video = document.getElementById("cam");
+              let pc, dc, micStream, camStream, audioSender, closed=false;
+              const say = t => status.textContent=t;
+              const log = t => { transcript.textContent += t + "\\n"; transcript.scrollTop=transcript.scrollHeight; };
+              async function connect(){
+                try {
+                  say("جارٍ الاتصال...");
+                  pc = new RTCPeerConnection();
+                  pc.ontrack = e => {
+                    let audio = document.getElementById("remote-audio");
+                    if(!audio){audio=document.createElement("audio");audio.id="remote-audio";audio.autoplay=true;document.body.appendChild(audio);}
+                    audio.srcObject=e.streams[0];
+                  };
+                  dc = pc.createDataChannel("oai-events");
+                  dc.onopen = () => {
+                    document.getElementById("mic").textContent = "🔇 كتم المايك";
+                  };
+                  dc.onmessage = ev => {
+                    try {
+                      const d=JSON.parse(ev.data);
+                      if(d.type==="response.output_audio_transcript.done" && d.transcript) log("BRAS: "+d.transcript);
+                      if(d.type==="conversation.item.input_audio_transcription.completed" && d.transcript) log("أنت: "+d.transcript);
+                      if(d.type==="error") {
+                        const message = d.error?.message || "تعذر تنفيذ الطلب";
+                        log("خطأ: "+message);
+                        say("حدث خطأ في الاتصال");
+                      }
+                    } catch(_){}
+                  };
+                  micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+                  micStream.getTracks().forEach(t=>pc.addTrack(t,micStream));
+                  const offer=await pc.createOffer();
+                  await pc.setLocalDescription(offer);
+                  const response=await fetch("https://api.openai.com/v1/realtime/calls?model="+model,{
+                    method:"POST",
+                    body:offer.sdp,
+                    headers:{"Authorization":"Bearer "+token,"Content-Type":"application/sdp"}
+                  });
+                  if(!response.ok) throw new Error(await response.text());
+                  await pc.setRemoteDescription({type:"answer",sdp:await response.text()});
+                  say("🟢 متصل — تحدث الآن. إذا تكلمت أثناء الرد، يفترض أن يتوقف ويستمع إليك.");
+                } catch(e){say("تعذر الاتصال: "+e.message); log("تحقق من المفتاح والرصيد والسماح بالمايك.");}
+              }
+              document.getElementById("mic").onclick=async()=>{
+                if(!pc){await connect();return;}
+                const track=micStream?.getAudioTracks()[0];
+                if(track){track.enabled=!track.enabled;document.getElementById("mic").textContent=track.enabled?"🔇 كتم المايك":"🎙️ تشغيل المايك";}
+              };
+              document.getElementById("camera").onclick=async()=>{
+                try{
+                  if(!camStream){camStream=await navigator.mediaDevices.getUserMedia({video:true});video.srcObject=camStream;video.style.display="block";say("الكاميرا تعمل — اضغط إرسال لقطة عندما تريد مشاركة صورة.");}
+                  else{camStream.getTracks().forEach(t=>t.stop());camStream=null;video.srcObject=null;video.style.display="none";}
+                }catch(e){say("لم نتمكن من فتح الكاميرا: "+e.message);}
+              };
+              document.getElementById("snap").onclick=()=>{
+                if(!camStream || !dc || dc.readyState!=="open"){say("شغّل الكاميرا واتصل أولاً.");return;}
+                const c=document.createElement("canvas");c.width=video.videoWidth;c.height=video.videoHeight;
+                c.getContext("2d").drawImage(video,0,0);
+                const data=c.toDataURL("image/jpeg",.72).split(",")[1];
+                dc.send(JSON.stringify({type:"conversation.item.create",item:{type:"message",role:"user",content:[{type:"input_image",image_url:"data:image/jpeg;base64,"+data},{type:"input_text",text:"انظر إلى هذه الصورة وأجب عن سؤالي."}]}}));
+                dc.send(JSON.stringify({type:"response.create"}));say("تم إرسال لقطة الكاميرا.");
+              };
+              document.getElementById("hangup").onclick=()=>{
+                closed=true;pc?.close();micStream?.getTracks().forEach(t=>t.stop());camStream?.getTracks().forEach(t=>t.stop());
+                video.style.display="none";say("انتهت المكالمة. أعد تحميل القسم لبدء مكالمة جديدة.");
+                document.querySelectorAll("#bras-live button").forEach(b=>b.disabled=true);
+              };
+              connect();
+            })();
+            </script>
+            """.replace("__EPHEMERAL__", ephemeral)
+            components.html(live_html, height=300, scrolling=False)
+            if st.button("🧹 إغلاق وإلغاء رمز المكالمة", key="bras_live_clear_secret"):
+              st.session_state.pop("bras_live_ephemeral_secret", None)
+              st.rerun()
         st.info(
-            f"تم اختيار {character}. هذه واجهة اختيار الشخصية؛ "
-            "المكالمة الصوتية المباشرة والمقاطعة والكاميرا تحتاج ربط خدمة صوت حيّ مستقلة، "
-            "ولم يتم تفعيلها بهذا التعديل."
+            "تحتاج المكالمة إلى مفتاح API ورصيد فعال. لا تضع المفتاح الدائم داخل المتصفح؛ "
+            "التطبيق ينشئ رمزاً مؤقتاً قصير الصلاحية. اسمح للمتصفح باستخدام المايك والكاميرا، "
+            "وافتح التطبيق عبر HTTPS أو localhost."
         )
         st.markdown("---")
 
@@ -2055,7 +2264,15 @@ else:
                   rec["section_messages"][sec_name],
                   sec_name=sec_name,
               )
-              reply_with_voice(full_response, rec["voice"])
+              if sec_name == "BRAS LIVE":
+                live_voice = (
+                    "صوت رجل (Onyx)" if st.session_state.get("bras_live_character", "BRAS GIRL") == "BRAS BOY"
+                    else "صوت بنت (Nova)"
+                )
+                play_voice_only(full_response, live_voice)
+                st.markdown(full_response)
+              else:
+                reply_with_voice(full_response, rec["voice"])
               rec["section_messages"][sec_name].append(
                   {"role": "assistant", "content": full_response}
               )
