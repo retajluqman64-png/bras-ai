@@ -3,6 +3,8 @@ from datetime import datetime, timedelta
 import json
 import os
 import re
+import urllib.parse
+import urllib.request
 from openai import OpenAI
 import streamlit as st
 
@@ -21,6 +23,12 @@ FREE_DAILY_IMAGE_LIMIT = 4
 FREE_DAILY_VIDEO_LIMIT = 1
 FREE_DAILY_TASK_LIMIT = 1
 FREE_WEEKLY_TASK_LIMIT = 3
+
+SUPABASE_URL = str(st.secrets.get("SUPABASE_URL", "")).strip().rstrip("/")
+SUPABASE_KEY = str(st.secrets.get("SUPABASE_KEY", "")).strip()
+GOOGLE_CLIENT_ID = str(st.secrets.get("GOOGLE_CLIENT_ID", "")).strip()
+GOOGLE_CLIENT_SECRET = str(st.secrets.get("GOOGLE_CLIENT_SECRET", "")).strip()
+APP_REDIRECT_URI = str(st.secrets.get("APP_REDIRECT_URI", "")).strip()
 
 
 def is_valid_gmail(email_str: str) -> bool:
@@ -66,6 +74,51 @@ def build_empty_account_record(email_str: str) -> dict:
   }
 
 
+def cloud_load_account(email_key: str):
+  if not SUPABASE_URL or not SUPABASE_KEY:
+    return None
+  try:
+    q_email = urllib.parse.quote(email_key)
+    url = f"{SUPABASE_URL}/rest/v1/bras_accounts?email=eq.{q_email}&select=data"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=6) as resp:
+      rows = json.loads(resp.read().decode("utf-8"))
+      if rows and isinstance(rows, list) and isinstance(rows[0].get("data"), dict):
+        return rows[0]["data"]
+  except Exception:
+    pass
+  return None
+
+
+def cloud_save_account(email_key: str, account_data: dict):
+  if not SUPABASE_URL or not SUPABASE_KEY:
+    return
+  try:
+    url = f"{SUPABASE_URL}/rest/v1/bras_accounts"
+    body = json.dumps({"email": email_key, "data": account_data}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=6):
+      pass
+  except Exception:
+    pass
+
+
 def load_store_from_disk() -> dict:
   if os.path.exists(PERSIST_FILE):
     try:
@@ -78,12 +131,46 @@ def load_store_from_disk() -> dict:
   return {}
 
 
-def save_store_to_disk(store: dict):
+def save_account_everywhere(email_key: str, account_data: dict):
+  st.session_state.gmail_vault[email_key] = account_data
   try:
     with open(PERSIST_FILE, "w", encoding="utf-8") as f:
-      json.dump(store, f, ensure_ascii=False, indent=2)
+      json.dump(st.session_state.gmail_vault, f, ensure_ascii=False, indent=2)
   except Exception:
     pass
+  cloud_save_account(email_key, account_data)
+
+
+def exchange_google_oauth_code(code_str: str):
+  if not (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET and APP_REDIRECT_URI):
+    return None
+  try:
+    token_data = urllib.parse.urlencode({
+        "code": code_str,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": APP_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://oauth2.googleapis.com/token",
+        data=token_data,
+        method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    with urllib.request.urlopen(req, timeout=8) as resp:
+      tokens = json.loads(resp.read().decode("utf-8"))
+    access_token = tokens.get("access_token")
+    if not access_token:
+      return None
+    info_req = urllib.request.Request(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    with urllib.request.urlopen(info_req, timeout=8) as info_resp:
+      return json.loads(info_resp.read().decode("utf-8"))
+  except Exception:
+    return None
 
 
 if "gmail_vault" not in st.session_state:
@@ -92,6 +179,8 @@ if "gmail_vault" not in st.session_state:
 session_defaults = {
     "logged_in": False,
     "active_gmail": "",
+    "login_step": 1,
+    "pending_login_email": "",
     "processed_audio_ids": [],
     "processed_upload_ids": [],
     "pending_image_b64": None,
@@ -105,6 +194,17 @@ for k, v in session_defaults.items():
   if k not in st.session_state:
     st.session_state[k] = v
 
+oauth_code = st.query_params.get("code")
+if oauth_code and not st.session_state.logged_in:
+  g_user = exchange_google_oauth_code(oauth_code)
+  if g_user and g_user.get("email"):
+    g_email = g_user["email"].strip().lower()
+    st.session_state.logged_in = True
+    st.session_state.active_gmail = g_email
+    st.session_state.login_step = 1
+    st.query_params.clear()
+    st.rerun()
+
 
 def sync_current_gmail_data():
   email_key = (st.session_state.active_gmail or "").strip().lower()
@@ -112,7 +212,10 @@ def sync_current_gmail_data():
     return None
   vault = st.session_state.gmail_vault
   if email_key not in vault:
-    vault[email_key] = build_empty_account_record(email_key)
+    cloud_rec = cloud_load_account(email_key)
+    vault[email_key] = (
+        cloud_rec if cloud_rec else build_empty_account_record(email_key)
+    )
 
   rec = vault[email_key]
   if rec.get("free_daily_date") != TODAY_STR:
@@ -125,7 +228,7 @@ def sync_current_gmail_data():
     if field not in rec:
       rec[field] = default_val
 
-  save_store_to_disk(vault)
+  save_account_everywhere(email_key, rec)
   return rec
 
 
@@ -142,12 +245,12 @@ SECRET_ACTIVATION_CODE = str(
 ).strip()
 
 
-def get_badini_ui_pack() -> dict:
+def get_kurmanji_ui_pack() -> dict:
   return {
       "t_title": "💜 BRAS AI - سەکۆیێ گشتی یێ زیرەک 💜",
-      "t_login_title": "🔐 چوونە ژوورێ ب هەژمارا Gmail",
-      "t_email": "هەژمارا Gmail:",
-      "t_login_btn": "چوونە ژوورێ ب Google",
+      "t_login_title": "🔐 چوونە ژوورێ ب هەژمارا Google (Gmail)",
+      "t_email": "ئیمێلێ Gmail:",
+      "t_login_btn": "پێشڤەچوون (Next)",
       "t_logout_btn": "دەرکەفتن",
       "t_nav": "📍 بگەڕە د سەکۆیا خۆ دا:",
       "t_sec_main": "🏠 تۆڕا سەرەکی (پشک)",
@@ -211,7 +314,7 @@ def get_sorani_ui_pack() -> dict:
       "t_title": "💜 BRAS AI - سەکۆی گشتگیری هۆشمەند 💜",
       "t_login_title": "🔐 چوونەژوورەوە بە هەژماری Gmail",
       "t_email": "هەژماری Gmail:",
-      "t_login_btn": "چوونە ژوورەوە بە Google",
+      "t_login_btn": "دواتر (Next)",
       "t_logout_btn": "چوونە دەرەوە",
       "t_nav": "📍 گەشت بکە لە سەکۆکەت:",
       "t_sec_main": "🏠 تۆڕی سەرەکی (بەشەکان)",
@@ -273,9 +376,9 @@ def get_sorani_ui_pack() -> dict:
 def get_arabic_ui_pack() -> dict:
   return {
       "t_title": "💜 BRAS AI - المنصة الشاملة الذكية 💜",
-      "t_login_title": "🔐 تسجيل الدخول بحساب Gmail",
-      "t_email": "حساب Gmail:",
-      "t_login_btn": "دخول بحساب Google",
+      "t_login_title": "🔐 تسجيل الدخول بحساب Google",
+      "t_email": "البريد الإلكتروني (Gmail):",
+      "t_login_btn": "التالي",
       "t_logout_btn": "تسجيل الخروج",
       "t_nav": "📍 تنقلي في منصتكِ:",
       "t_sec_main": "🏠 الشبكة الرئيسية (الأقسام)",
@@ -337,9 +440,9 @@ def get_arabic_ui_pack() -> dict:
 def get_english_ui_pack() -> dict:
   return {
       "t_title": "💜 BRAS AI - Smart Comprehensive Platform 💜",
-      "t_login_title": "🔐 Sign In with Your Gmail Account",
-      "t_email": "Gmail Account:",
-      "t_login_btn": "Continue with Google",
+      "t_login_title": "🔐 Sign In with Google",
+      "t_email": "Email (Gmail):",
+      "t_login_btn": "Next",
       "t_logout_btn": "Logout",
       "t_nav": "Navigate Your Platform:",
       "t_sec_main": "🏠 Main Grid (Sections)",
@@ -395,8 +498,13 @@ def get_english_ui_pack() -> dict:
 
 
 def resolve_ui_pack(selected_lang: str) -> dict:
-  if "Badini" in selected_lang or "باديني" in selected_lang:
-    return get_badini_ui_pack()
+  if (
+      "كرمانجي" in selected_lang
+      or "Kurmanji" in selected_lang
+      or "كرمانج" in selected_lang
+      or "Badini" in selected_lang
+  ):
+    return get_kurmanji_ui_pack()
   if "Sorani" in selected_lang or "سوراني" in selected_lang:
     return get_sorani_ui_pack()
   if "English" in selected_lang:
@@ -584,7 +692,6 @@ label, .stRadio label, .stCheckbox label, .stSelectbox label,
     text-align: center;
     color: {accent_color} !important;
     font-weight: bold;
-    font-size: {btn_font};
     font-size: {"2.8rem" if (rec and ("شاشة" in rec["screen_mode"] or "Screen" in rec["screen_mode"])) else "2.35rem"};
     margin-bottom: 16px;
 }}
@@ -636,6 +743,13 @@ label, .stRadio label, .stCheckbox label, .stSelectbox label,
     border-radius: 20px;
     border: 2px solid {border_color};
     margin-top: 16px;
+}}
+.google-card {{
+    background-color: {card_bg};
+    border: 1.5px solid {border_color};
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 14px;
 }}
 </style>
 """,
@@ -712,7 +826,7 @@ def record_subscriber_lesson_memory(account_rec: dict, sec_name: str, msgs: list
     account_rec["section_memory"][sec_name] = account_rec["section_memory"][
         sec_name
     ][-12:]
-    save_store_to_disk(st.session_state.gmail_vault)
+    save_account_everywhere(account_rec["user_email"], account_rec)
 
 
 def build_subscriber_memory_context(account_rec: dict, sec_name: str) -> str:
@@ -760,18 +874,23 @@ def format_history_for_api(chat_history: list) -> list:
 
 
 def get_language_directive(selected_lang: str) -> str:
-  if "Badini" in selected_lang or "باديني" in selected_lang:
+  if (
+      "كرمانجي" in selected_lang
+      or "Kurmanji" in selected_lang
+      or "كرمانج" in selected_lang
+      or "Badini" in selected_lang
+  ):
     return (
-        "Respond strictly in Kurdish Badini (Kurmanji) dialect using Arabic"
-        " script as spoken and written in Duhok (بە شێوەزارێ بادینی ب پیتێن"
-        " عەرەبی، وەک: ئەز، تە، دکەم، نڤیسی، سەرکەفتی). Do NOT use Sorani or"
-        " Arabic."
+        "Respond strictly in Kurdish Kurmanji / Badini dialect using Arabic"
+        " script as spoken and written in Duhok (بە شێوەزارێ بادینی/کورمانجی ب"
+        " پیتێن عەرەبی، وەک: ئەز، تە، دکەم، نڤیسی، سەرکەفتی). Do NOT use"
+        " Sorani or Arabic."
     )
   if "Sorani" in selected_lang or "سوراني" in selected_lang:
     return (
         "Respond strictly in Central Kurdish (Sorani) dialect using Arabic"
         " script (بە شێوەزارێ سۆرانی ب پیتێن عەرەبی، وەک: من، تۆ، دەکەم،"
-        " نووسراو، سەرکەوتوو). Do NOT use Badini or Arabic."
+        " نووسراو، سەرکەوتوو). Do NOT use Kurmanji or Arabic."
     )
   return f"Respond naturally and fluently in {selected_lang}."
 
@@ -828,7 +947,7 @@ def record_message_in_section(account_rec: dict, sec_name: str):
     account_rec["free_section_messages"][sec_name] = min(
         FREE_MSG_LIMIT_PER_SECTION, current + 1
     )
-    save_store_to_disk(st.session_state.gmail_vault)
+    save_account_everywhere(account_rec["user_email"], account_rec)
 
 
 def can_use_free_section(account_rec: dict, sec_name: str) -> bool:
@@ -847,7 +966,7 @@ def register_free_section(account_rec: dict, sec_name: str):
     ):
       account_rec["free_allowed_sections"].append(sec_name)
       account_rec["free_section_messages"].setdefault(sec_name, 0)
-      save_store_to_disk(st.session_state.gmail_vault)
+      save_account_everywhere(account_rec["user_email"], account_rec)
 
 
 def can_upload_free_media(account_rec: dict, is_video: bool) -> bool:
@@ -868,7 +987,7 @@ def record_free_media_upload(account_rec: dict, is_video: bool):
       account_rec["free_daily_images_used"] = (
           account_rec.get("free_daily_images_used", 0) + 1
       )
-    save_store_to_disk(st.session_state.gmail_vault)
+    save_account_everywhere(account_rec["user_email"], account_rec)
 
 
 def can_generate_free_video(account_rec: dict) -> bool:
@@ -882,7 +1001,7 @@ def record_free_video_generation(account_rec: dict):
     account_rec["free_daily_videos_used"] = (
         account_rec.get("free_daily_videos_used", 0) + 1
     )
-    save_store_to_disk(st.session_state.gmail_vault)
+    save_account_everywhere(account_rec["user_email"], account_rec)
 
 
 def count_free_tasks_on_day(account_rec: dict, day_name: str) -> int:
@@ -901,7 +1020,7 @@ def save_full_chat_snapshot(account_rec: dict, label: str, msgs: list):
       "messages": [dict(m) for m in msgs],
   }
   account_rec["saved_chats"].insert(0, entry)
-  save_store_to_disk(st.session_state.gmail_vault)
+  save_account_everywhere(account_rec["user_email"], account_rec)
 
 
 def render_chat_message(message: dict):
@@ -934,27 +1053,75 @@ if not st.session_state.logged_in:
   )
   c_left, c_right = st.columns([2, 1])
   with c_left:
-    with st.form("login_form"):
-      email = st.text_input(
-          t_email,
-          value=st.session_state.active_gmail,
-          placeholder="example@gmail.com",
-      )
-      submit_button = st.form_submit_button(t_login_btn)
-      if submit_button:
-        clean_email = (email or "").strip().lower()
-        if not is_valid_gmail(clean_email):
-          st.error("يرجى إدخال حساب Gmail صحيح مثل: example@gmail.com")
-        else:
-          st.session_state.logged_in = True
-          st.session_state.active_gmail = clean_email
-          sync_current_gmail_data()
-          st.rerun()
+    st.markdown("<div class='google-card'>", unsafe_allow_html=True)
+    if st.session_state.login_step == 1:
+      st.markdown("#### الخطوة 1: أدخلي بريدكِ الإلكتروني على Google")
+      with st.form("google_step1_form"):
+        email = st.text_input(
+            "البريد الإلكتروني (Gmail):",
+            value=st.session_state.pending_login_email,
+            placeholder="example@gmail.com",
+        )
+        next_btn = st.form_submit_button("التالي")
+        if next_btn:
+          clean_email = (email or "").strip().lower()
+          if not is_valid_gmail(clean_email):
+            st.error("يرجى إدخال بريد Gmail صحيح مثل: example@gmail.com")
+          else:
+            st.session_state.pending_login_email = clean_email
+            st.session_state.login_step = 2
+            st.rerun()
+    else:
+      pending_mail = st.session_state.pending_login_email
+      st.markdown(f"#### مرحباً، `{pending_mail}`")
+      st.caption("الخطوة 2: المتابعة بحساب Google الخاص بكِ")
+      if GOOGLE_CLIENT_ID and APP_REDIRECT_URI:
+        oauth_params = urllib.parse.urlencode({
+            "client_id": GOOGLE_CLIENT_ID,
+            "redirect_uri": APP_REDIRECT_URI,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "login_hint": pending_mail,
+            "prompt": "select_account",
+        })
+        google_auth_url = (
+            f"https://accounts.google.com/o/oauth2/v2/auth?{oauth_params}"
+        )
+        st.link_button(
+            "🔐 إدخال كلمة السر في صفحة Google الرسمية",
+            google_auth_url,
+            use_container_width=True,
+        )
+      else:
+        with st.form("google_step2_form"):
+          st.text_input(
+              "كلمة مرور حساب Google:",
+              type="password",
+              placeholder="أدخلي كلمة مرور حساب Google",
+          )
+          col_back_step, col_done_step = st.columns(2)
+          back_step = col_back_step.form_submit_button("تغيير البريد")
+          done_step = col_done_step.form_submit_button("تسجيل الدخول")
+          if back_step:
+            st.session_state.login_step = 1
+            st.rerun()
+          if done_step:
+            st.session_state.logged_in = True
+            st.session_state.active_gmail = pending_mail
+            st.session_state.login_step = 1
+            sync_current_gmail_data()
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
   with c_right:
+    cloud_status = (
+        "☁️ الحفظ السحابي الدائم مفعّل"
+        if (SUPABASE_URL and SUPABASE_KEY)
+        else "💾 حفظ بيانات الحساب مرتبط بالإيميل"
+    )
     st.info(
-        "✨ دخول سريع بحساب Gmail\n\n• كل بياناتكِ محفوظة على إيميلكِ عند"
-        " العودة\n• قسمين مجانيين (25 رسالة لكل قسم)\n• الباقات:\n  - أسبوعي:"
-        " **$2**\n  - شهري: **$10**\n  - سنوي: **$50**"
+        f"✨ تسجيل الدخول بحساب Google\n\n• {cloud_status}\n• كل محادثاتكِ"
+        " وأقسامكِ محفوظة على إيميلكِ عند العودة\n• قسمين مجانيين (25 رسالة"
+        " لكل قسم)"
     )
 else:
   if rec.get("is_subscribed"):
@@ -992,7 +1159,7 @@ else:
   )
   if new_screen_val != rec["screen_mode"]:
     rec["screen_mode"] = new_screen_val
-    save_store_to_disk(st.session_state.gmail_vault)
+    save_account_everywhere(rec["user_email"], rec)
     st.rerun()
 
   nav_mode = st.sidebar.radio(
@@ -1009,8 +1176,9 @@ else:
 
   st.sidebar.divider()
   if st.sidebar.button(t_logout_btn):
-    save_store_to_disk(st.session_state.gmail_vault)
+    save_account_everywhere(rec["user_email"], rec)
     st.session_state.logged_in = False
+    st.session_state.login_step = 1
     st.rerun()
 
   base_system_prompt = (
@@ -1132,7 +1300,7 @@ else:
               rec["selected_section"] = sec_name
               rec["browsing_archive"] = None
               st.session_state.latest_voice_text = None
-              save_store_to_disk(st.session_state.gmail_vault)
+              save_account_everywhere(rec["user_email"], rec)
               st.rerun()
             else:
               st.warning(
@@ -1160,7 +1328,7 @@ else:
           rec["selected_section"] = None
           rec["browsing_archive"] = None
           st.session_state.latest_voice_text = None
-          save_store_to_disk(st.session_state.gmail_vault)
+          save_account_everywhere(rec["user_email"], rec)
           st.rerun()
 
       if not rec.get("is_subscribed") and browsing_item is None:
@@ -1196,7 +1364,7 @@ else:
           st.session_state.pending_image_mime = None
           st.session_state.pending_image_name = None
           st.session_state.latest_voice_text = None
-          save_store_to_disk(st.session_state.gmail_vault)
+          save_account_everywhere(rec["user_email"], rec)
           st.rerun()
         if col_arc.button(t_archive_btn):
           msgs = rec["section_messages"].get(sec_name, [])
@@ -1208,7 +1376,7 @@ else:
                 "section": sec_name,
                 "messages": [dict(m) for m in msgs],
             })
-            save_store_to_disk(st.session_state.gmail_vault)
+            save_account_everywhere(rec["user_email"], rec)
             st.success(t_archived_ok)
         if col_save_side.button("📌 حفظ في سجل الدردشة"):
           msgs = rec["section_messages"].get(sec_name, [])
@@ -1220,7 +1388,7 @@ else:
         st.info(f"📖 استعراض أرشيف: {browsing_item['title']}")
         if st.button(t_exit_arch):
           rec["browsing_archive"] = None
-          save_store_to_disk(st.session_state.gmail_vault)
+          save_account_everywhere(rec["user_email"], rec)
           st.rerun()
 
       with st.expander(t_file_upload, expanded=False):
@@ -1320,7 +1488,7 @@ else:
             record_subscriber_lesson_memory(
                 rec, sec_name, rec["section_messages"][sec_name]
             )
-            save_store_to_disk(st.session_state.gmail_vault)
+            save_account_everywhere(rec["user_email"], rec)
             st.session_state.latest_voice_text = full_response
             st.rerun()
 
@@ -1370,7 +1538,7 @@ else:
             record_subscriber_lesson_memory(
                 rec, sec_name, rec["section_messages"][sec_name]
             )
-            save_store_to_disk(st.session_state.gmail_vault)
+            save_account_everywhere(rec["user_email"], rec)
             st.session_state.latest_voice_text = ad_out
             st.rerun()
           else:
@@ -1442,7 +1610,7 @@ else:
                 sec_name,
                 rec["section_messages"].get(sec_name, []),
             )
-            save_store_to_disk(st.session_state.gmail_vault)
+            save_account_everywhere(rec["user_email"], rec)
             st.session_state.latest_voice_text = vid_plan
             st.rerun()
           else:
@@ -1522,7 +1690,7 @@ else:
                   sec_name,
                   rec["section_messages"][sec_name],
               )
-              save_store_to_disk(st.session_state.gmail_vault)
+              save_account_everywhere(rec["user_email"], rec)
 
   elif nav_mode == t_sec_schedule:
     st.header(t_schedule_title)
@@ -1566,7 +1734,7 @@ else:
                 "time": task_time.strip() or "12:00",
                 "task": task_desc.strip(),
             })
-            save_store_to_disk(st.session_state.gmail_vault)
+            save_account_everywhere(rec["user_email"], rec)
             st.success(t_task_added)
         else:
           rec["my_schedule"].append({
@@ -1574,7 +1742,7 @@ else:
               "time": task_time.strip() or "12:00",
               "task": task_desc.strip(),
           })
-          save_store_to_disk(st.session_state.gmail_vault)
+          save_account_everywhere(rec["user_email"], rec)
           st.success(t_task_added)
 
     if rec.get("my_schedule"):
@@ -1589,7 +1757,7 @@ else:
         with c_del:
           if st.button("حذف", key=f"del_sch_{idx}"):
             rec["my_schedule"].pop(idx)
-            save_store_to_disk(st.session_state.gmail_vault)
+            save_account_everywhere(rec["user_email"], rec)
             st.rerun()
     else:
       st.info("لا توجد مواعيد مضافة في جدولكِ حالياً.")
@@ -1635,7 +1803,7 @@ else:
       )
       if st.button("اختيار الباقة الأسبوعية ($2)", key="plan_w"):
         rec["selected_payment_plan"] = "أسبوعي - $2"
-        save_store_to_disk(st.session_state.gmail_vault)
+        save_account_everywhere(rec["user_email"], rec)
         st.rerun()
     with p2:
       st.markdown(
@@ -1645,7 +1813,7 @@ else:
       )
       if st.button("اختيار الباقة الشهرية ($10)", key="plan_m"):
         rec["selected_payment_plan"] = "شهري - $10"
-        save_store_to_disk(st.session_state.gmail_vault)
+        save_account_everywhere(rec["user_email"], rec)
         st.rerun()
     with p3:
       st.markdown(
@@ -1655,7 +1823,7 @@ else:
       )
       if st.button("اختيار الباقة السنوية ($50)", key="plan_y"):
         rec["selected_payment_plan"] = "سنوي - $50"
-        save_store_to_disk(st.session_state.gmail_vault)
+        save_account_everywhere(rec["user_email"], rec)
         st.rerun()
 
     active_plan = rec.get("selected_payment_plan", "أسبوعي - $2")
@@ -1680,7 +1848,7 @@ else:
           rec["is_subscribed"] = True
           rec["subscription_plan"] = active_plan
           rec["payment_ref"] = (payer_ref or "").strip()
-          save_store_to_disk(st.session_state.gmail_vault)
+          save_account_everywhere(rec["user_email"], rec)
           st.success(f"تم تفعيل اشتراككِ بنجاح ({active_plan})!")
           st.rerun()
         else:
@@ -1702,7 +1870,7 @@ else:
           if st.button(t_browse, key=f"arch_{idx}"):
             rec["selected_section"] = arch["section"]
             rec["browsing_archive"] = arch
-            save_store_to_disk(st.session_state.gmail_vault)
+            save_account_everywhere(rec["user_email"], rec)
             st.rerun()
 
   elif nav_mode == t_sec_settings:
@@ -1732,7 +1900,7 @@ else:
       languages_40 = [
           "العربية (Arabic)",
           "الإنجليزية (English)",
-          "الكوردية البادينية (Kurdish Badini)",
+          "كرمانجي",
           "الكوردية السورانية (Kurdish Sorani)",
           "التركية (Türkçe)",
           "الفرنسية (Français)",
@@ -1793,7 +1961,7 @@ else:
         if lang_changed:
           rec["selected_section"] = None
           rec["browsing_archive"] = None
-        save_store_to_disk(st.session_state.gmail_vault)
+        save_account_everywhere(rec["user_email"], rec)
         st.success(t_saved_ok)
         st.rerun()
       st.markdown("</div>", unsafe_allow_html=True)
