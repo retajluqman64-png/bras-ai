@@ -1,6 +1,7 @@
 
 from io import BytesIO
 from datetime import datetime
+import base64
 import json
 import os
 import re
