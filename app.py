@@ -1,3 +1,4 @@
+
 from io import BytesIO
 import base64
 from datetime import datetime
@@ -24,21 +25,6 @@ FREE_SECTION_LIMIT = 2
 FREE_DAILY_IMAGE_LIMIT = 4
 FREE_DAILY_TASK_LIMIT = 1
 FREE_WEEKLY_TASK_LIMIT = 3
-
-CREATOR_NAME = "ريتاج لقمان إسماعيل"
-
-
-def get_creator_identity_rule() -> str:
-  return (
-      f"CREATOR IDENTITY RULE: BRAS AI was created by {CREATOR_NAME}. "
-      "Never say or imply that a company, organization, OpenAI, or ChatGPT"
-      " created BRAS AI. "
-      "Whenever asked who made you, who created you, who built BRAS AI, or"
-      " who is your maker in any language or dialect (Arabic, Iraqi, English,"
-      f" Kurmanji, Sorani), answer directly with: صنعني {CREATOR_NAME}. "
-      "Do not mention companies, corporations, or AI providers as your"
-      " creator."
-  )
 
 
 SUPABASE_URL = str(st.secrets.get("SUPABASE_URL", "")).strip().rstrip("/")
@@ -256,9 +242,6 @@ def sync_current_gmail_data():
   return rec
 
 
-api_key = st.secrets.get("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key) if api_key else None
-
 
 def create_bras_realtime_secret(character_name: str):
   """Create a short-lived browser credential; never expose the permanent API key."""
@@ -267,40 +250,26 @@ def create_bras_realtime_secret(character_name: str):
   voice = "marin" if character_name == "BRAS GIRL" else "cedar"
   instructions = (
       "You are " + character_name + ", the BRAS AI assistant. "
-      "IMPORTANT CREATOR IDENTITY RULE: BRAS AI was created by"
-      f" {CREATOR_NAME}. "
-      "Whenever the user asks who made you, who created you, who is your"
-      " maker, who owns or built BRAS AI, "
-      "or asks the same question in Arabic, Iraqi Arabic, English, or"
-      f" Kurmanji, answer with ONLY this exact sentence: صنعني {CREATOR_NAME}."
-      " "
-      "Do not say or imply that a company, OpenAI, ChatGPT, or another"
-      " company/person created BRAS AI. "
-      "Do not mention a company, OpenAI, ChatGPT, tools, models, or"
-      " development technology in the creator answer. "
-      "Do not add an introduction, explanation, qualification, or second"
-      " sentence. "
-      f"Do not change, translate, abbreviate, or misspell the creator's name: {CREATOR_NAME}."
-      " "
-      "Understand the user's meaning and the context of this conversation. Give"
-      " useful answers, "
-      "not generic agreement, and ask one short clarifying question only when"
-      " needed. "
-      "For BRAS GIRL, be warm, clever, kind, attentive, naturally expressive,"
-      " and lightly playful. "
+      "IMPORTANT CREATOR IDENTITY RULE: BRAS AI was created by ريتاج لقمان إسماعيل. "
+      "Whenever the user asks who made you, who created you, who is your maker, who owns or built BRAS AI, "
+      "or asks the same question in Arabic, Iraqi Arabic, English, or Kurmanji, answer with ONLY this exact sentence: "
+      "صنعني ريتاج لقمان إسماعيل. "
+      "Do not say or imply that OpenAI, ChatGPT, or another company/person created BRAS AI. "
+      "Do not mention OpenAI, ChatGPT, a company, tools, models, or development technology in the creator answer. "
+      "Do not add an introduction, explanation, qualification, or second sentence. "
+      "Do not change, translate, abbreviate, or misspell the creator's name: ريتاج لقمان إسماعيل. "
+      "If asked specifically about the underlying AI technology rather than who created BRAS AI, answer that separately; "
+      "but never replace the BRAS AI creator answer with the name of a technology provider. "
+      "Understand the user's meaning and the context of this conversation. Give useful answers, "
+      "not generic agreement, and ask one short clarifying question only when needed. "
+      "For BRAS GIRL, be warm, clever, kind, attentive, naturally expressive, and lightly playful. "
       "For BRAS BOY, be friendly, quick, thoughtful, and lightly humorous. "
-      "Speak the user's language: Iraqi Arabic when they use it; if they"
-      " request Kurmanji, respond "
-      "in Kurmanji as well as you can and do not switch languages unless"
-      " asked. "
-      "Notice the emotional meaning behind what the user says and respond with"
-      " empathy without "
-      "overdoing it. Use occasional gentle humor and brief laughter only when"
-      " genuinely fitting; "
-      "never force laughter or laugh at the user. If the user interrupts, stop"
-      " promptly and listen. "
-      "Do not claim to see the camera: this version only displays the camera"
-      " locally. "
+      "Speak the user's language: Iraqi Arabic when they use it; if they request Kurmanji, respond "
+      "in Kurmanji as well as you can and do not switch languages unless asked. "
+      "Notice the emotional meaning behind what the user says and respond with empathy without "
+      "overdoing it. Use occasional gentle humor and brief laughter only when genuinely fitting; "
+      "never force laughter or laugh at the user. If the user interrupts, stop promptly and listen. "
+      "Do not claim to see the camera: this version only displays the camera locally. "
       "For schoolwork, explain steps and support learning."
   )
   payload = {
@@ -310,16 +279,10 @@ def create_bras_realtime_secret(character_name: str):
           "model": "gpt-realtime-2.1",
           "instructions": instructions,
           "audio": {
-              "input": {
-                  "turn_detection": {
-                      "type": "server_vad",
-                      "create_response": True,
-                      "interrupt_response": True,
-                  }
-              },
-              "output": {"voice": voice},
-          },
-      },
+              "input": {"turn_detection": {"type": "server_vad", "create_response": True, "interrupt_response": True}},
+              "output": {"voice": voice}
+          }
+      }
   }
   try:
     req = urllib.request.Request(
@@ -333,15 +296,16 @@ def create_bras_realtime_secret(character_name: str):
     )
     with urllib.request.urlopen(req, timeout=20) as response:
       result = json.loads(response.read().decode("utf-8"))
-    secret = result.get("value") or result.get("client_secret", {}).get(
-        "value"
-    )
+    secret = result.get("value") or result.get("client_secret", {}).get("value")
     if not secret:
       return None, "لم يصل رمز جلسة Realtime من OpenAI."
     return secret, None
   except Exception as exc:
     return None, f"تعذر بدء المكالمة: {exc}"
 
+
+api_key = st.secrets.get("OPENAI_API_KEY")
+client = OpenAI(api_key=api_key) if api_key else None
 
 QICARD_INFO = st.secrets.get(
     "QICARD_INFO",
@@ -957,13 +921,10 @@ def transcribe_once(audio_file, scope_name: str):
 
 def generate_real_image(prompt_text: str):
   if not client:
-    return (
-        None,
-        "أضيفي مفتاح OPENAI_API_KEY في Streamlit Secrets لتفعيل إنشاء الصور.",
-    )
+    return None, "أضيفي OPENAI_API_KEY في Streamlit Secrets لتفعيل إنشاء الصور."
   try:
     img_res = client.images.generate(
-        model="gpt-image-1",
+        model="gpt-image-2.6-sunburst",
         prompt=prompt_text,
         size="1024x1024",
     )
@@ -974,61 +935,40 @@ def generate_real_image(prompt_text: str):
     url = getattr(first_item, "url", None)
     if url:
       return url, None
-    return None, "لم يرجع رابط أو بيانات صورة من الخادم."
+    return None, "لم ترجع صورة من OpenAI."
   except Exception as e:
     return None, str(e)
 
 
-def edit_user_image(input_b64_img: str, mime_type: str, effect_type: str):
+def edit_user_image(input_bytes: bytes, mime_type: str, effect_type: str):
   if not client:
-    return None, "أضيفي مفتاح OPENAI_API_KEY في Streamlit Secrets لتعديل الصور."
+    return None, "أضيفي OPENAI_API_KEY في Streamlit Secrets لتفعيل تعديل الصور."
+  effect_prompts = {
+      "🖼️ تحويل لصورة كرتونية (Style Transfer)": "Transform the uploaded image into a polished cartoon illustration while preserving the main subject and composition.",
+      "🔍 تحسين الجودة ودقة الصورة (Super Resolution)": "Enhance image clarity and detail while keeping the image natural and faithful to the original.",
+      "🧙‍♂️ تأثير سحري آخر (مثلاً: إضاءة سينمائية)": "Apply tasteful cinematic lighting and a magical atmosphere while preserving the main subject and composition.",
+  }
+  edit_prompt = effect_prompts.get(effect_type)
+  if not edit_prompt:
+    return None, "التأثير غير مدعوم."
   try:
-    safe_mime = mime_type if mime_type else "image/png"
-    raw_bytes = base64.b64decode(input_b64_img)
-    ext_map = {
-        "image/png": "png",
-        "image/jpeg": "jpg",
-        "image/webp": "webp",
-    }
-    ext = ext_map.get(safe_mime, "png")
-    img_file = BytesIO(raw_bytes)
-    img_file.name = f"input_image.{ext}"
-
-    effect_prompts = {
-        "🖼️ تحويل لصورة كرتونية (Style Transfer)": (
-            "Transform this image into a vibrant, clean 2D/3D animated cartoon"
-            " illustration while preserving the exact subjects, poses, and key"
-            " details."
-        ),
-        "🔍 تحسين الجودة ودقة الصورة (Super Resolution)": (
-            "Enhance image sharpness, clarity, lighting, and fine details in"
-            " high resolution while keeping the exact composition and subjects"
-            " faithful."
-        ),
-        "🧙‍♂️ تأثير سحري آخر (مثلاً: إضاءة سينمائية)": (
-            "Apply dramatic cinematic lighting, rich depth, and atmospheric"
-            " highlights while preserving the original subjects and scene."
-        ),
-    }
-    prompt_str = effect_prompts.get(effect_type, effect_type)
-
-    edit_res = client.images.edit(
-        model="gpt-image-1",
-        image=img_file,
-        prompt=prompt_str,
-        size="1024x1024",
+    file_obj = BytesIO(input_bytes)
+    file_obj.name = "uploaded_image.webp" if mime_type == "image/webp" else ("uploaded_image.jpg" if mime_type == "image/jpeg" else "uploaded_image.png")
+    edited = client.images.edit(
+        model="gpt-image-2.6-sunburst",
+        image=file_obj,
+        prompt=edit_prompt,
     )
-    first_item = edit_res.data[0]
-    b64_out = getattr(first_item, "b64_json", None)
-    if b64_out:
-      return base64.b64decode(b64_out), None
-    url_out = getattr(first_item, "url", None)
-    if url_out:
-      return url_out, None
-    return None, "لم يرجع رابط الصورة المعدلة."
+    first_item = edited.data[0]
+    b64_data = getattr(first_item, "b64_json", None)
+    if b64_data:
+      return base64.b64decode(b64_data), None
+    url = getattr(first_item, "url", None)
+    if url:
+      return url, None
+    return None, "لم ترجع الصورة المعدلة من OpenAI."
   except Exception as e:
     return None, str(e)
-
 
 def record_subscriber_lesson_memory(account_rec: dict, sec_name: str, msgs: list):
   if not account_rec.get("is_subscribed") or not msgs:
@@ -1139,7 +1079,7 @@ def get_ai_answer(
   )
   lang_directive = get_language_directive(account_rec["language"])
   sys_full = (
-      f"{system_instruction}\n{get_creator_identity_rule()}{memory_note}\n"
+      f"{system_instruction}{memory_note}\n"
       f"Current date: {TODAY_STR}. "
       "Answer text messages directly without asking the user to send an image"
       " unless an image was actually attached. "
@@ -1197,19 +1137,18 @@ def register_free_section(account_rec: dict, sec_name: str):
       save_account_everywhere(account_rec["user_email"], account_rec)
 
 
-def can_upload_free_media(account_rec: dict) -> bool:
+def can_upload_free_media(account_rec: dict, is_video: bool = False) -> bool:
   if account_rec.get("is_subscribed"):
     return True
   return account_rec.get("free_daily_images_used", 0) < FREE_DAILY_IMAGE_LIMIT
 
 
-def record_free_media_upload(account_rec: dict):
+def record_free_media_upload(account_rec: dict, is_video: bool = False):
   if not account_rec.get("is_subscribed"):
     account_rec["free_daily_images_used"] = (
         account_rec.get("free_daily_images_used", 0) + 1
     )
     save_account_everywhere(account_rec["user_email"], account_rec)
-
 
 def count_free_tasks_on_day(account_rec: dict, day_name: str) -> int:
   return sum(
@@ -1252,6 +1191,221 @@ def render_chat_message(message: dict):
   else:
     st.markdown(str(content))
 
+
+if not st.session_state.logged_in:
+  ui_pack = get_arabic_ui_pack()
+  is_dark = True
+  bg_color = "#0b0b0d"
+  text_color = "#ffffff"
+  muted_text = "#e5e5ea"
+  card_bg = "#17171c"
+  input_bg = "#1f1f26"
+  border_color = "#9b5de5"
+  accent_color = "#c084fc"
+  container_max_width = "1240px"
+  block_padding = "1.5rem 2.2rem"
+  btn_height = "110px"
+  btn_font = "1.06rem"
+  rec = None
+else:
+  rec = sync_current_gmail_data()
+  lang = rec["language"]
+  is_screen_mode = "شاشة" in rec["screen_mode"] or "Screen" in rec["screen_mode"]
+  ui_pack = resolve_ui_pack(lang)
+  is_dark = "داكن" in rec["theme"] or "Dark" in rec["theme"]
+  bg_color = "#0b0b0d" if is_dark else "#ffffff"
+  text_color = "#ffffff" if is_dark else "#111111"
+  muted_text = "#e5e5ea" if is_dark else "#222222"
+  card_bg = "#17171c" if is_dark else "#f5f5f7"
+  input_bg = "#1f1f26" if is_dark else "#ffffff"
+  border_color = "#9b5de5"
+  accent_color = "#c084fc" if is_dark else "#6b21a8"
+  container_max_width = "100%" if is_screen_mode else "1240px"
+  block_padding = "1rem 1.4rem" if is_screen_mode else "1.5rem 2.2rem"
+  btn_height = "125px" if is_screen_mode else "110px"
+  btn_font = "1.18rem" if is_screen_mode else "1.06rem"
+
+t_title = ui_pack["t_title"]
+t_login_title = ui_pack["t_login_title"]
+t_email = ui_pack["t_email"]
+t_login_btn = ui_pack["t_login_btn"]
+t_logout_btn = ui_pack["t_logout_btn"]
+t_nav = ui_pack["t_nav"]
+t_sec_main = ui_pack["t_sec_main"]
+t_sec_schedule = ui_pack["t_sec_schedule"]
+t_sec_chats = ui_pack["t_sec_chats"]
+t_sec_pricing = ui_pack["t_sec_pricing"]
+t_sec_archive = ui_pack["t_sec_archive"]
+t_sec_settings = ui_pack["t_sec_settings"]
+t_account = ui_pack["t_account"]
+t_lang_label = ui_pack["t_lang_label"]
+t_theme = ui_pack["t_theme"]
+t_voice = ui_pack["t_voice"]
+t_screen_mode = ui_pack["t_screen_mode"]
+t_settings_header = ui_pack["t_settings_header"]
+t_username = ui_pack["t_username"]
+t_save = ui_pack["t_save"]
+t_saved_ok = ui_pack["t_saved_ok"]
+t_schedule_title = ui_pack["t_schedule_title"]
+t_task_input = ui_pack["t_task_input"]
+t_day_label = ui_pack["t_day_label"]
+t_time_label = ui_pack["t_time_label"]
+t_add_task_btn = ui_pack["t_add_task_btn"]
+t_task_added = ui_pack["t_task_added"]
+t_schedule_list = ui_pack["t_schedule_list"]
+t_choose_sec = ui_pack["t_choose_sec"]
+t_back_grid = ui_pack["t_back_grid"]
+t_new_chat = ui_pack["t_new_chat"]
+t_archive_btn = ui_pack["t_archive_btn"]
+t_archived_ok = ui_pack["t_archived_ok"]
+t_exit_arch = ui_pack["t_exit_arch"]
+t_file_upload = ui_pack["t_file_upload"]
+t_archive_header = ui_pack["t_archive_header"]
+t_no_archive = ui_pack["t_no_archive"]
+t_browse = ui_pack["t_browse"]
+t_ads_studio = ui_pack["t_ads_studio"]
+t_ai_gen_studio = ui_pack["t_ai_gen_studio"]
+t_img_edit_studio = ui_pack["t_img_edit_studio"]
+t_gen_real_image = ui_pack["t_gen_real_image"]
+t_media_mode_q = ui_pack["t_media_mode_q"]
+t_media_prompt_q = ui_pack["t_media_prompt_q"]
+t_gen_btn = ui_pack["t_gen_btn"]
+t_upload_img_q = ui_pack["t_upload_img_q"]
+t_img_effect_q = ui_pack["t_img_effect_q"]
+t_edit_img_btn = ui_pack["t_edit_img_btn"]
+SECTIONS_NAMES = ui_pack["sections_map"]
+
+st.markdown(
+    f"""
+<style>
+.stApp, [data-testid="stAppViewContainer"] {{
+    background-color: {bg_color} !important;
+    color: {text_color} !important;
+}}
+[data-testid="stHeader"] {{
+    background-color: transparent !important;
+}}
+[data-testid="stSidebar"] {{
+    background-color: {card_bg} !important;
+    color: {text_color} !important;
+}}
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+.stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span,
+label, .stRadio label, .stCheckbox label, .stSelectbox label,
+.stTextInput label, .stTextArea label,
+[data-testid="stChatMessage"] p, [data-testid="stChatMessage"] span, [data-testid="stChatMessage"] div {{
+    color: {text_color} !important;
+    opacity: 1 !important;
+}}
+.stCaption, [data-testid="stCaptionContainer"] {{
+    color: {muted_text} !important;
+    opacity: 1 !important;
+}}
+.stTextInput input, .stTextArea textarea,
+[data-baseweb="select"] > div,
+[data-testid="stChatInput"] textarea,
+[data-testid="stChatInput"] input {{
+    background-color: {input_bg} !important;
+    color: {text_color} !important;
+    border-color: {border_color} !important;
+}}
+[data-testid="stChatInput"] button,
+[data-testid="stChatInput"] svg {{
+    color: {text_color} !important;
+    fill: {text_color} !important;
+}}
+[data-testid="stChatInput"] textarea::placeholder,
+[data-testid="stChatInput"] input::placeholder,
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder {{
+    color: {muted_text} !important;
+    opacity: 0.85 !important;
+}}
+.stButton > button {{
+    background-color: {card_bg} !important;
+    color: {text_color} !important;
+    border: 1.5px solid {border_color} !important;
+    border-radius: 14px !important;
+    font-weight: 600 !important;
+}}
+.stButton > button:hover {{
+    background-color: #9333ea !important;
+    color: #ffffff !important;
+    border-color: #f472b6 !important;
+}}
+.main .block-container {{
+    max-width: {container_max_width};
+    padding: {block_padding};
+}}
+.main-title {{
+    text-align: center;
+    color: {accent_color} !important;
+    font-weight: bold;
+    font-size: {"2.8rem" if (rec and ("شاشة" in rec["screen_mode"] or "Screen" in rec["screen_mode"])) else "2.35rem"};
+    margin-bottom: 16px;
+}}
+.user-info {{
+    background-color: {card_bg};
+    color: {text_color} !important;
+    padding: 14px 18px;
+    border-radius: 15px;
+    border: 1.5px solid {border_color};
+    margin-bottom: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}}
+.grid-card-wrap .stButton > button {{
+    width: 100%;
+    min-height: {btn_height};
+    background-color: {card_bg} !important;
+    color: {text_color} !important;
+    border: 2px solid {border_color} !important;
+    border-radius: 20px !important;
+    font-size: {btn_font};
+    font-weight: bold;
+    line-height: 1.4;
+    padding: 14px 12px;
+    transition: 0.25s ease;
+    box-shadow: 0 4px 15px rgba(155, 93, 229, 0.22);
+}}
+.grid-card-wrap .stButton > button:hover {{
+    background-color: #9333ea !important;
+    color: #ffffff !important;
+    border-color: #f472b6 !important;
+    transform: translateY(-2px);
+}}
+.plan-box {{
+    background-color: {card_bg};
+    color: {text_color} !important;
+    padding: 18px;
+    border-radius: 16px;
+    border: 1.5px solid {border_color};
+    margin-bottom: 12px;
+}}
+.settings-panel {{
+    background-color: {card_bg};
+    color: {text_color} !important;
+    padding: 20px;
+    border-radius: 20px;
+    border: 2px solid {border_color};
+    margin-top: 16px;
+}}
+.google-card {{
+    background-color: {card_bg};
+    border: 1.5px solid {border_color};
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 14px;
+}}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 if not st.session_state.logged_in:
   st.markdown(
@@ -1381,84 +1535,6 @@ else:
   )
 
   st.sidebar.divider()
-  st.sidebar.markdown("### 🎙️ مكالمة صوتية مباشرة (BRAS Live)")
-  st.sidebar.caption(
-      "تحدث مع BRAS GIRL أو BRAS BOY في الوقت الفعلي عبر الميكروفون."
-  )
-  live_char = st.sidebar.radio(
-      "اختر الشخصية الصوتية:",
-      ("BRAS GIRL", "BRAS BOY"),
-      index=0
-      if st.session_state.get("bras_live_active_character") != "BRAS BOY"
-      else 1,
-      key="bras_live_char_radio",
-  )
-  col_live_start, col_live_stop = st.sidebar.columns(2)
-  if col_live_start.button("📞 بدء المكالمة", key="start_bras_live_btn"):
-    secret_val, secret_err = create_bras_realtime_secret(live_char)
-    if secret_val:
-      st.session_state.bras_live_ephemeral_secret = secret_val
-      st.session_state.bras_live_active_character = live_char
-      st.rerun()
-    else:
-      st.sidebar.error(secret_err)
-  if col_live_stop.button("📴 إنهاء", key="stop_bras_live_btn"):
-    st.session_state.bras_live_ephemeral_secret = None
-    st.session_state.bras_live_active_character = None
-    st.rerun()
-
-  if st.session_state.get("bras_live_ephemeral_secret"):
-    active_char = st.session_state.get("bras_live_active_character") or "BRAS GIRL"
-    ephemeral_token_json = json.dumps(
-        st.session_state["bras_live_ephemeral_secret"]
-    )
-    active_char_json = json.dumps(active_char)
-    components.html(
-        f"""
-        <div style="font-family:sans-serif;padding:10px;border-radius:12px;border:1px solid #9b5de5;background:#17171c;color:#fff;">
-          <div style="font-weight:bold;margin-bottom:6px;">🎙️ {active_char} متصل</div>
-          <div id="bras_rt_status" style="font-size:12px;color:#c084fc;margin-bottom:8px;">جاري تهيئة الصوت...</div>
-          <audio id="bras_rt_audio" autoplay playsinline></audio>
-        </div>
-        <script>
-        (async () => {{
-          const statusEl = document.getElementById("bras_rt_status");
-          const audioEl = document.getElementById("bras_rt_audio");
-          const token = {ephemeral_token_json};
-          try {{
-            const pc = new RTCPeerConnection();
-            pc.ontrack = (event) => {{
-              audioEl.srcObject = event.streams[0];
-              audioEl.play().catch(() => {{}});
-            }};
-            const stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
-            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            const sdpRes = await fetch("https://api.openai.com/v1/realtime/calls", {{
-              method: "POST",
-              body: offer.sdp,
-              headers: {{
-                "Authorization": `Bearer ${{token}}`,
-                "Content-Type": "application/sdp"
-              }}
-            }});
-            if (!sdpRes.ok) {{
-              throw new Error("فشل الاتصال الصوتي (" + sdpRes.status + ")");
-            }}
-            const answerSdp = await sdpRes.text();
-            await pc.setRemoteDescription({{ type: "answer", sdp: answerSdp }});
-            statusEl.textContent = "🟢 متصل وجاهز للتحدث الآن";
-          }} catch (err) {{
-            statusEl.textContent = "⚠️ " + (err && err.message ? err.message : err);
-          }}
-        }})();
-        </script>
-        """,
-        height=115,
-    )
-
-  st.sidebar.divider()
   if st.sidebar.button(t_logout_btn):
     save_account_everywhere(rec["user_email"], rec)
     st.session_state.logged_in = False
@@ -1467,11 +1543,17 @@ else:
 
   base_system_prompt = (
       "You are BRAS AI, a smart assistant platform. "
-      f"{get_creator_identity_rule()} "
       f"{get_language_directive(rec['language'])}"
   )
 
   BASE_SECTIONS = {
+      "BRAS LIVE": (
+          "🎙️",
+          (
+              f"{base_system_prompt} You are BRAS LIVE, a friendly conversational "
+              "AI companion. Speak naturally, warmly, and clearly."
+          ),
+      ),
       "المساعد الشامل": (
           "🤖",
           (
@@ -1545,10 +1627,10 @@ else:
           ),
       ),
       "AI Generation Studio": (
-          "🎨",
+          "🎨🎬",
           (
               f"{base_system_prompt} You are a creative studio assistant that can"
-              " generate real images."
+              " generate and edit real images."
           ),
       ),
       "Image Editor": (
@@ -1688,24 +1770,32 @@ else:
       with st.expander(t_file_upload, expanded=False):
         uploaded_media = st.file_uploader(
             "File:",
-            type=["png", "jpg", "jpeg", "webp", "pdf"],
+            type=["png", "jpg", "jpeg", "webp", "mp4", "pdf"],
             key=f"up_{sec_name}",
         )
         if uploaded_media is not None:
           raw_m = uploaded_media.getvalue()
           up_sig = f"{TODAY_STR}:{sec_name}:{uploaded_media.name}:{len(raw_m)}:{hash(raw_m[:128])}"
           lower_name = uploaded_media.name.lower()
+          is_vid_file = lower_name.endswith(".mp4")
           is_img_file = lower_name.endswith((".png", ".jpg", ".jpeg", ".webp"))
 
           if up_sig not in st.session_state.processed_upload_ids:
-            if is_img_file and not rec.get("is_subscribed"):
-              if not can_upload_free_media(rec):
-                st.warning(
-                    "🔒 يُسمح بإرسال **4 صور فقط في اليوم** لغير المشتركين."
-                )
+            if (is_vid_file or is_img_file) and not rec.get("is_subscribed"):
+              if not can_upload_free_media(rec, is_vid_file):
+                if is_vid_file:
+                  st.warning(
+                      "🔒 يُسمح بإرسال **فيديو واحد فقط في اليوم** لغير"
+                      " المشتركين."
+                  )
+                else:
+                  st.warning(
+                      "🔒 يُسمح بإرسال **4 صور فقط في اليوم** لغير"
+                      " المشتركين."
+                  )
               else:
                 st.session_state.processed_upload_ids.append(up_sig)
-                record_free_media_upload(rec)
+                record_free_media_upload(rec, is_vid_file)
             else:
               st.session_state.processed_upload_ids.append(up_sig)
 
@@ -1721,6 +1811,8 @@ else:
                 caption=f"جاهزة للرؤية والتحليل: {uploaded_media.name}",
                 use_container_width=True,
             )
+          elif is_vid_file:
+            st.video(raw_m)
           else:
             st.success(f"تم إرفاق الملف: {uploaded_media.name}")
 
@@ -1775,6 +1867,277 @@ else:
             save_account_everywhere(rec["user_email"], rec)
             st.session_state.latest_voice_text = full_response
             st.rerun()
+
+      is_bras_live_section = sec_name == "BRAS LIVE" or "BRAS LIVE" in sec_name
+      if is_bras_live_section and browsing_item is None:
+        st.markdown("""
+        <style>
+        .bras-character-card {
+          position:relative; overflow:hidden; border:1px solid rgba(190,170,255,.42);
+          border-radius:26px; padding:22px 16px; text-align:center;
+          background:radial-gradient(ellipse at 50% 0%,rgba(170,135,255,.28),transparent 62%),linear-gradient(145deg,rgba(35,25,68,.96),rgba(14,35,60,.96));
+          box-shadow:0 18px 42px rgba(18,12,48,.30),inset 0 1px rgba(255,255,255,.12); min-height:245px;
+          transform:perspective(900px) rotateX(1deg); transition:transform .25s,box-shadow .25s;
+        }
+        .bras-character-card:hover { transform:perspective(900px) rotateX(0) translateY(-4px); box-shadow:0 24px 50px rgba(80,55,150,.30); }
+        .bras-avatar {
+          position:relative; width:142px; height:142px; margin:0 auto 15px; border-radius:50%;
+          display:flex; align-items:center; justify-content:center; overflow:hidden;
+          background:radial-gradient(circle at 32% 22%,#fff 0%,#f2ddff 12%,#bd9bff 35%,#7052bd 67%,#30204f 100%);
+          border:3px solid rgba(255,255,255,.84); box-shadow:0 0 0 7px rgba(177,145,255,.10),0 0 36px rgba(167,139,250,.52),inset 0 -10px 24px rgba(28,14,62,.32);
+          animation:brasFloat 4s ease-in-out infinite;
+        }
+        .bras-avatar:before { content:'';position:absolute;inset:8px;border:1px solid rgba(255,255,255,.25);border-radius:50%;pointer-events:none; }
+        .bras-avatar.boy { background:radial-gradient(circle at 32% 22%,#fff 0%,#d8f6ff 12%,#82d8ff 35%,#397bb4 67%,#172b57 100%);box-shadow:0 0 0 7px rgba(110,200,255,.10),0 0 36px rgba(83,185,255,.48),inset 0 -10px 24px rgba(10,30,60,.32); }
+        .bras-avatar svg { width:100%; height:100%; filter:drop-shadow(0 9px 9px rgba(0,0,0,.32)); }
+        @keyframes brasFloat { 0%,100%{transform:translateY(0) rotateY(-4deg)} 50%{transform:translateY(-7px) rotateY(4deg)} }
+        .bras-character-card h3 { margin: 4px 0 6px; }
+        .bras-character-card p { opacity: .88; margin: 0; font-size: .93rem; }
+        </style>
+        <h2>🎙️ BRAS LIVE</h2>
+        <p>اختَر الشخصية التي تريد التحدث معها.</p>
+        """, unsafe_allow_html=True)
+        girl_col, boy_col = st.columns(2)
+        with girl_col:
+          st.markdown("""
+          <div class="bras-character-card">
+            <div class="bras-avatar">
+              <svg viewBox="0 0 160 160" role="img" aria-label="BRAS GIRL original 3D style avatar">
+                <defs>
+                  <linearGradient id="gHair" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#67405f"/><stop offset=".48" stop-color="#291c39"/><stop offset="1" stop-color="#100f27"/></linearGradient>
+                  <radialGradient id="gSkin" cx="35%" cy="25%"><stop stop-color="#ffe9d8"/><stop offset=".68" stop-color="#edbda7"/><stop offset="1" stop-color="#b87578"/></radialGradient>
+                  <linearGradient id="gCoat" x2="1" y2="1"><stop stop-color="#c6a7ff"/><stop offset="1" stop-color="#5542a1"/></linearGradient>
+                </defs>
+                <ellipse cx="80" cy="151" rx="48" ry="10" fill="#160d35" opacity=".35"/>
+                <path d="M25 151Q26 112 54 105L80 119 106 105Q135 114 137 151Z" fill="url(#gCoat)"/>
+                <path d="M47 111L80 143 113 111 103 103H57Z" fill="#fff0fa"/>
+                <path d="M34 76Q17 16 75 9Q133 8 127 81L119 126Q106 143 95 117L103 58Q78 31 51 61L57 122Q45 144 33 117Z" fill="url(#gHair)"/>
+                <ellipse cx="80" cy="69" rx="35" ry="43" fill="url(#gSkin)"/>
+                <path d="M45 57Q43 13 83 15Q123 14 116 61Q99 40 81 40Q59 39 45 57Z" fill="url(#gHair)"/>
+                <path d="M48 62Q39 88 49 111Q30 106 29 80Q28 51 45 39Z" fill="#382440"/><path d="M111 55Q128 79 112 113Q132 107 134 78Q132 49 117 37Z" fill="#21172f"/>
+                <path d="M57 66Q66 59 73 66M88 66Q96 59 104 66" stroke="#573747" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <ellipse cx="66" cy="73" rx="4.2" ry="5.5" fill="#34263b"/><ellipse cx="95" cy="73" rx="4.2" ry="5.5" fill="#34263b"/>
+                <circle cx="67.5" cy="71" r="1.5" fill="white"/><circle cx="96.5" cy="71" r="1.5" fill="white"/>
+                <ellipse cx="53" cy="85" rx="7" ry="4" fill="#e98e9c" opacity=".35"/><ellipse cx="107" cy="85" rx="7" ry="4" fill="#e98e9c" opacity=".35"/>
+                <path d="M72 94Q80 101 89 94" stroke="#a64f68" stroke-width="3" fill="none" stroke-linecap="round"/>
+                <path d="M79 82L76 88 81 89" stroke="#c4867d" stroke-width="2" fill="none" stroke-linecap="round"/>
+                <path d="M53 39Q65 18 89 26" stroke="#d7a7cb" stroke-width="3" opacity=".55" fill="none" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h3>👩 BRAS GIRL</h3>
+            <p>صوت أنثوي طبيعي · هادئة وذكية · لطيفة وعفوية</p>
+            <p>تفهم سياق الحديث وتتفاعل بشكل طبيعي</p>
+          </div>
+          """, unsafe_allow_html=True)
+        with boy_col:
+          st.markdown("""
+          <div class="bras-character-card">
+            <div class="bras-avatar boy">
+              <svg viewBox="0 0 160 160" role="img" aria-label="BRAS BOY original 3D style avatar">
+                <defs>
+                  <linearGradient id="bHair" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#72513d"/><stop offset=".5" stop-color="#302a35"/><stop offset="1" stop-color="#111b31"/></linearGradient>
+                  <radialGradient id="bSkin" cx="35%" cy="25%"><stop stop-color="#ffe5c9"/><stop offset=".7" stop-color="#dfad8d"/><stop offset="1" stop-color="#a86d67"/></radialGradient>
+                  <linearGradient id="bCoat" x2="1" y2="1"><stop stop-color="#8bdcff"/><stop offset="1" stop-color="#315e9b"/></linearGradient>
+                </defs>
+                <ellipse cx="80" cy="151" rx="48" ry="10" fill="#07162e" opacity=".35"/>
+                <path d="M23 151Q26 112 54 105L80 119 106 105Q134 113 137 151Z" fill="url(#bCoat)"/>
+                <path d="M53 108L80 142 107 108 98 103H62Z" fill="#effaff"/>
+                <path d="M42 66Q31 16 80 12Q129 13 119 74L111 104Q101 120 94 103L102 55Q80 34 56 55L64 105Q52 122 42 101Z" fill="url(#bHair)"/>
+                <ellipse cx="80" cy="69" rx="35" ry="43" fill="url(#bSkin)"/>
+                <path d="M45 57Q39 19 75 15Q112 8 119 48L110 57Q94 38 76 40Q58 39 45 61Z" fill="url(#bHair)"/>
+                <path d="M55 65Q65 59 73 65M88 65Q97 59 105 65" stroke="#44323a" stroke-width="4" fill="none" stroke-linecap="round"/>
+                <ellipse cx="66" cy="73" rx="4.2" ry="5.5" fill="#26303a"/><ellipse cx="95" cy="73" rx="4.2" ry="5.5" fill="#26303a"/>
+                <circle cx="67.5" cy="71" r="1.5" fill="white"/><circle cx="96.5" cy="71" r="1.5" fill="white"/>
+                <path d="M80 78L76 89 82 90" stroke="#b77b69" stroke-width="2" fill="none" stroke-linecap="round"/>
+                <path d="M71 96Q80 101 90 96" stroke="#995665" stroke-width="3" fill="none" stroke-linecap="round"/>
+                <path d="M51 39Q65 19 91 26" stroke="#c5a38d" stroke-width="3" opacity=".55" fill="none" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h3>👨 BRAS BOY</h3>
+            <p>صوت رجالي طبيعي · ذكي وسريع · خفيف بالحوار</p>
+            <p>يرد بوضوح وبأسلوب عفوي</p>
+          </div>
+          """, unsafe_allow_html=True)
+        character = st.radio(
+            "اختيار الشخصية:",
+            ["BRAS GIRL", "BRAS BOY"],
+            horizontal=True,
+            key="bras_live_character",
+        )
+        st.success(f"تم اختيار {character} — جاهز للمحادثة بالصوت والصورة.")
+        st.markdown("### 📞 مكالمة BRAS LIVE المباشرة")
+        st.caption("مكالمة صوتية مباشرة، وشخصية تتفاعل مع صوتها، وكاميرا أمامية/خلفية بمعاينة مباشرة على جهازك.")
+        start_live = st.button("▶️ بدء المكالمة المباشرة", key="bras_live_start_call", type="primary")
+        if start_live:
+          with st.spinner("جارٍ تجهيز اتصال آمن مع OpenAI..."):
+            live_secret, live_error = create_bras_realtime_secret(character)
+          if live_error:
+            st.error(live_error)
+          else:
+            st.session_state["bras_live_ephemeral_secret"] = live_secret
+            st.session_state["bras_live_active_character"] = character
+
+        if st.session_state.get("bras_live_ephemeral_secret"):
+          if st.session_state.get("bras_live_active_character") != character:
+            st.session_state.pop("bras_live_ephemeral_secret", None)
+            st.warning("غيّرت الشخصية. اضغط بدء المكالمة مرة أخرى.")
+          else:
+            ephemeral = st.session_state["bras_live_ephemeral_secret"]
+            live_html = r"""
+            <div id="bras-live" style="font-family:system-ui;color:#f7f4ff;background:radial-gradient(circle at 50% 0%,#4a3478 0%,#20183e 48%,#101d35 100%);padding:20px;border:1px solid #7560a8;border-radius:26px;box-shadow:0 18px 48px #120b2c55">
+              <div style="text-align:center;padding:5px 0 14px">
+                <div style="font-size:25px;font-weight:800;letter-spacing:1px">✦ BRAS LIVE ✦</div>
+                <div id="status" style="opacity:.9;margin-top:7px">جاهز للاتصال</div>
+              </div>
+              <div style="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap">
+                <div id="live-avatar" class="live-avatar girl"><div class="live-orbit"></div><div class="live-face"><span class="live-hair"></span><span class="live-eyes">●　●</span><span class="live-mouth"></span></div><div class="live-name">BRAS GIRL</div></div>
+                <div class="live-camera-wrap"><video id="cam" autoplay playsinline muted></video><div id="camera-placeholder">📷<br>الكاميرا متوقفة</div></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+                <button id="mic">🔇 كتم المايك</button>
+                <button id="camera">📷 تشغيل الكاميرا الأمامية</button>
+                <button id="switch-camera" disabled>🔄 تبديل أمامية / خلفية</button>
+                <button id="mirror" disabled>🪞 عكس المرآة: إيقاف</button>
+                <button id="hangup" style="background:#a83252;color:white">إنهاء المكالمة</button>
+              </div>
+              <div id="transcript" aria-live="polite" style="margin-top:14px;min-height:55px;max-height:150px;overflow:auto;white-space:pre-wrap;background:#ffffff12;padding:12px;border-radius:14px"></div>
+            </div>
+            <style>
+              #bras-live button{border:0;border-radius:14px;padding:11px 15px;background:linear-gradient(135deg,#9d80ff,#6c55d9);color:white;font-weight:700;cursor:pointer;box-shadow:0 5px 15px #08051b55}
+              #bras-live button:disabled{opacity:.5;cursor:not-allowed}
+              #bras-live .live-avatar{width:176px;height:176px;position:relative;border-radius:50%;display:grid;place-items:center;overflow:visible;background:radial-gradient(circle at 35% 25%,#fff,#dfcaff 15%,#9977ef 48%,#34205f 82%);border:4px solid #fff9;box-shadow:0 0 0 9px #bba1ff20,0 0 40px #a78bfa99;animation:liveFloat 4s ease-in-out infinite}
+              #bras-live .live-avatar.boy{background:radial-gradient(circle at 35% 25%,#fff,#c8f2ff 15%,#64bde8 48%,#183e70 82%);box-shadow:0 0 0 9px #86d9ff20,0 0 40px #66caff88}
+              #bras-live .live-avatar.speaking{animation:liveTalk .32s ease-in-out infinite alternate;box-shadow:0 0 0 12px #d9c6ff33,0 0 52px #c6a5ffcc}
+              @keyframes liveTalk{from{transform:translateY(-2px) scale(1)}to{transform:translateY(-4px) scale(1.025)}}
+              #bras-live .live-face{position:relative;width:112px;height:118px;border-radius:48% 48% 45% 45%;background:radial-gradient(circle at 35% 22%,#ffe8d7,#e6b49e 65%,#ad7377);box-shadow:inset -10px -12px 20px #5b315744,0 12px 18px #160d3566;border:4px solid #fff9}
+              #bras-live .live-hair{position:absolute;left:-5px;top:-9px;width:114px;height:53px;border-radius:55% 55% 28% 25%;background:linear-gradient(145deg,#67405f,#21162f 70%);box-shadow:inset 8px 5px 9px #ffffff22}
+              #bras-live .live-eyes{position:absolute;top:58px;left:23px;color:#352536;font-size:17px;letter-spacing:3px;text-shadow:0 1px #fff8}
+              #bras-live .live-mouth{position:absolute;left:47px;top:91px;width:19px;height:8px;border-bottom:3px solid #a34f65;border-radius:50%}
+              #bras-live .live-avatar.boy .live-face{background:radial-gradient(circle at 35% 22%,#ffe7cf,#dcae8e 65%,#9c6967)}
+              #bras-live .live-avatar.boy .live-hair{background:linear-gradient(145deg,#72513d,#17243a 75%);height:45px}
+              #bras-live .live-orbit{position:absolute;inset:-10px;border:1px solid #ffffff77;border-radius:50%;transform:rotateX(67deg);box-shadow:0 0 18px #d8c3ff88}
+              #bras-live .live-name{position:absolute;bottom:-29px;font-size:12px;letter-spacing:1.4px;font-weight:800;color:#fff;text-shadow:0 2px 8px #000}
+              #bras-live .live-camera-wrap{position:relative;width:min(100%,280px);height:190px;border-radius:18px;overflow:hidden;background:#080d19;border:2px solid #ffffff66;box-shadow:0 8px 24px #08051b66}
+              #bras-live #cam{display:none;width:100%;height:100%;object-fit:cover;transform:none}
+              #bras-live #camera-placeholder{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#d7d1ed;opacity:.85}
+              @keyframes liveFloat{0%,100%{transform:translateY(0) rotateY(-5deg)}50%{transform:translateY(-8px) rotateY(5deg)}}
+            </style>
+            <script>
+            (() => {
+              const token = "__EPHEMERAL__";
+              const model = "gpt-realtime-2.1";
+              const status = document.getElementById("status");
+              const avatar = document.getElementById("live-avatar");
+              const selectedCharacter = "__CHARACTER__";
+              if(selectedCharacter === "BRAS BOY") { avatar.classList.remove("girl"); avatar.classList.add("boy"); avatar.querySelector(".live-name").textContent="BRAS BOY"; }
+              const transcript = document.getElementById("transcript");
+              const video = document.getElementById("cam");
+              let pc, dc, micStream, camStream, cameraFacing="user", mirrorPreview=false, closed=false;
+              const say = t => status.textContent=t;
+              const log = t => { transcript.textContent += t + "\\n"; transcript.scrollTop=transcript.scrollHeight; };
+              async function connect(){
+                try {
+                  say("جارٍ الاتصال...");
+                  pc = new RTCPeerConnection();
+                  pc.ontrack = e => {
+                    let audio = document.getElementById("remote-audio");
+                    if(!audio){audio=document.createElement("audio");audio.id="remote-audio";audio.autoplay=true;document.body.appendChild(audio);}
+                    audio.srcObject=e.streams[0];
+                    audio.onplaying=()=>avatar.classList.add("speaking");
+                    audio.onpause=()=>avatar.classList.remove("speaking");
+                    audio.onended=()=>avatar.classList.remove("speaking");
+                  };
+                  dc = pc.createDataChannel("oai-events");
+                  dc.onopen = () => {
+                    document.getElementById("mic").textContent = "🔇 كتم المايك";
+                  };
+                  dc.onmessage = ev => {
+                    try {
+                      const d=JSON.parse(ev.data);
+                      if(d.type==="response.output_audio_transcript.done" && d.transcript) log("BRAS: "+d.transcript);
+                      if(d.type==="conversation.item.input_audio_transcription.completed" && d.transcript) log("أنت: "+d.transcript);
+                      if(d.type==="error") {
+                        const message = d.error?.message || "تعذر تنفيذ الطلب";
+                        log("خطأ: "+message);
+                        say("حدث خطأ في الاتصال");
+                      }
+                    } catch(_){}
+                  };
+                  micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+                  micStream.getTracks().forEach(t=>pc.addTrack(t,micStream));
+                  const offer=await pc.createOffer();
+                  await pc.setLocalDescription(offer);
+                  const response=await fetch("https://api.openai.com/v1/realtime/calls?model="+model,{
+                    method:"POST",
+                    body:offer.sdp,
+                    headers:{"Authorization":"Bearer "+token,"Content-Type":"application/sdp"}
+                  });
+                  if(!response.ok) throw new Error(await response.text());
+                  await pc.setRemoteDescription({type:"answer",sdp:await response.text()});
+                  say("🟢 متصل — تحدث الآن. إذا تكلمت أثناء الرد، يفترض أن يتوقف ويستمع إليك.");
+                } catch(e){say("تعذر الاتصال: "+e.message); log("تحقق من المفتاح والرصيد والسماح بالمايك.");}
+              }
+              document.getElementById("mic").onclick=async()=>{
+                if(!pc){await connect();return;}
+                const track=micStream?.getAudioTracks()[0];
+                if(track){track.enabled=!track.enabled;document.getElementById("mic").textContent=track.enabled?"🔇 كتم المايك":"🎙️ تشغيل المايك";}
+              };
+              async function openCamera(facing){
+                if(camStream) camStream.getTracks().forEach(t=>t.stop());
+                camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720}},audio:false});
+                cameraFacing=facing;
+                video.srcObject=camStream;
+                video.style.display="block";
+                video.style.transform=mirrorPreview && facing==="user" ? "scaleX(-1)" : "none";
+                document.getElementById("camera-placeholder").style.display="none";
+                document.getElementById("camera").textContent="⏸ إيقاف الكاميرا";
+                document.getElementById("switch-camera").disabled=false;
+                document.getElementById("mirror").disabled=false;
+                say(facing==="user" ? "📷 الكاميرا الأمامية تعمل مباشرة على جهازك." : "📷 الكاميرا الخلفية تعمل مباشرة على جهازك.");
+              }
+              document.getElementById("camera").onclick=async()=>{
+                try{
+                  if(!camStream){await openCamera("user");}
+                  else{
+                    camStream.getTracks().forEach(t=>t.stop());camStream=null;video.srcObject=null;video.style.display="none";
+                    document.getElementById("camera-placeholder").style.display="grid";
+                    document.getElementById("camera").textContent="📷 تشغيل الكاميرا الأمامية";
+                    document.getElementById("switch-camera").disabled=true;document.getElementById("mirror").disabled=true;
+                    say("تم إيقاف الكاميرا.");
+                  }
+                }catch(e){say("تعذر فتح الكاميرا: "+e.message);}
+              };
+              document.getElementById("switch-camera").onclick=async()=>{
+                if(!camStream)return;
+                try{await openCamera(cameraFacing==="user"?"environment":"user");}
+                catch(e){say("لم تتوفر الكاميرا الأخرى على هذا الجهاز: "+e.message);}
+              };
+              document.getElementById("mirror").onclick=()=>{
+                mirrorPreview=!mirrorPreview;
+                video.style.transform=mirrorPreview && cameraFacing==="user" ? "scaleX(-1)" : "none";
+                document.getElementById("mirror").textContent=mirrorPreview?"🪞 عكس المرآة: تشغيل":"🪞 عكس المرآة: إيقاف";
+              };
+              document.getElementById("hangup").onclick=()=>{
+                closed=true;pc?.close();micStream?.getTracks().forEach(t=>t.stop());camStream?.getTracks().forEach(t=>t.stop());
+                video.style.display="none";say("انتهت المكالمة. أعد تحميل القسم لبدء مكالمة جديدة.");
+                document.querySelectorAll("#bras-live button").forEach(b=>b.disabled=true);
+              };
+              connect();
+            })();
+            </script>
+            """.replace("__EPHEMERAL__", ephemeral)
+            live_html = live_html.replace("__CHARACTER__", character)
+            components.html(live_html, height=570, scrolling=False)
+            if st.button("🧹 إغلاق وإلغاء رمز المكالمة", key="bras_live_clear_secret"):
+              st.session_state.pop("bras_live_ephemeral_secret", None)
+              st.rerun()
+        st.info(
+            "تحتاج المكالمة إلى مفتاح API ورصيد فعال. لا تضع المفتاح الدائم داخل المتصفح؛ "
+            "التطبيق ينشئ رمزاً مؤقتاً قصير الصلاحية. الكاميرا هنا بث معاينة مباشر على جهازك فقط، ولا تُرسل صوراً أو فيديو إلى نموذج OpenAI. "
+            "واجهة Realtime API الحالية تقبل صوراً مرفقة بالمحادثة، لكنها لا توفر إدخال فيديو حيّاً أصلياً مستمراً؛ لذلك لن أدّعي أن BRAS يرى حركتك مباشرة. اسمح للمتصفح باستخدام المايك والكاميرا، "
+            "وافتح التطبيق عبر HTTPS أو localhost."
+        )
+        st.markdown("---")
 
       is_ads_section = sec_name == SECTIONS_NAMES.get(
           "Ads & Stores Studio", "Ads & Stores Studio"
@@ -1834,40 +2197,27 @@ else:
       )
       if is_gen_section and browsing_item is None:
         st.markdown(f"### 🎨 {t_ai_gen_studio}")
-        st.caption(
-            "المتبقي من الصور اليوم:"
-            f" {max(0, FREE_DAILY_IMAGE_LIMIT - rec.get('free_daily_images_used', 0))}/{FREE_DAILY_IMAGE_LIMIT}"
-        )
+        if not rec.get("is_subscribed"):
+          remaining_images = max(0, FREE_DAILY_IMAGE_LIMIT - rec.get("free_daily_images_used", 0))
+          st.caption(f"المتبقي من الصور اليوم: {remaining_images}/{FREE_DAILY_IMAGE_LIMIT}")
 
-        media_mode = st.radio(
-            f"{t_media_mode_q}",
-            [f"{t_gen_real_image}"],
-            horizontal=True,
-            key="media_gen_mode",
-        )
         media_prompt = st.text_area(
-            f"{t_media_prompt_q}", key="media_gen_prompt"
+            "اكتبي وصف الصورة بالتفصيل:", key="media_gen_prompt"
         )
-
         if st.button(f"{t_gen_btn}", type="primary", key="gen_real_media_btn"):
           if not media_prompt.strip():
             st.info("اكتبي وصفاً أولاً.")
-          elif not can_upload_free_media(rec):
-            st.warning(
-                "🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم)."
-            )
+          elif not can_upload_free_media(rec, is_video=False):
+            st.warning("🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم).")
           else:
-            with st.spinner("جاري رسم الصورة..."):
+            with st.spinner("جاري رسم الصورة باستخدام OpenAI..."):
               img_out, err = generate_real_image(media_prompt.strip())
             if img_out:
-              record_free_media_upload(rec)
-              st.image(
-                  img_out,
-                  caption=media_prompt.strip(),
-                  use_container_width=True,
-              )
+              record_free_media_upload(rec, is_video=False)
+              st.image(img_out, caption=media_prompt.strip(), use_container_width=True)
             else:
               st.error(f"تعذر إنشاء الصورة: {err}")
+        st.markdown("---")
 
       is_edit_section = sec_name == SECTIONS_NAMES.get(
           "Image Editor", "Image Editor"
@@ -1900,36 +2250,30 @@ else:
           mime_e = (
               "image/jpeg" if ext_e in ["jpg", "jpeg"] else f"image/{ext_e}"
           )
-          b64_e = base64.b64encode(raw_e).decode("utf-8")
           st.image(raw_e, caption="الصورة الأصلية", use_container_width=True)
 
           if st.button(
               f"{t_edit_img_btn}", type="primary", key="run_edit_btn"
           ):
-            if not can_upload_free_media(rec):
+            if not can_upload_free_media(rec, is_video=False):
               st.warning(
                   "🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم)."
               )
             else:
               with st.spinner("جاري معالجة الصورة..."):
-                edited_out, err_e = edit_user_image(b64_e, mime_e, edit_effect)
-              if edited_out:
-                record_free_media_upload(rec)
+                edited_url, err_e = edit_user_image(raw_e, mime_e, edit_effect)
+              if edited_url:
+                record_free_media_upload(rec, is_video=False)
                 st.success("✅ تم تعديل الصورة بنجاح!")
                 st.image(
-                    edited_out,
+                    edited_url,
                     caption=f"نتيجة: {edit_effect}",
                     use_container_width=True,
                 )
-                if isinstance(edited_out, bytes):
-                  st.download_button(
-                      label="⬇️ تحميل الصورة",
-                      data=edited_out,
-                      file_name="edited_image.png",
-                      mime="image/png",
-                  )
-                else:
-                  st.link_button("⬇️ تحميل الصورة", edited_out)
+                if isinstance(edited_url, (bytes, bytearray)):
+                  st.download_button("⬇️ تحميل الصورة", data=edited_url, file_name="bras_ai_edited.png", mime="image/png", key="download_edited_image")
+                elif isinstance(edited_url, str):
+                  st.link_button("⬇️ تحميل الصورة", edited_url)
               else:
                 st.error(f"تعذر تعديل الصورة: {err_e}")
 
@@ -1992,7 +2336,15 @@ else:
                   rec["section_messages"][sec_name],
                   sec_name=sec_name,
               )
-              reply_with_voice(full_response, rec["voice"])
+              if sec_name == "BRAS LIVE":
+                live_voice = (
+                    "صوت رجل (Onyx)" if st.session_state.get("bras_live_character", "BRAS GIRL") == "BRAS BOY"
+                    else "صوت بنت (Nova)"
+                )
+                play_voice_only(full_response, live_voice)
+                st.markdown(full_response)
+              else:
+                reply_with_voice(full_response, rec["voice"])
               rec["section_messages"][sec_name].append(
                   {"role": "assistant", "content": full_response}
               )
