@@ -867,13 +867,18 @@ def generate_real_image(prompt_text: str):
     return None, "أضيفي OPENAI_API_KEY أولاً في Secrets."
   try:
     img_res = client.images.generate(
-        model="dall-e-3",
+        model="gpt-image-1",
         prompt=prompt_text,
         size="1024x1024",
-        quality="standard",
     )
-    url = img_res.data[0].url
-    return url, None
+    first_item = img_res.data[0]
+    b64_data = getattr(first_item, "b64_json", None)
+    if b64_data:
+      return base64.b64decode(b64_data), None
+    url = getattr(first_item, "url", None)
+    if url:
+      return url, None
+    return None, "لم يرجع بيانات صورة من الخادم."
   except Exception as e:
     return None, str(e)
 
@@ -1407,8 +1412,6 @@ label, .stRadio label, .stCheckbox label, .stSelectbox label,
 """,
     unsafe_allow_html=True,
 )
-
-st.markdown(f"<h1 class='main-title'>{t_title}</h1>", unsafe_allow_html=True)
 
 if not st.session_state.logged_in:
   st.markdown(
