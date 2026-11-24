@@ -1,5 +1,5 @@
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import os
 import re
@@ -29,6 +29,7 @@ SUPABASE_KEY = str(st.secrets.get("SUPABASE_KEY", "")).strip()
 GOOGLE_CLIENT_ID = str(st.secrets.get("GOOGLE_CLIENT_ID", "")).strip()
 GOOGLE_CLIENT_SECRET = str(st.secrets.get("GOOGLE_CLIENT_SECRET", "")).strip()
 APP_REDIRECT_URI = str(st.secrets.get("APP_REDIRECT_URI", "")).strip()
+FAL_KEY = str(st.secrets.get("FAL_KEY", "")).strip()
 
 
 def is_valid_gmail(email_str: str) -> bool:
@@ -89,7 +90,11 @@ def cloud_load_account(email_key: str):
     )
     with urllib.request.urlopen(req, timeout=6) as resp:
       rows = json.loads(resp.read().decode("utf-8"))
-      if rows and isinstance(rows, list) and isinstance(rows[0].get("data"), dict):
+      if (
+          rows
+          and isinstance(rows, list)
+          and isinstance(rows[0].get("data"), dict)
+      ):
         return rows[0]["data"]
   except Exception:
     pass
@@ -101,7 +106,9 @@ def cloud_save_account(email_key: str, account_data: dict):
     return
   try:
     url = f"{SUPABASE_URL}/rest/v1/bras_accounts"
-    body = json.dumps({"email": email_key, "data": account_data}).encode("utf-8")
+    body = json.dumps({"email": email_key, "data": account_data}).encode(
+        "utf-8"
+    )
     req = urllib.request.Request(
         url,
         data=body,
@@ -289,7 +296,17 @@ def get_kurmanji_ui_pack() -> dict:
       "t_archive_header": "📚 ئەرشیف",
       "t_no_archive": "چ ئاخفتنێن ئەرشیفکری نینن.",
       "t_browse": "📖 ڤەکرن و دیتن",
-      "ads_sec_key": "پشکا ریکلام و بازاڕان",
+      "t_ads_studio": "📢 ستودیویا ریکلام و بازاڕان",
+      "t_ai_gen_studio": "🎨🎬 ستودیویا ئافراندنا وێنە و ڤیدیۆیان",
+      "t_img_edit_studio": "🛠️ ستودیویا دەستکاریکرنا وێنەی",
+      "t_gen_real_image": "🖼️ وێنەیێ حەقیقی",
+      "t_gen_real_video": "🎬 ڤیدیۆیێ حەقیقی (MP4)",
+      "t_media_mode_q": "BRAS AI نوکە چ ئافرینیت؟",
+      "t_media_prompt_q": "وێسفێ وێنەی یان ڤیدیۆیێ ب دەقیقی بنڤیسە:",
+      "t_gen_btn": "✨ ئافراندن نوکە",
+      "t_upload_img_q": "وێنەی بۆ دەستکاریکرنێ بارکە:",
+      "t_img_effect_q": "چ کاریگەریەک (Effect) لسەر وێنەی بھێتە کرن؟",
+      "t_edit_img_btn": "🛠️ دەستکاریکرنا وێنەی",
       "sections_map": {
           "المساعد الشامل": "هاریکارێ گشتی",
           "المعلم الشامل": "مامۆستایێ گشتی",
@@ -303,8 +320,9 @@ def get_kurmanji_ui_pack() -> dict:
           "قسم التاريخ": "پشکا مێژوویێ",
           "الصحة، الدايت والجيم": "ساخلەمی، دایت و جیم",
           "نصائح وتطوير الذات": "شیرەت و پێشئێخستنا کەسایەتیێ",
-          "پشکا ریکلام و بازاڕان": "پشکا ریکلام و بازاڕان",
-          "صانع الفيديوهات والأفكار": "چێکەرێ ڤیدیۆ و هزران",
+          "Ads & Stores Studio": "📢 ستودیویا ریکلام و بازاڕان",
+          "AI Generation Studio": "🎨🎬 ستودیویا ئافراندنا وێنە و ڤیدیۆیان",
+          "Image Editor": "🛠️ ستودیویا دەستکاریکرنا وێنەی",
       },
   }
 
@@ -353,7 +371,17 @@ def get_sorani_ui_pack() -> dict:
       "t_archive_header": "📚 ئەرشیف",
       "t_no_archive": "هیچ گفتوگۆیەکی ئەرشیفکراو نییە.",
       "t_browse": "📖 پشکنین و بینین",
-      "ads_sec_key": "بەشی ڕیکلام و فرۆشگاکان",
+      "t_ads_studio": "📢 بەشی ڕیکلام و فرۆشگاکان",
+      "t_ai_gen_studio": "🎨🎬 بەشی دروستکردنی وێنە و ڤیدیۆ",
+      "t_img_edit_studio": "🛠️ بەشی دەستکاریکردنی وێنە",
+      "t_gen_real_image": "🖼️ وێنەی ڕاستەقینە",
+      "t_gen_real_video": "🎬 ڤیدیۆی ڕاستەقینە (MP4)",
+      "t_media_mode_q": "BRAS AI ئێستا چی دروست بکات؟",
+      "t_media_prompt_q": "وەسفی وێنە یان ڤیدیۆکە بە وردی بنووسە:",
+      "t_gen_btn": "✨ دروستکردن ئێستا",
+      "t_upload_img_q": "وێنە بۆ دەستکاریکردن بارکە:",
+      "t_img_effect_q": "چ کاراییەک (Effect) بەسەر وێنەکەدا بێت؟",
+      "t_edit_img_btn": "🛠️ دەستکاریکردنی وێنە",
       "sections_map": {
           "المساعد الشامل": "یاریدەدەری گشتی",
           "المعلم الشامل": "مامۆستای گشتی",
@@ -367,8 +395,9 @@ def get_sorani_ui_pack() -> dict:
           "قسم التاريخ": "بەشی مێژوو",
           "الصحة، الدايت والجيم": "تەندروستی، دایت و جیم",
           "نصائح وتطوير الذات": "ئامۆژگاری و پەرەپێدانی خود",
-          "بەشی ڕیکلام و فرۆشگاکان": "بەشی ڕیکلام و فرۆشگاکان",
-          "صانع الفيديوهات والأفكار": "دروستکەری ڤیدیۆ و بیرۆکەکان",
+          "Ads & Stores Studio": "📢 بەشی ڕیکلام و فرۆشگاکان",
+          "AI Generation Studio": "🎨🎬 بەشی دروستکردنی وێنە و ڤیدیۆ",
+          "Image Editor": "🛠️ بەشی دەستکاریکردنی وێنە",
       },
   }
 
@@ -417,7 +446,17 @@ def get_arabic_ui_pack() -> dict:
       "t_archive_header": "📚 الأرشيف",
       "t_no_archive": "لا توجد محادثات مؤرشفة.",
       "t_browse": "📖 استعراض",
-      "ads_sec_key": "قسم الإعلانات والمتاجر",
+      "t_ads_studio": "📢 قسم الإعلانات والمتاجر",
+      "t_ai_gen_studio": "🎨🎬 استوديو إنشاء الصور والفيديوهات",
+      "t_img_edit_studio": "🛠️ استوديو تعديل الصور",
+      "t_gen_real_image": "🖼️ صورة حقيقية",
+      "t_gen_real_video": "🎬 فيديو حقيقي (MP4)",
+      "t_media_mode_q": "ماذا تريدين أن ينشئ BRAS AI الآن؟",
+      "t_media_prompt_q": "اكتبي وصف الصورة أو الفيديو بالتفصيل:",
+      "t_gen_btn": "✨ إنشاء الآن",
+      "t_upload_img_q": "ارفعِ صورة لتعديلها:",
+      "t_img_effect_q": "ما التأثير المطلوب تطبيقه على الصورة؟",
+      "t_edit_img_btn": "🛠️ تعديل الصورة",
       "sections_map": {
           "المساعد الشامل": "المساعد الشامل",
           "المعلم الشامل": "المعلم الشامل",
@@ -431,8 +470,9 @@ def get_arabic_ui_pack() -> dict:
           "قسم التاريخ": "قسم التاريخ",
           "الصحة، الدايت والجيم": "الصحة، الدايت والجيم",
           "نصائح وتطوير الذات": "نصائح وتطوير الذات",
-          "قسم الإعلانات والمتاجر": "قسم الإعلانات والمتاجر",
-          "صانع الفيديوهات والأفكار": "صانع الفيديوهات والأفكار",
+          "Ads & Stores Studio": "📢 قسم الإعلانات والمتاجر",
+          "AI Generation Studio": "🎨🎬 استوديو إنشاء الصور والفيديوهات",
+          "Image Editor": "🛠️ استوديو تعديل الصور",
       },
   }
 
@@ -477,7 +517,17 @@ def get_english_ui_pack() -> dict:
       "t_archive_header": "📚 Archives",
       "t_no_archive": "No archived conversations.",
       "t_browse": "📖 Browse",
-      "ads_sec_key": "Ads & Stores Studio",
+      "t_ads_studio": "📢 Ads & Stores Studio",
+      "t_ai_gen_studio": "🎨🎬 AI Generation Studio",
+      "t_img_edit_studio": "🛠️ Image Editor",
+      "t_gen_real_image": "🖼️ Real Image",
+      "t_gen_real_video": "🎬 Real Video (MP4)",
+      "t_media_mode_q": "What should BRAS AI create now?",
+      "t_media_prompt_q": "Enter detailed image or video description:",
+      "t_gen_btn": "✨ Generate Now",
+      "t_upload_img_q": "Upload image to edit:",
+      "t_img_effect_q": "What effect to apply to the image?",
+      "t_edit_img_btn": "🛠️ Edit Image",
       "sections_map": {
           "المساعد الشامل": "Comprehensive Assistant",
           "المعلم الشامل": "School Teacher",
@@ -492,7 +542,8 @@ def get_english_ui_pack() -> dict:
           "الصحة، الدايت والجيم": "Fitness & Health",
           "نصائح وتطوير الذات": "Life Advisor",
           "Ads & Stores Studio": "Ads & Stores Studio",
-          "صانع الفيديوهات والأفكار": "Video & Ideas Studio",
+          "AI Generation Studio": "AI Generation Studio",
+          "Image Editor": "Image Editor",
       },
   }
 
@@ -621,7 +672,17 @@ t_file_upload = ui_pack["t_file_upload"]
 t_archive_header = ui_pack["t_archive_header"]
 t_no_archive = ui_pack["t_no_archive"]
 t_browse = ui_pack["t_browse"]
-ads_sec_key = ui_pack["ads_sec_key"]
+t_ads_studio = ui_pack["t_ads_studio"]
+t_ai_gen_studio = ui_pack["t_ai_gen_studio"]
+t_img_edit_studio = ui_pack["t_img_edit_studio"]
+t_gen_real_image = ui_pack["t_gen_real_image"]
+t_gen_real_video = ui_pack["t_gen_real_video"]
+t_media_mode_q = ui_pack["t_media_mode_q"]
+t_media_prompt_q = ui_pack["t_media_prompt_q"]
+t_gen_btn = ui_pack["t_gen_btn"]
+t_upload_img_q = ui_pack["t_upload_img_q"]
+t_img_effect_q = ui_pack["t_img_effect_q"]
+t_edit_img_btn = ui_pack["t_edit_img_btn"]
 SECTIONS_NAMES = ui_pack["sections_map"]
 
 st.markdown(
@@ -801,6 +862,92 @@ def transcribe_once(audio_file, scope_name: str):
     return None
 
 
+def generate_real_image(prompt_text: str):
+  if not client:
+    return None, "أضيفي OPENAI_API_KEY أولاً في Secrets."
+  try:
+    img_res = client.images.generate(
+        model="dall-e-3",
+        prompt=prompt_text,
+        size="1024x1024",
+        quality="standard",
+    )
+    url = img_res.data[0].url
+    return url, None
+  except Exception as e:
+    return None, str(e)
+
+
+def generate_real_video(prompt_text: str):
+  if not FAL_KEY:
+    return None, "أضيفي FAL_KEY من موقع fal.ai في Streamlit Secrets."
+  try:
+    url = "https://fal.run/fal-ai/luma-dream-machine"
+    body = json.dumps({"prompt": prompt_text}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": f"Key {FAL_KEY}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=120) as resp:
+      res_data = json.loads(resp.read().decode("utf-8"))
+      video_url = res_data.get("video", {}).get("url")
+      if video_url:
+        return video_url, None
+      return None, "لم يرجع رابط فيديو من الخادم."
+  except Exception as e:
+    return None, str(e)
+
+
+def edit_user_image(input_b64_img: str, mime_type: str, effect_type: str):
+  if not FAL_KEY:
+    return None, "أضيفي FAL_KEY من موقع fal.ai في Streamlit Secrets."
+
+  api_endpoints = {
+      "🖼️ تحويل لصورة كرتونية (Style Transfer)": (
+          "https://fal.run/schnell/image-to-cartoon"
+      ),
+      "🔍 تحسين الجودة ودقة الصورة (Super Resolution)": (
+          "https://fal.run/fal-ai/real-esrgan"
+      ),
+      "🧙‍♂️ تأثير سحري آخر (مثلاً: إضاءة سينمائية)": (
+          "https://fal.run/fal-ai/stable-diffusion-v1-5-img2img"
+      ),
+  }
+  api_url = api_endpoints.get(effect_type)
+  if not api_url:
+    return None, "التأثير غير مدعوم."
+
+  try:
+    safe_mime = mime_type if mime_type else "image/png"
+    payload = {"image_url": f"data:{safe_mime};base64,{input_b64_img}"}
+    if "img2img" in api_url:
+      payload["prompt"] = "cinematic lighting, highly detailed"
+
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        api_url,
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": f"Key {FAL_KEY}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+      res_data = json.loads(resp.read().decode("utf-8"))
+      out_url = res_data.get("image", {}).get("url")
+      if out_url:
+        return out_url, None
+      return None, "لم يرجع رابط الصورة المعدلة."
+  except Exception as e:
+    return None, str(e)
+
+
 def record_subscriber_lesson_memory(account_rec: dict, sec_name: str, msgs: list):
   if not account_rec.get("is_subscribed") or not msgs:
     return
@@ -881,10 +1028,9 @@ def get_language_directive(selected_lang: str) -> str:
       or "Badini" in selected_lang
   ):
     return (
-        "Respond strictly in Kurdish Kurmanji / Badini dialect using Arabic"
-        " script as spoken and written in Duhok (بە شێوەزارێ بادینی/کورمانجی ب"
-        " پیتێن عەرەبی، وەک: ئەز، تە، دکەم، نڤیسی، سەرکەفتی). Do NOT use"
-        " Sorani or Arabic."
+        "Respond strictly in Kurdish Kurmanji using Arabic script as spoken and"
+        " written in Duhok (بە شێوەزارێ کورمانجی ب پیتێن عەرەبی، وەک: ئەز، تە،"
+        " دکەم، نڤیسی، سەرکەفتی). Do NOT use Sorani or Arabic."
     )
   if "Sorani" in selected_lang or "سوراني" in selected_lang:
     return (
@@ -1047,6 +1193,224 @@ def render_chat_message(message: dict):
 
 
 if not st.session_state.logged_in:
+  ui_pack = get_arabic_ui_pack()
+  is_dark = True
+  bg_color = "#0b0b0d"
+  text_color = "#ffffff"
+  muted_text = "#e5e5ea"
+  card_bg = "#17171c"
+  input_bg = "#1f1f26"
+  border_color = "#9b5de5"
+  accent_color = "#c084fc"
+  container_max_width = "1240px"
+  block_padding = "1.5rem 2.2rem"
+  btn_height = "110px"
+  btn_font = "1.06rem"
+  rec = None
+else:
+  rec = sync_current_gmail_data()
+  lang = rec["language"]
+  is_screen_mode = "شاشة" in rec["screen_mode"] or "Screen" in rec["screen_mode"]
+  ui_pack = resolve_ui_pack(lang)
+  is_dark = "داكن" in rec["theme"] or "Dark" in rec["theme"]
+  bg_color = "#0b0b0d" if is_dark else "#ffffff"
+  text_color = "#ffffff" if is_dark else "#111111"
+  muted_text = "#e5e5ea" if is_dark else "#222222"
+  card_bg = "#17171c" if is_dark else "#f5f5f7"
+  input_bg = "#1f1f26" if is_dark else "#ffffff"
+  border_color = "#9b5de5"
+  accent_color = "#c084fc" if is_dark else "#6b21a8"
+  container_max_width = "100%" if is_screen_mode else "1240px"
+  block_padding = "1rem 1.4rem" if is_screen_mode else "1.5rem 2.2rem"
+  btn_height = "125px" if is_screen_mode else "110px"
+  btn_font = "1.18rem" if is_screen_mode else "1.06rem"
+
+t_title = ui_pack["t_title"]
+t_login_title = ui_pack["t_login_title"]
+t_email = ui_pack["t_email"]
+t_login_btn = ui_pack["t_login_btn"]
+t_logout_btn = ui_pack["t_logout_btn"]
+t_nav = ui_pack["t_nav"]
+t_sec_main = ui_pack["t_sec_main"]
+t_sec_schedule = ui_pack["t_sec_schedule"]
+t_sec_chats = ui_pack["t_sec_chats"]
+t_sec_pricing = ui_pack["t_sec_pricing"]
+t_sec_archive = ui_pack["t_sec_archive"]
+t_sec_settings = ui_pack["t_sec_settings"]
+t_account = ui_pack["t_account"]
+t_lang_label = ui_pack["t_lang_label"]
+t_theme = ui_pack["t_theme"]
+t_voice = ui_pack["t_voice"]
+t_screen_mode = ui_pack["t_screen_mode"]
+t_settings_header = ui_pack["t_settings_header"]
+t_username = ui_pack["t_username"]
+t_save = ui_pack["t_save"]
+t_saved_ok = ui_pack["t_saved_ok"]
+t_schedule_title = ui_pack["t_schedule_title"]
+t_task_input = ui_pack["t_task_input"]
+t_day_label = ui_pack["t_day_label"]
+t_time_label = ui_pack["t_time_label"]
+t_add_task_btn = ui_pack["t_add_task_btn"]
+t_task_added = ui_pack["t_task_added"]
+t_schedule_list = ui_pack["t_schedule_list"]
+t_choose_sec = ui_pack["t_choose_sec"]
+t_back_grid = ui_pack["t_back_grid"]
+t_new_chat = ui_pack["t_new_chat"]
+t_archive_btn = ui_pack["t_archive_btn"]
+t_archived_ok = ui_pack["t_archived_ok"]
+t_exit_arch = ui_pack["t_exit_arch"]
+t_file_upload = ui_pack["t_file_upload"]
+t_archive_header = ui_pack["t_archive_header"]
+t_no_archive = ui_pack["t_no_archive"]
+t_browse = ui_pack["t_browse"]
+t_ads_studio = ui_pack["t_ads_studio"]
+t_ai_gen_studio = ui_pack["t_ai_gen_studio"]
+t_img_edit_studio = ui_pack["t_img_edit_studio"]
+t_gen_real_image = ui_pack["t_gen_real_image"]
+t_gen_real_video = ui_pack["t_gen_real_video"]
+t_media_mode_q = ui_pack["t_media_mode_q"]
+t_media_prompt_q = ui_pack["t_media_prompt_q"]
+t_gen_btn = ui_pack["t_gen_btn"]
+t_upload_img_q = ui_pack["t_upload_img_q"]
+t_img_effect_q = ui_pack["t_img_effect_q"]
+t_edit_img_btn = ui_pack["t_edit_img_btn"]
+SECTIONS_NAMES = ui_pack["sections_map"]
+
+st.markdown(
+    f"""
+<style>
+.stApp, [data-testid="stAppViewContainer"] {{
+    background-color: {bg_color} !important;
+    color: {text_color} !important;
+}}
+[data-testid="stHeader"] {{
+    background-color: transparent !important;
+}}
+[data-testid="stSidebar"] {{
+    background-color: {card_bg} !important;
+    color: {text_color} !important;
+}}
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+.stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span,
+label, .stRadio label, .stCheckbox label, .stSelectbox label,
+.stTextInput label, .stTextArea label,
+[data-testid="stChatMessage"] p, [data-testid="stChatMessage"] span, [data-testid="stChatMessage"] div {{
+    color: {text_color} !important;
+    opacity: 1 !important;
+}}
+.stCaption, [data-testid="stCaptionContainer"] {{
+    color: {muted_text} !important;
+    opacity: 1 !important;
+}}
+.stTextInput input, .stTextArea textarea,
+[data-baseweb="select"] > div,
+[data-testid="stChatInput"] textarea,
+[data-testid="stChatInput"] input {{
+    background-color: {input_bg} !important;
+    color: {text_color} !important;
+    border-color: {border_color} !important;
+}}
+[data-testid="stChatInput"] button,
+[data-testid="stChatInput"] svg {{
+    color: {text_color} !important;
+    fill: {text_color} !important;
+}}
+[data-testid="stChatInput"] textarea::placeholder,
+[data-testid="stChatInput"] input::placeholder,
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder {{
+    color: {muted_text} !important;
+    opacity: 0.85 !important;
+}}
+.stButton > button {{
+    background-color: {card_bg} !important;
+    color: {text_color} !important;
+    border: 1.5px solid {border_color} !important;
+    border-radius: 14px !important;
+    font-weight: 600 !important;
+}}
+.stButton > button:hover {{
+    background-color: #9333ea !important;
+    color: #ffffff !important;
+    border-color: #f472b6 !important;
+}}
+.main .block-container {{
+    max-width: {container_max_width};
+    padding: {block_padding};
+}}
+.main-title {{
+    text-align: center;
+    color: {accent_color} !important;
+    font-weight: bold;
+    font-size: {"2.8rem" if (rec and ("شاشة" in rec["screen_mode"] or "Screen" in rec["screen_mode"])) else "2.35rem"};
+    margin-bottom: 16px;
+}}
+.user-info {{
+    background-color: {card_bg};
+    color: {text_color} !important;
+    padding: 14px 18px;
+    border-radius: 15px;
+    border: 1.5px solid {border_color};
+    margin-bottom: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}}
+.grid-card-wrap .stButton > button {{
+    width: 100%;
+    min-height: {btn_height};
+    background-color: {card_bg} !important;
+    color: {text_color} !important;
+    border: 2px solid {border_color} !important;
+    border-radius: 20px !important;
+    font-size: {btn_font};
+    font-weight: bold;
+    line-height: 1.4;
+    padding: 14px 12px;
+    transition: 0.25s ease;
+    box-shadow: 0 4px 15px rgba(155, 93, 229, 0.22);
+}}
+.grid-card-wrap .stButton > button:hover {{
+    background-color: #9333ea !important;
+    color: #ffffff !important;
+    border-color: #f472b6 !important;
+    transform: translateY(-2px);
+}}
+.plan-box {{
+    background-color: {card_bg};
+    color: {text_color} !important;
+    padding: 18px;
+    border-radius: 16px;
+    border: 1.5px solid {border_color};
+    margin-bottom: 12px;
+}}
+.settings-panel {{
+    background-color: {card_bg};
+    color: {text_color} !important;
+    padding: 20px;
+    border-radius: 20px;
+    border: 2px solid {border_color};
+    margin-top: 16px;
+}}
+.google-card {{
+    background-color: {card_bg};
+    border: 1.5px solid {border_color};
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 14px;
+}}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+st.markdown(f"<h1 class='main-title'>{t_title}</h1>", unsafe_allow_html=True)
+
+if not st.session_state.logged_in:
   st.markdown(
       f"<h3 style='text-align: center;'>{t_login_title}</h3>",
       unsafe_allow_html=True,
@@ -1129,7 +1493,9 @@ else:
         f"✅ مشترك ({rec.get('subscription_plan')}) | 🧠 ذاكرة الدروس مفعّلة"
     )
   else:
-    rem_secs = max(0, FREE_SECTION_LIMIT - len(rec.get("free_allowed_sections", [])))
+    rem_secs = max(
+        0, FREE_SECTION_LIMIT - len(rec.get("free_allowed_sections", []))
+    )
     rem_day_imgs = max(
         0, FREE_DAILY_IMAGE_LIMIT - rec.get("free_daily_images_used", 0)
     )
@@ -1252,25 +1618,35 @@ else:
           "💡",
           f"{base_system_prompt} You are a self-development advisor.",
       ),
-      ads_sec_key: (
+      "Ads & Stores Studio": (
           "📢",
           (
               f"{base_system_prompt} You are an advertising and store marketing"
               " specialist for businesses."
           ),
       ),
-      "صانع الفيديوهات والأفكار": (
-          "🎬",
+      "AI Generation Studio": (
+          "🎨🎬",
           (
-              f"{base_system_prompt} You are a video ideas, scenes, prompts,"
-              " and production assistant."
+              f"{base_system_prompt} You are a creative studio assistant that can"
+              " generate and edit real images and videos."
+          ),
+      ),
+      "Image Editor": (
+          "🛠️",
+          (
+              f"{base_system_prompt} You are an image editing assistant that can"
+              " cartoonize and enhance images."
           ),
       ),
   }
 
   SECTIONS = {SECTIONS_NAMES.get(k, k): v for k, v in BASE_SECTIONS.items()}
 
-  if rec.get("selected_section") is not None and rec.get("selected_section") not in SECTIONS:
+  if (
+      rec.get("selected_section") is not None
+      and rec.get("selected_section") not in SECTIONS
+  ):
     rec["selected_section"] = None
 
   if nav_mode == t_sec_main:
@@ -1493,7 +1869,7 @@ else:
             st.rerun()
 
       is_ads_section = sec_name == SECTIONS_NAMES.get(
-          ads_sec_key, ads_sec_key
+          "Ads & Stores Studio", "Ads & Stores Studio"
       ) or any(
           w in sec_name for w in ["إعلانات", "Ads", "ریکلام", "ریكلام"]
       )
@@ -1545,82 +1921,132 @@ else:
             st.info("اكتبي اسم المتجر ووصف العرض أولاً.")
         st.markdown("---")
 
-      is_vid_section = any(
-          w in sec_name for w in ["الفيديوهات", "Video", "ڤیدیۆ", "ڤیدیو"]
+      is_gen_section = sec_name == SECTIONS_NAMES.get(
+          "AI Generation Studio", "AI Generation Studio"
       )
-      if is_vid_section and browsing_item is None:
-        st.markdown("### 🎬 استوديو الفيديوهات والأفكار")
+      if is_gen_section and browsing_item is None:
+        st.markdown(f"### 🎨🎬 {t_ai_gen_studio}")
         if not rec.get("is_subscribed"):
           st.caption(
               "المتبقي من الفيديوهات اليوم:"
               f" {max(0, FREE_DAILY_VIDEO_LIMIT - rec.get('free_daily_videos_used', 0))}/{FREE_DAILY_VIDEO_LIMIT}"
           )
-        vid_idea = st.text_area(
-            "اكتبي فكرة الفيديو أو المشهد:", key="vid_studio_idea"
-        )
-        vid_style = st.selectbox(
-            "نمط الفيديو",
-            [
-                "سينمائي",
-                "إعلان تجاري",
-                "سوشيال ميديا / Reels",
-                "أنيميشن",
-            ],
-            key="vid_studio_style",
-        )
-        if st.button(
-            "🎬 توليد سيناريو ومشاهد الفيديو",
-            type="primary",
-            key="gen_vid_btn",
-        ):
-          if not can_generate_free_video(rec):
-            st.warning(
-                "🔒 وصلتِ للحد اليومي لغير المشتركين (**1 فيديو في اليوم**)."
-            )
-          elif not can_send_message_in_section(rec, sec_name):
-            st.warning(
-                "🔒 انتهى حد الـ 25 رسالة في هذا القسم لغير المشتركين."
-                " اشتركي للمتابعة."
-            )
-          elif vid_idea.strip():
-            record_free_video_generation(rec)
-            record_message_in_section(rec, sec_name)
-            with st.spinner("جاري تجهيز السيناريو والمشاهد..."):
-              vid_plan = get_ai_answer(
-                  rec,
-                  (
-                      f"{system_prompt} Create a complete video concept,"
-                      " scene-by-scene storyboard, camera angles, voiceover"
-                      f" script, and video prompt in style '{vid_style}' for:"
-                      f" {vid_idea}."
-                  ),
-                  [{"role": "user", "content": vid_idea.strip()}],
-                  sec_name=sec_name,
-              )
-            rec["generated_videos"].insert(
-                0,
-                {
-                    "idea": vid_idea.strip(),
-                    "style": vid_style,
-                    "script": vid_plan,
-                },
-            )
-            record_subscriber_lesson_memory(
-                rec,
-                sec_name,
-                rec["section_messages"].get(sec_name, []),
-            )
-            save_account_everywhere(rec["user_email"], rec)
-            st.session_state.latest_voice_text = vid_plan
-            st.rerun()
-          else:
-            st.info("اكتبي فكرة الفيديو أولاً.")
 
-        for v in rec.get("generated_videos", [])[:3]:
-          st.markdown(f"**{v['style']}:** {v['idea']}")
-          st.markdown(v["script"])
-          st.divider()
+        media_mode = st.radio(
+            f"{t_media_mode_q}",
+            [f"{t_gen_real_image}", f"{t_gen_real_video}"],
+            horizontal=True,
+            key="media_gen_mode",
+        )
+        media_prompt = st.text_area(
+            f"{t_media_prompt_q}", key="media_gen_prompt"
+        )
+
+        if st.button(f"{t_gen_btn}", type="primary", key="gen_real_media_btn"):
+          if not media_prompt.strip():
+            st.info("اكتبي وصفاً أولاً.")
+          elif media_mode == f"{t_gen_real_image}":
+            if not can_upload_free_media(rec, is_video=False):
+              st.warning(
+                  "🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم)."
+              )
+            else:
+              with st.spinner("جاري رسم الصورة..."):
+                img_out, err = generate_real_image(media_prompt.strip())
+              if img_out:
+                record_free_media_upload(rec, is_video=False)
+                st.image(
+                    img_out,
+                    caption=media_prompt.strip(),
+                    use_container_width=True,
+                )
+              else:
+                st.error(f"تعذر إنشاء الصورة: {err}")
+          else:
+            if not can_generate_free_video(rec):
+              st.warning(
+                  "🔒 وصلتِ للحد اليومي للفيديو لغير المشتركين (**1 فيديو في"
+                  " اليوم**)."
+              )
+            else:
+              with st.spinner("جاري توليد الفيديو (قد يستغرق دقيقة)..."):
+                vid_url, err = generate_real_video(media_prompt.strip())
+              if vid_url:
+                record_free_video_generation(rec)
+                rec["generated_videos"].insert(
+                    0,
+                    {
+                        "idea": media_prompt.strip(),
+                        "style": "MP4",
+                        "video_url": vid_url,
+                    },
+                )
+                save_account_everywhere(rec["user_email"], rec)
+                st.video(vid_url)
+              else:
+                st.error(err)
+
         st.markdown("---")
+        for v in rec.get("generated_videos", [])[:2]:
+          st.markdown(f"**{v['style']}:** {v['idea']}")
+          st.video(v["video_url"])
+          st.divider()
+
+      is_edit_section = sec_name == SECTIONS_NAMES.get(
+          "Image Editor", "Image Editor"
+      )
+      if is_edit_section and browsing_item is None:
+        st.markdown(f"### 🛠️ {t_img_edit_studio}")
+        st.caption(
+            "المتبقي من الصور للتعديل اليوم:"
+            f" {max(0, FREE_DAILY_IMAGE_LIMIT - rec.get('free_daily_images_used', 0))}/{FREE_DAILY_IMAGE_LIMIT}"
+        )
+
+        upload_edit_img = st.file_uploader(
+            f"{t_upload_img_q}",
+            type=["png", "jpg", "jpeg", "webp"],
+            key="edit_up",
+        )
+        edit_effect = st.selectbox(
+            f"{t_img_effect_q}",
+            [
+                "🖼️ تحويل لصورة كرتونية (Style Transfer)",
+                "🔍 تحسين الجودة ودقة الصورة (Super Resolution)",
+                "🧙‍♂️ تأثير سحري آخر (مثلاً: إضاءة سينمائية)",
+            ],
+            key="edit_eff_sel",
+        )
+
+        if upload_edit_img and edit_effect:
+          raw_e = upload_edit_img.getvalue()
+          ext_e = upload_edit_img.name.rsplit(".", 1)[-1].lower()
+          mime_e = (
+              "image/jpeg" if ext_e in ["jpg", "jpeg"] else f"image/{ext_e}"
+          )
+          b64_e = base64.b64encode(raw_e).decode("utf-8")
+          st.image(raw_e, caption="الصورة الأصلية", use_container_width=True)
+
+          if st.button(
+              f"{t_edit_img_btn}", type="primary", key="run_edit_btn"
+          ):
+            if not can_upload_free_media(rec, is_video=False):
+              st.warning(
+                  "🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم)."
+              )
+            else:
+              with st.spinner("جاري معالجة الصورة..."):
+                edited_url, err_e = edit_user_image(b64_e, mime_e, edit_effect)
+              if edited_url:
+                record_free_media_upload(rec, is_video=False)
+                st.success("✅ تم تعديل الصورة بنجاح!")
+                st.image(
+                    edited_url,
+                    caption=f"نتيجة: {edit_effect}",
+                    use_container_width=True,
+                )
+                st.link_button("⬇️ تحميل الصورة", edited_url)
+              else:
+                st.error(f"تعذر تعديل الصورة: {err_e}")
 
       if browsing_item is not None:
         active_messages = browsing_item.get("messages", [])
