@@ -20,17 +20,40 @@ api_key = st.secrets.get("OPENAI_API_KEY", "")
 st.title("🟣 Bras AI")
 st.caption("مساعد صوتي متعدد اللغات — نسخة تجريبية")
 
-# Google login via Streamlit's built-in OIDC flow; configure secrets before enabling.
-if st.button("🔐 تسجيل الدخول بحساب Google", use_container_width=True):
-    try:
-        st.login("google")
-    except Exception:
-        st.info("كمّلي إعداد Google OAuth في ملف secrets.toml أولاً، وبعدها فعّلي تسجيل الدخول.")
+# Google login via Streamlit's built-in OIDC flow.
+# Keep the app usable before OAuth secrets have been configured.
+auth_configured = False
+try:
+    auth_settings = st.secrets.get("auth", {})
+    auth_configured = all(
+        auth_settings.get(key)
+        for key in ("redirect_uri", "cookie_secret", "client_id", "client_secret", "server_metadata_url")
+    )
+except Exception:
+    auth_configured = False
 
-if st.user.is_logged_in:
-    st.success(f"تم تسجيل الدخول: {st.user.get('name', 'Google user')}")
-    if st.button("تسجيل خروج"):
-        st.logout()
+if auth_configured:
+    if st.button("🔐 تسجيل الدخول بحساب Google", use_container_width=True):
+        try:
+            st.login()
+        except Exception as e:
+            st.error(f"تعذّر بدء تسجيل الدخول. تأكدي من إعداد OAuth ورابط Redirect URI. التفاصيل: {e}")
+
+    try:
+        logged_in = st.user.is_logged_in
+    except Exception:
+        logged_in = False
+
+    if logged_in:
+        try:
+            display_name = st.user.get("name", "Google user")
+        except Exception:
+            display_name = "Google user"
+        st.success(f"تم تسجيل الدخول: {display_name}")
+        if st.button("تسجيل خروج"):
+            st.logout()
+else:
+    st.info("تسجيل Google غير مفعّل بعد. أضيفي إعدادات [auth] إلى secrets.toml حتى يظهر زر تسجيل الدخول.")
 
 lang = st.selectbox("لغة Bras AI", LANGUAGES, index=0)
 st.markdown("### 💬 احچي أو اكتبي إلى Bras")
