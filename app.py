@@ -1460,16 +1460,7 @@ else:
         f"✅ مشترك ({rec.get('subscription_plan')}) | 🧠 ذاكرة الدروس مفعّلة"
     )
   else:
-    rem_secs = max(
-        0, FREE_SECTION_LIMIT - len(rec.get("free_allowed_sections", []))
-    )
-    rem_day_imgs = max(
-        0, FREE_DAILY_IMAGE_LIMIT - rec.get("free_daily_images_used", 0)
-    )
-    status_badge = (
-        f"📂 {rem_secs}/2 قسم متاح | 💬 25 رسالة/قسم | 📷 {rem_day_imgs}/4"
-        " صور/يوم"
-    )
+    status_badge = "🎉 مجاني بلا حدود"
 
   st.markdown(
       f"""
@@ -1758,10 +1749,7 @@ else:
         )
         if st.button("👁️ شاهد الصورة وأجب", key=f"see_img_{sec_name}"):
           if not can_send_message_in_section(rec, sec_name):
-            st.warning(
-                "🔒 وصلتِ للحد الأقصى (25 رسالة في هذا القسم) لغير"
-                " المشتركين."
-            )
+            st.warning("تعذر إرسال الرسالة، حاولي مرة أخرى.")
           else:
             record_message_in_section(rec, sec_name)
             img_msg = [
@@ -2066,12 +2054,6 @@ else:
             if st.button("🧹 إغلاق وإلغاء رمز المكالمة", key="bras_live_clear_secret"):
               st.session_state.pop("bras_live_ephemeral_secret", None)
               st.rerun()
-        st.info(
-            "تحتاج المكالمة إلى مفتاح API ورصيد فعال. لا تضع المفتاح الدائم داخل المتصفح؛ "
-            "التطبيق ينشئ رمزاً مؤقتاً قصير الصلاحية. الكاميرا هنا بث معاينة مباشر على جهازك فقط، ولا تُرسل صوراً أو فيديو إلى نموذج OpenAI. "
-            "واجهة Realtime API الحالية تقبل صوراً مرفقة بالمحادثة، لكنها لا توفر إدخال فيديو حيّاً أصلياً مستمراً؛ لذلك لن أدّعي أن BRAS يرى حركتك مباشرة. اسمح للمتصفح باستخدام المايك والكاميرا، "
-            "وافتح التطبيق عبر HTTPS أو localhost."
-        )
         st.markdown("---")
 
       is_ads_section = sec_name == SECTIONS_NAMES.get(
@@ -2096,10 +2078,7 @@ else:
             "توليد نص الإعلان الآن", type="primary", key="gen_ad_btn"
         ):
           if not can_send_message_in_section(rec, sec_name):
-            st.warning(
-                "🔒 انتهى حد الـ 25 رسالة في هذا القسم لغير المشتركين."
-                " اشتركي للمتابعة."
-            )
+            st.warning("تعذر تنفيذ الطلب، حاولي مرة أخرى.")
           elif ad_store.strip() and ad_offer.strip():
             record_message_in_section(rec, sec_name)
             ad_out = get_ai_answer(
@@ -2132,7 +2111,7 @@ else:
       )
       if is_gen_section and browsing_item is None:
         st.markdown(f"### 🎨 {t_ai_gen_studio}")
-        st.caption("إنشاء الصور متاح مجاناً — قد تتأثر الخدمة بحدود مزوّد API.")
+        st.caption("إنشاء الصور متاح مجاناً للجميع.")
 
         media_prompt = st.text_area(
             "اكتبي وصف الصورة بالتفصيل:", key="media_gen_prompt"
@@ -2185,27 +2164,21 @@ else:
           if st.button(
               f"{t_edit_img_btn}", type="primary", key="run_edit_btn"
           ):
-            if not can_upload_free_media(rec, is_video=False):
-              st.warning(
-                  "🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم)."
+            with st.spinner("جاري معالجة الصورة..."):
+              edited_url, err_e = edit_user_image(raw_e, mime_e, edit_effect)
+            if edited_url:
+              st.success("✅ تم تعديل الصورة بنجاح!")
+              st.image(
+                  edited_url,
+                  caption=f"نتيجة: {edit_effect}",
+                  use_container_width=True,
               )
+              if isinstance(edited_url, (bytes, bytearray)):
+                st.download_button("⬇️ تحميل الصورة", data=edited_url, file_name="bras_ai_edited.png", mime="image/png", key="download_edited_image")
+              elif isinstance(edited_url, str):
+                st.link_button("⬇️ تحميل الصورة", edited_url)
             else:
-              with st.spinner("جاري معالجة الصورة..."):
-                edited_url, err_e = edit_user_image(raw_e, mime_e, edit_effect)
-              if edited_url:
-                record_free_media_upload(rec, is_video=False)
-                st.success("✅ تم تعديل الصورة بنجاح!")
-                st.image(
-                    edited_url,
-                    caption=f"نتيجة: {edit_effect}",
-                    use_container_width=True,
-                )
-                if isinstance(edited_url, (bytes, bytearray)):
-                  st.download_button("⬇️ تحميل الصورة", data=edited_url, file_name="bras_ai_edited.png", mime="image/png", key="download_edited_image")
-                elif isinstance(edited_url, str):
-                  st.link_button("⬇️ تحميل الصورة", edited_url)
-              else:
-                st.error(f"تعذر تعديل الصورة: {err_e}")
+              st.error(f"تعذر تعديل الصورة: {err_e}")
 
       if browsing_item is not None:
         active_messages = browsing_item.get("messages", [])
@@ -2229,10 +2202,7 @@ else:
 
         if final_prompt:
           if not can_send_message_in_section(rec, sec_name):
-            st.warning(
-                "🔒 وصلتِ للحد الأقصى (25 رسالة في هذا القسم) لغير"
-                " المشتركين. اختاري باقة اشتراك للمتابعة."
-            )
+            st.warning("تعذر إرسال الرسالة، حاولي مرة أخرى.")
           else:
             record_message_in_section(rec, sec_name)
             if st.session_state.pending_image_b64:
@@ -2379,7 +2349,6 @@ else:
   elif nav_mode == t_sec_pricing:
     st.header("🎉 BRAS AI مجاني للجميع")
     st.success("لا توجد باقات مدفوعة أو اشتراكات. جميع المستخدمين يمكنهم استخدام التطبيق مجاناً.")
-    st.caption("قد تبقى حدود تشغيلية أو تكاليف لدى مزوّدات الخدمات الخارجية (مثل API).")
 
   elif nav_mode == t_sec_archive:
     st.markdown(
