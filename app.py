@@ -20,11 +20,12 @@ st.set_page_config(
 TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 PERSIST_FILE = "bras_gmail_accounts_store.json"
 
-FREE_MSG_LIMIT_PER_SECTION = 25
-FREE_SECTION_LIMIT = 2
-FREE_DAILY_IMAGE_LIMIT = 4
-FREE_DAILY_TASK_LIMIT = 1
-FREE_WEEKLY_TASK_LIMIT = 3
+# Free tier is unlimited in the app; external API providers may still impose quotas/costs.
+FREE_MSG_LIMIT_PER_SECTION = float("inf")
+FREE_SECTION_LIMIT = float("inf")
+FREE_DAILY_IMAGE_LIMIT = float("inf")
+FREE_DAILY_TASK_LIMIT = float("inf")
+FREE_WEEKLY_TASK_LIMIT = float("inf")
 
 
 SUPABASE_URL = str(st.secrets.get("SUPABASE_URL", "")).strip().rstrip("/")
@@ -1098,51 +1099,26 @@ def get_section_free_used(account_rec: dict, sec_name: str) -> int:
 
 
 def can_send_message_in_section(account_rec: dict, sec_name: str) -> bool:
-  if account_rec.get("is_subscribed"):
-    return True
-  return get_section_free_used(account_rec, sec_name) < FREE_MSG_LIMIT_PER_SECTION
-
+  return True
 
 def record_message_in_section(account_rec: dict, sec_name: str):
-  if not account_rec.get("is_subscribed"):
-    current = get_section_free_used(account_rec, sec_name)
-    account_rec["free_section_messages"][sec_name] = min(
-        FREE_MSG_LIMIT_PER_SECTION, current + 1
-    )
-    save_account_everywhere(account_rec["user_email"], account_rec)
-
+  return
 
 def can_use_free_section(account_rec: dict, sec_name: str) -> bool:
-  if account_rec.get("is_subscribed"):
-    return True
-  allowed = account_rec.get("free_allowed_sections", [])
-  if sec_name in allowed:
-    return True
-  return len(allowed) < FREE_SECTION_LIMIT
-
+  return True
 
 def register_free_section(account_rec: dict, sec_name: str):
-  if not account_rec.get("is_subscribed"):
-    if sec_name not in account_rec["free_allowed_sections"] and (
-        len(account_rec["free_allowed_sections"]) < FREE_SECTION_LIMIT
-    ):
-      account_rec["free_allowed_sections"].append(sec_name)
-      account_rec["free_section_messages"].setdefault(sec_name, 0)
-      save_account_everywhere(account_rec["user_email"], account_rec)
-
+  account_rec.setdefault("free_allowed_sections", [])
+  if sec_name not in account_rec["free_allowed_sections"]:
+    account_rec["free_allowed_sections"].append(sec_name)
+  account_rec.setdefault("free_section_messages", {}).setdefault(sec_name, 0)
+  save_account_everywhere(account_rec["user_email"], account_rec)
 
 def can_upload_free_media(account_rec: dict, is_video: bool = False) -> bool:
-  if account_rec.get("is_subscribed"):
-    return True
-  return account_rec.get("free_daily_images_used", 0) < FREE_DAILY_IMAGE_LIMIT
-
+  return True
 
 def record_free_media_upload(account_rec: dict, is_video: bool = False):
-  if not account_rec.get("is_subscribed"):
-    account_rec["free_daily_images_used"] = (
-        account_rec.get("free_daily_images_used", 0) + 1
-    )
-    save_account_everywhere(account_rec["user_email"], account_rec)
+  return
 
 def count_free_tasks_on_day(account_rec: dict, day_name: str) -> int:
   return sum(
@@ -1475,7 +1451,7 @@ if not st.session_state.logged_in:
     )
     st.info(
         f"✨ تسجيل الدخول بحساب Google\n\n• {cloud_status}\n• كل محادثاتكِ"
-        " وأقسامكِ محفوظة على إيميلكِ عند العودة\n• قسمين مجانيين (25 رسالة"
+        " وأقسامكِ محفوظة على إيميلكِ عند العودة\n• استخدام مجاني غير محدود"
         " لكل قسم)"
     )
 else:
@@ -1650,14 +1626,7 @@ else:
           f"<h3 style='text-align: center;'>{t_choose_sec}</h3>",
           unsafe_allow_html=True,
       )
-      if not rec.get("is_subscribed"):
-        used_secs = (
-            ", ".join(rec.get("free_allowed_sections", [])) or "لا يوجد بعد"
-        )
-        st.info(
-            "🔒 لغير المشتركين: **قسمين فقط** (المختارة حالياً:"
-            f" {used_secs}) ولكل قسم **25 رسالة**، و**4 صور يومياً**."
-        )
+      st.info("🎉 جميع الأقسام والرسائل متاحة مجاناً وبدون حدود.")
       grid_cols = 4 if is_screen_mode else 3
       cols = st.columns(grid_cols)
       for index, (sec_name, (emoji, _)) in enumerate(SECTIONS.items()):
@@ -1672,11 +1641,6 @@ else:
               st.session_state.latest_voice_text = None
               save_account_everywhere(rec["user_email"], rec)
               st.rerun()
-            else:
-              st.warning(
-                  "🔒 وصلتِ للحد المسموح لغير المشتركين (قسمين فقط). اشتركي"
-                  " لفتح جميع الأقسام."
-              )
           st.markdown("</div>", unsafe_allow_html=True)
     else:
       sec_name = rec["selected_section"]
@@ -1701,13 +1665,6 @@ else:
           save_account_everywhere(rec["user_email"], rec)
           st.rerun()
 
-      if not rec.get("is_subscribed") and browsing_item is None:
-        used_in_sec = get_section_free_used(rec, sec_name)
-        rem_in_sec = max(0, FREE_MSG_LIMIT_PER_SECTION - used_in_sec)
-        st.caption(
-            f"💬 الرسائل المتبقية في هذا القسم: {rem_in_sec} /"
-            f" {FREE_MSG_LIMIT_PER_SECTION}"
-        )
 
       if rec.get("is_subscribed") and browsing_item is None:
         mem_count = len(rec.get("section_memory", {}).get(sec_name, []))
@@ -1775,23 +1732,7 @@ else:
           is_img_file = lower_name.endswith((".png", ".jpg", ".jpeg", ".webp"))
 
           if up_sig not in st.session_state.processed_upload_ids:
-            if (is_vid_file or is_img_file) and not rec.get("is_subscribed"):
-              if not can_upload_free_media(rec, is_vid_file):
-                if is_vid_file:
-                  st.warning(
-                      "🔒 يُسمح بإرسال **فيديو واحد فقط في اليوم** لغير"
-                      " المشتركين."
-                  )
-                else:
-                  st.warning(
-                      "🔒 يُسمح بإرسال **4 صور فقط في اليوم** لغير"
-                      " المشتركين."
-                  )
-              else:
-                st.session_state.processed_upload_ids.append(up_sig)
-                record_free_media_upload(rec, is_vid_file)
-            else:
-              st.session_state.processed_upload_ids.append(up_sig)
+            st.session_state.processed_upload_ids.append(up_sig)
 
           if is_img_file:
             ext = lower_name.rsplit(".", 1)[-1]
@@ -2191,9 +2132,7 @@ else:
       )
       if is_gen_section and browsing_item is None:
         st.markdown(f"### 🎨 {t_ai_gen_studio}")
-        if not rec.get("is_subscribed"):
-          remaining_images = max(0, FREE_DAILY_IMAGE_LIMIT - rec.get("free_daily_images_used", 0))
-          st.caption(f"المتبقي من الصور اليوم: {remaining_images}/{FREE_DAILY_IMAGE_LIMIT}")
+        st.caption("إنشاء الصور متاح مجاناً — قد تتأثر الخدمة بحدود مزوّد API.")
 
         media_prompt = st.text_area(
             "اكتبي وصف الصورة بالتفصيل:", key="media_gen_prompt"
@@ -2201,13 +2140,10 @@ else:
         if st.button(f"{t_gen_btn}", type="primary", key="gen_real_media_btn"):
           if not media_prompt.strip():
             st.info("اكتبي وصفاً أولاً.")
-          elif not can_upload_free_media(rec, is_video=False):
-            st.warning("🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم).")
           else:
             with st.spinner("جاري رسم الصورة باستخدام OpenAI..."):
               img_out, err = generate_real_image(media_prompt.strip())
             if img_out:
-              record_free_media_upload(rec, is_video=False)
               st.image(img_out, caption=media_prompt.strip(), use_container_width=True)
             else:
               st.error(f"تعذر إنشاء الصورة: {err}")
@@ -2351,11 +2287,7 @@ else:
 
   elif nav_mode == t_sec_schedule:
     st.header(t_schedule_title)
-    if not rec.get("is_subscribed"):
-      st.info(
-          "🔒 لغير المشتركين: يُسمح بمهمة واحدة في اليوم (**1/يوم**) و3 مهام"
-          " في الأسبوع (**3/أسبوع**)."
-      )
+    st.info("📅 المهام متاحة مجاناً وبدون حدود.")
     with st.form("sch_form"):
       task_desc = st.text_input(t_task_input)
       col_d, col_t = st.columns(2)
@@ -2445,74 +2377,9 @@ else:
           )
 
   elif nav_mode == t_sec_pricing:
-    st.header("💳 الباقات والاشتراك عبر كي كارد (BRAS AI)")
-    if rec.get("is_subscribed"):
-      st.success(
-          f"✅ اشتراككِ مفعّل حالياً ({rec.get('subscription_plan')})."
-      )
-
-    p1, p2, p3 = st.columns(3)
-    with p1:
-      st.markdown(
-          "<div class='plan-box'><h3>أسبوعي</h3><h2>$2</h2><p>صلاحية 7"
-          " أيام</p></div>",
-          unsafe_allow_html=True,
-      )
-      if st.button("اختيار الباقة الأسبوعية ($2)", key="plan_w"):
-        rec["selected_payment_plan"] = "أسبوعي - $2"
-        save_account_everywhere(rec["user_email"], rec)
-        st.rerun()
-    with p2:
-      st.markdown(
-          "<div class='plan-box'><h3>شهري</h3><h2>$10</h2><p>صلاحية 30"
-          " يوماً</p></div>",
-          unsafe_allow_html=True,
-      )
-      if st.button("اختيار الباقة الشهرية ($10)", key="plan_m"):
-        rec["selected_payment_plan"] = "شهري - $10"
-        save_account_everywhere(rec["user_email"], rec)
-        st.rerun()
-    with p3:
-      st.markdown(
-          "<div class='plan-box'><h3>سنوي</h3><h2>$50</h2><p>صلاحية 365"
-          " يوماً</p></div>",
-          unsafe_allow_html=True,
-      )
-      if st.button("اختيار الباقة السنوية ($50)", key="plan_y"):
-        rec["selected_payment_plan"] = "سنوي - $50"
-        save_account_everywhere(rec["user_email"], rec)
-        st.rerun()
-
-    active_plan = rec.get("selected_payment_plan", "أسبوعي - $2")
-    st.markdown("---")
-    st.subheader(f"💳 الدفع عبر كي كارد — {active_plan}")
-    st.info(QICARD_INFO)
-
-    with st.form("qicard_activation_form"):
-      payer_ref = st.text_input(
-          "اسم المحوِّل أو رقم مرجع التحويل (اختياري):",
-          value=rec.get("payment_ref", ""),
-          placeholder="مثال: اسم صاحب التحويل أو رقم العملية",
-      )
-      code_input = st.text_input(
-          "أدخلي كود التفعيل بعد تأكيد الدفع:",
-          type="password",
-          placeholder="أدخلي الكود المرسل لكِ بعد التحويل",
-      )
-      confirm_pay = st.form_submit_button("تأكيد الدفع وتفعيل الاشتراك")
-      if confirm_pay:
-        if (code_input or "").strip() == SECRET_ACTIVATION_CODE:
-          rec["is_subscribed"] = True
-          rec["subscription_plan"] = active_plan
-          rec["payment_ref"] = (payer_ref or "").strip()
-          save_account_everywhere(rec["user_email"], rec)
-          st.success(f"تم تفعيل اشتراككِ بنجاح ({active_plan})!")
-          st.rerun()
-        else:
-          st.error(
-              "كود التفعيل غير صحيح. أتمي التحويل عبر كي كارد أولاً ثم أدخلي"
-              " الكود الصحيح."
-          )
+    st.header("🎉 BRAS AI مجاني للجميع")
+    st.success("لا توجد باقات مدفوعة أو اشتراكات. جميع المستخدمين يمكنهم استخدام التطبيق مجاناً.")
+    st.caption("قد تبقى حدود تشغيلية أو تكاليف لدى مزوّدات الخدمات الخارجية (مثل API).")
 
   elif nav_mode == t_sec_archive:
     st.markdown(
