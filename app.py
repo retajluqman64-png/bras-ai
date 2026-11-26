@@ -70,6 +70,7 @@ def build_empty_account_record(email_str: str) -> dict:
       "free_section_messages": {},
       "archives": [],
       "saved_chats": [],
+      "image_library": [],
       "browsing_archive": None,
       "free_allowed_sections": [],
       "free_daily_date": TODAY_STR,
@@ -914,6 +915,49 @@ def transcribe_once(audio_file, scope_name: str):
     return None
 
 
+
+def image_bytes_from_result(image_result):
+  if isinstance(image_result, (bytes, bytearray)):
+    return bytes(image_result)
+  if isinstance(image_result, str) and image_result.startswith(("http://", "https://")):
+    try:
+      req = urllib.request.Request(image_result, headers={"User-Agent": "BRAS-AI/1.0"})
+      with urllib.request.urlopen(req, timeout=20) as resp:
+        return resp.read()
+    except Exception:
+      return None
+  return None
+
+def prepare_gallery_image(raw_bytes: bytes):
+  try:
+    from PIL import Image
+    img = Image.open(BytesIO(raw_bytes)).convert("RGB")
+    img.thumbnail((640, 640))
+    out = BytesIO()
+    img.save(out, format="JPEG", quality=65, optimize=True)
+    return out.getvalue()
+  except Exception:
+    return raw_bytes
+
+def save_image_to_library(account_rec: dict, raw_bytes: bytes, prompt: str, kind: str = "generated"):
+  if not raw_bytes:
+    return None
+  library = account_rec.setdefault("image_library", [])
+  saved = prepare_gallery_image(raw_bytes)
+  item = {
+    "id": hashlib.sha1(f"{datetime.now().isoformat()}:{len(saved)}:{prompt[:100]}".encode("utf-8")).hexdigest()[:14],
+    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    "prompt": (prompt or "صورة BRAS AI")[:500],
+    "kind": kind,
+    "mime": "image/jpeg",
+    "image_b64": base64.b64encode(saved).decode("ascii"),
+  }
+  library.insert(0, item)
+  del library[10:]
+  save_account_everywhere(account_rec["user_email"], account_rec)
+  return item
+
+
 def generate_real_image(prompt_text: str):
   if not client:
     return None, "أضيفي OPENAI_API_KEY في Streamlit Secrets لتفعيل إنشاء الصور."
@@ -935,17 +979,20 @@ def generate_real_image(prompt_text: str):
     return None, str(e)
 
 
-def edit_user_image(input_bytes: bytes, mime_type: str, effect_type: str):
+def edit_user_image(input_bytes: bytes, mime_type: str, effect_type: str, custom_prompt: str = ""):
   if not client:
     return None, "أضيفي OPENAI_API_KEY في Streamlit Secrets لتفعيل تعديل الصور."
   effect_prompts = {
       "🖼️ تحويل لصورة كرتونية (Style Transfer)": "Transform the uploaded image into a polished cartoon illustration while preserving the main subject and composition.",
       "🔍 تحسين الجودة ودقة الصورة (Super Resolution)": "Enhance image clarity and detail while keeping the image natural and faithful to the original.",
       "🧙‍♂️ تأثير سحري آخر (مثلاً: إضاءة سينمائية)": "Apply tasteful cinematic lighting and a magical atmosphere while preserving the main subject and composition.",
+      "📝 تعديل حسب وصفك فقط": "",
   }
-  edit_prompt = effect_prompts.get(effect_type)
+  edit_prompt = effect_prompts.get(effect_type, "")
+  if custom_prompt.strip():
+    edit_prompt = (edit_prompt + "\n\nUser requested changes: " + custom_prompt.strip()) if edit_prompt else custom_prompt.strip()
   if not edit_prompt:
-    return None, "التأثير غير مدعوم."
+    return None, "اكتبي التعديل المطلوب أو اختاري تأثيراً."
   try:
     file_obj = BytesIO(input_bytes)
     file_obj.name = "uploaded_image.webp" if mime_type == "image/webp" else ("uploaded_image.jpg" if mime_type == "image/jpeg" else "uploaded_image.png")
@@ -1198,9 +1245,16 @@ def render_message_actions(account_rec: dict, section_name: str, message: dict, 
 
 def render_image_actions(image_bytes, filename, key):
   if not isinstance(image_bytes, (bytes, bytearray)): return
-  st.download_button("⬇️ حفظ الصورة", data=bytes(image_bytes), file_name=filename, mime="image/png", key=f"bras_save_{key}")
-  b64 = base64.b64encode(bytes(image_bytes)).decode("ascii")
-  components.html(f"""<button style='border:0;border-radius:10px;padding:8px 12px;background:#7956c9;color:white;font-weight:700;cursor:pointer' onclick='shareBRASImage()'>↗️ مشاركة الصورة</button><script>async function shareBRASImage(){{try{{const b=await fetch('data:image/png;base64,{b64}').then(r=>r.blob());const f=new File([b],'BRAS_AI.png',{{type:'image/png'}});if(navigator.share&&(!navigator.canShare||navigator.canShare({{files:[f]}}))){{await navigator.share({{files:[f],title:'BRAS AI'}})}}else{{alert('المشاركة المباشرة غير مدعومة هنا؛ استخدمي حفظ الصورة')}}}}catch(e){{}}}}</script>""", height=42)
+  raw = bytes(image_bytes)
+  mime = "image/jpeg" if raw[:3] == b"\xff\xd8\xff" else ("image/webp" if raw[:12].startswith(b"RIFF") and raw[8:12] == b"WEBP" else "image/png")
+  ext = "jpg" if mime == "image/jpeg" else ("webp" if mime == "image/webp" else "png")
+  if filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+    filename = filename.rsplit(".", 1)[0] + f".{ext}"
+  else:
+    filename = f"{filename}.{ext}"
+  st.download_button("⬇️ حفظ الصورة", data=raw, file_name=filename, mime=mime, key=f"bras_save_{key}")
+  b64 = base64.b64encode(raw).decode("ascii")
+  components.html(f"""<button style='border:0;border-radius:10px;padding:8px 12px;background:#7956c9;color:white;font-weight:700;cursor:pointer' onclick='shareBRASImage()'>↗️ مشاركة الصورة</button><script>async function shareBRASImage(){{try{{const b=await fetch('data:{mime};base64,{b64}').then(r=>r.blob());const f=new File([b],'BRAS_AI.{ext}',{{type:'{mime}'}});if(navigator.share&&(!navigator.canShare||navigator.canShare({{files:[f]}}))){{await navigator.share({{files:[f],title:'BRAS AI'}})}}else{{alert('المشاركة المباشرة غير مدعومة هنا؛ استخدمي حفظ الصورة')}}}}catch(e){{}}}}</script>""", height=42)
 
 def render_chat_message(message: dict):
   content = message.get("content", "")
@@ -1555,6 +1609,8 @@ else:
     save_account_everywhere(rec["user_email"], rec)
     st.rerun()
 
+  rec.setdefault("image_library", [])
+
   nav_mode = st.sidebar.radio(
       t_nav,
       (
@@ -1563,6 +1619,7 @@ else:
           t_sec_chats,
           t_sec_pricing,
           t_sec_archive,
+          "🖼️ مكتبتي الصور",
           t_sec_settings,
       ),
   )
@@ -2233,7 +2290,8 @@ else:
           st.caption(f"المتبقي من الصور اليوم: {remaining_images}/{FREE_DAILY_IMAGE_LIMIT}")
 
         media_prompt = st.text_area(
-            "اكتبي وصف الصورة بالتفصيل:", key="media_gen_prompt"
+            "اكتبي وصف الصورة بالتفصيل:", key="media_gen_prompt",
+            placeholder="مثلاً: منظر طبيعي وقت الغروب، ألوان بنفسجية، أسلوب واقعي...",
         )
         if st.button(f"{t_gen_btn}", type="primary", key="gen_real_media_btn"):
           if not media_prompt.strip():
@@ -2244,12 +2302,48 @@ else:
             with st.spinner("جاري رسم الصورة باستخدام OpenAI..."):
               img_out, err = generate_real_image(media_prompt.strip())
             if img_out:
-              record_free_media_upload(rec, is_video=False)
-              st.image(img_out, caption=media_prompt.strip(), use_container_width=True)
-              if isinstance(img_out, (bytes, bytearray)):
-                render_image_actions(img_out, "bras_ai_generated.png", "generated_image")
+              img_bytes = image_bytes_from_result(img_out)
+              if img_bytes:
+                record_free_media_upload(rec, is_video=False)
+                saved_item = save_image_to_library(rec, img_bytes, media_prompt.strip(), "generated")
+                if saved_item:
+                  rec["last_generated_image_id"] = saved_item["id"]
+                  save_account_everywhere(rec["user_email"], rec)
+                st.success("💜 انحفظت نسخة تلقائياً في مكتبتك! تظهر الصورة أدناه ويمكنك تعديلها أو حفظها أو مشاركتها.")
+              else:
+                st.error("تعذر تجهيز الصورة للتنزيل والحفظ. جربي مرة ثانية.")
             else:
               st.error(f"تعذر إنشاء الصورة: {err}")
+        # Persist last created image across reruns and allow free-form corrections.
+        last_gen_id = rec.get("last_generated_image_id")
+        last_gen_item = next((it for it in rec.get("image_library", []) if it.get("id") == last_gen_id), None)
+        if last_gen_item and last_gen_item.get("image_b64"):
+          try:
+            last_gen_bytes = base64.b64decode(last_gen_item["image_b64"])
+            st.subheader("مراجعة آخر صورة")
+            st.image(last_gen_bytes, caption=last_gen_item.get("prompt", "آخر صورة"), use_container_width=True)
+            st.info("الصورة محفوظة بمكتبتك. إذا عجبتك اتركيها كما هي، أو اكتبي أي تعديل تريدينه.")
+            correction_text = st.text_area("هل يوجد خطأ بالصورة أو تعديل تريدينه؟", key="image_correction_prompt", placeholder="مثلاً: عدّل لون الخلفية، غيّر تعبير الوجه، أو أضف تفاصيل...")
+            if st.button("🛠️ تعديل آخر صورة حسب كلامي", key="apply_last_image_correction", disabled=not correction_text.strip()):
+              with st.spinner("جاري تعديل الصورة حسب طلبك..."):
+                corrected, corr_err = edit_user_image(last_gen_bytes, "image/jpeg", "", correction_text.strip())
+              if corrected:
+                corrected_bytes = image_bytes_from_result(corrected)
+                if corrected_bytes:
+                  new_saved = save_image_to_library(rec, corrected_bytes, correction_text.strip(), "edited")
+                  if new_saved:
+                    rec["last_generated_image_id"] = new_saved["id"]
+                    save_account_everywhere(rec["user_email"], rec)
+                  st.success("تم التعديل وحفظ النسخة الجديدة في المكتبة!")
+                  st.image(corrected_bytes, caption="النسخة المعدّلة", use_container_width=True)
+                  render_image_actions(corrected_bytes, "bras_ai_corrected_image.png", f"corrected_{new_saved['id'] if new_saved else 'img'}")
+                  st.rerun()
+                else:
+                  st.error("تعذر تجهيز الصورة المعدّلة.")
+              else:
+                st.error(f"تعذر تعديل الصورة: {corr_err}")
+          except Exception:
+            st.warning("تعذر عرض الصورة الأخيرة المخزنة.")
         st.markdown("---")
 
       is_edit_section = sec_name == SECTIONS_NAMES.get(
@@ -2270,12 +2364,14 @@ else:
         edit_effect = st.selectbox(
             f"{t_img_effect_q}",
             [
+                "📝 تعديل حسب وصفك فقط",
                 "🖼️ تحويل لصورة كرتونية (Style Transfer)",
                 "🔍 تحسين الجودة ودقة الصورة (Super Resolution)",
                 "🧙‍♂️ تأثير سحري آخر (مثلاً: إضاءة سينمائية)",
             ],
             key="edit_eff_sel",
         )
+        custom_edit_prompt = st.text_area("اكتبي التعديل الذي تريدينه بنفسك:", key="custom_image_edit_prompt", placeholder="اكتبي بحرية: غير الخلفية، أزل شيء، أضف عنصر، غيّر الألوان...")
 
         if upload_edit_img and edit_effect:
           raw_e = upload_edit_img.getvalue()
@@ -2294,19 +2390,17 @@ else:
               )
             else:
               with st.spinner("جاري معالجة الصورة..."):
-                edited_url, err_e = edit_user_image(raw_e, mime_e, edit_effect)
+                edited_url, err_e = edit_user_image(raw_e, mime_e, edit_effect, custom_edit_prompt)
               if edited_url:
-                record_free_media_upload(rec, is_video=False)
-                st.success("✅ تم تعديل الصورة بنجاح!")
-                st.image(
-                    edited_url,
-                    caption=f"نتيجة: {edit_effect}",
-                    use_container_width=True,
-                )
-                if isinstance(edited_url, (bytes, bytearray)):
-                  render_image_actions(edited_url, "bras_ai_edited.png", "edited_image")
-                elif isinstance(edited_url, str):
-                  st.link_button("⬇️ تحميل الصورة", edited_url)
+                edited_bytes = image_bytes_from_result(edited_url)
+                if edited_bytes:
+                  record_free_media_upload(rec, is_video=False)
+                  saved_edit = save_image_to_library(rec, edited_bytes, custom_edit_prompt.strip() or edit_effect, "edited")
+                  st.success("✅ تم تعديل الصورة وحفظ نسخة تلقائياً في مكتبتك!")
+                  st.image(edited_bytes, caption=f"نتيجة التعديل: {custom_edit_prompt.strip() or edit_effect}", use_container_width=True)
+                  render_image_actions(edited_bytes, "bras_ai_edited_image.png", f"edited_{saved_edit['id'] if saved_edit else 'img'}")
+                else:
+                  st.error("تعذر تجهيز الصورة للحفظ. جربي مرة أخرى.")
               else:
                 st.error(f"تعذر تعديل الصورة: {err_e}")
 
@@ -2484,6 +2578,29 @@ else:
               mime="application/json",
               key=f"dl_chat_{idx}",
           )
+
+  elif nav_mode == "🖼️ مكتبتي الصور":
+    st.header("🖼️ مكتبة الصور الخاصة بي")
+    gallery = rec.setdefault("image_library", [])
+    if not gallery:
+      st.info("بعد إنشاء أو تعديل صورة، تنحفظ نسخة تلقائياً هنا.")
+    else:
+      st.caption(f"الصور المحفوظة: {len(gallery)} (نحتفظ بآخر 10 صور لتخفيف حجم الحساب)")
+      for index, item in enumerate(gallery):
+        with st.container(border=True):
+          try:
+            raw_image = base64.b64decode(item.get("image_b64", ""))
+            st.image(raw_image, caption=item.get("prompt", "صورة محفوظة"), use_container_width=True)
+            render_image_actions(raw_image, f"bras_library_{item.get('id', index)}.jpg", f"gallery_{item.get('id', index)}")
+          except Exception:
+            st.warning("تعذر عرض هذه الصورة المخزنة.")
+          st.caption(f"{item.get('created_at', '')} · {'تعديل' if item.get('kind') == 'edited' else 'إنشاء'}")
+          if st.button("🗑️ حذف الصورة", key=f"delete_gallery_{item.get('id', index)}"):
+            rec["image_library"] = [x for x in gallery if x.get("id") != item.get("id")]
+            if rec.get("last_generated_image_id") == item.get("id"):
+              rec["last_generated_image_id"] = None
+            save_account_everywhere(rec["user_email"], rec)
+            st.rerun()
 
   elif nav_mode == t_sec_pricing:
     st.header("💳 الباقات والاشتراك عبر كي كارد (BRAS AI)")
