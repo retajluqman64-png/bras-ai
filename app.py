@@ -645,6 +645,8 @@ def resolve_ui_pack(selected_lang: str) -> dict:
   if not isinstance(chosen_pack, dict):
     chosen_pack = base_pack
   merged = {**base_pack, **chosen_pack}
+  # Ensure essential media-studio keys survive incomplete or malformed translations.
+  merged.setdefault("t_media_prompt_q", "اكتبي وصف الصورة بالتفصيل:")
   nested = chosen_pack.get("sections_map", {})
   merged["sections_map"] = {**base_pack.get("sections_map", {}), **(nested if isinstance(nested, dict) else {})}
   return merged
@@ -726,6 +728,8 @@ t_ai_gen_studio = ui_pack["t_ai_gen_studio"]
 t_img_edit_studio = ui_pack["t_img_edit_studio"]
 t_gen_real_image = ui_pack["t_gen_real_image"]
 t_media_mode_q = ui_pack["t_media_mode_q"]
+# Defensive UI translation fallback: prevent KeyError for partially translated packs.
+ui_pack.setdefault("t_media_prompt_q", "اكتبي وصف الصورة بالتفصيل:")
 t_media_prompt_q = ui_pack["t_media_prompt_q"]
 t_gen_btn = ui_pack["t_gen_btn"]
 t_upload_img_q = ui_pack["t_upload_img_q"]
@@ -1297,6 +1301,8 @@ t_ai_gen_studio = ui_pack["t_ai_gen_studio"]
 t_img_edit_studio = ui_pack["t_img_edit_studio"]
 t_gen_real_image = ui_pack["t_gen_real_image"]
 t_media_mode_q = ui_pack["t_media_mode_q"]
+# Defensive UI translation fallback: prevent KeyError for partially translated packs.
+ui_pack.setdefault("t_media_prompt_q", "اكتبي وصف الصورة بالتفصيل:")
 t_media_prompt_q = ui_pack["t_media_prompt_q"]
 t_gen_btn = ui_pack["t_gen_btn"]
 t_upload_img_q = ui_pack["t_upload_img_q"]
