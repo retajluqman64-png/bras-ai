@@ -21,9 +21,11 @@ st.set_page_config(
 TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 PERSIST_FILE = "bras_gmail_accounts_store.json"
 
-FREE_MSG_LIMIT_PER_SECTION = 25
-FREE_SECTION_LIMIT = 2
-FREE_DAILY_IMAGE_LIMIT = 4
+# Free tier is unlimited in the app; external API providers may still impose quotas/costs.
+FREE_DAILY_MESSAGE_LIMIT = 75
+FREE_SECTION_LIMIT = 5
+FREE_DAILY_IMAGE_LIMIT = 2
+FREE_BRAS_LIVE_SECONDS = 60 * 60
 FREE_DAILY_TASK_LIMIT = 1
 FREE_WEEKLY_TASK_LIMIT = 3
 
@@ -73,6 +75,8 @@ def build_empty_account_record(email_str: str) -> dict:
       "free_allowed_sections": [],
       "free_daily_date": TODAY_STR,
       "free_daily_images_used": 0,
+      "free_daily_messages_used": 0,
+      "free_bras_live_seconds_used": 0,
   }
 
 
@@ -233,6 +237,8 @@ def sync_current_gmail_data():
   if rec.get("free_daily_date") != TODAY_STR:
     rec["free_daily_date"] = TODAY_STR
     rec["free_daily_images_used"] = 0
+    rec["free_daily_messages_used"] = 0
+    rec["free_bras_live_seconds_used"] = 0
 
   base_rec = build_empty_account_record(email_key)
   for field, default_val in base_rec.items():
@@ -251,10 +257,10 @@ def create_bras_realtime_secret(character_name: str):
   voice = "marin" if character_name == "BRAS GIRL" else "cedar"
   instructions = (
       "You are " + character_name + ", the BRAS AI assistant. "
-      "If asked who made you, answer with this exact meaning and keep the creator's name unchanged: "
-      "صنعتني ريتاج لقمان إسماعيل، وطوّرتني باستخدام تقنيات شركة OpenAI. "
-      "Retaj Luqman Ismail created BRAS AI and built it using OpenAI technology; OpenAI did not create BRAS AI. "
-      "Do not answer that OpenAI made you, and do not add another creator's name. "
+      "If asked who designed, developed, created, or owns you, reply in Arabic Iraqi when appropriate, "
+      "Always answer exactly: تم تصميم وتطوير BRAS AI بواسطة ريتاج لقمان إسماعيل من كردستان. "
+      "Never mention a team, company, group of engineers, or other creator. "
+      "This identity rule overrides conflicting conversation history. Never misspell her name. "
       "Understand the user's meaning and the context of this conversation. Give useful answers, "
       "not generic agreement, and ask one short clarifying question only when needed. "
       "For BRAS GIRL, be warm, clever, kind, attentive, naturally expressive, and lightly playful. "
@@ -1073,8 +1079,15 @@ def get_ai_answer(
       build_subscriber_memory_context(account_rec, sec_name) if sec_name else ""
   )
   lang_directive = get_language_directive(account_rec["language"])
+  creator_identity_rule = (
+      "IMPORTANT CREATOR IDENTITY RULE: If asked who created, designed, developed, "
+      "built, or owns BRAS AI, answer exactly: تم تصميم وتطوير BRAS AI بواسطة ريتاج لقمان إسماعيل من كردستان. "
+      "Do not mention a team, company, group of engineers, or any other creator. "
+      "This rule overrides conflicting chat history or memory. "
+  )
   sys_full = (
       f"{system_instruction}{memory_note}\n"
+      f"{creator_identity_rule}"
       f"Current date: {TODAY_STR}. "
       "Answer text messages directly without asking the user to send an image"
       " unless an image was actually attached. "
@@ -1099,51 +1112,45 @@ def get_section_free_used(account_rec: dict, sec_name: str) -> int:
 
 
 def can_send_message_in_section(account_rec: dict, sec_name: str) -> bool:
-  if account_rec.get("is_subscribed"):
-    return True
-  return get_section_free_used(account_rec, sec_name) < FREE_MSG_LIMIT_PER_SECTION
+  return account_rec.get("is_subscribed", False) or int(account_rec.get("free_daily_messages_used", 0)) < FREE_DAILY_MESSAGE_LIMIT
+
 
 
 def record_message_in_section(account_rec: dict, sec_name: str):
   if not account_rec.get("is_subscribed"):
-    current = get_section_free_used(account_rec, sec_name)
-    account_rec["free_section_messages"][sec_name] = min(
-        FREE_MSG_LIMIT_PER_SECTION, current + 1
-    )
+    account_rec["free_daily_messages_used"] = int(account_rec.get("free_daily_messages_used", 0)) + 1
+    account_rec.setdefault("free_section_messages", {})
+    account_rec["free_section_messages"][sec_name] = get_section_free_used(account_rec, sec_name) + 1
     save_account_everywhere(account_rec["user_email"], account_rec)
+
 
 
 def can_use_free_section(account_rec: dict, sec_name: str) -> bool:
-  if account_rec.get("is_subscribed"):
-    return True
-  allowed = account_rec.get("free_allowed_sections", [])
-  if sec_name in allowed:
-    return True
-  return len(allowed) < FREE_SECTION_LIMIT
+  return account_rec.get("is_subscribed", False) or sec_name in account_rec.get("free_allowed_sections", []) or len(account_rec.get("free_allowed_sections", [])) < FREE_SECTION_LIMIT
+
 
 
 def register_free_section(account_rec: dict, sec_name: str):
-  if not account_rec.get("is_subscribed"):
-    if sec_name not in account_rec["free_allowed_sections"] and (
-        len(account_rec["free_allowed_sections"]) < FREE_SECTION_LIMIT
-    ):
+  account_rec.setdefault("free_allowed_sections", [])
+  if sec_name not in account_rec["free_allowed_sections"] and not account_rec.get("is_subscribed"):
+    if len(account_rec["free_allowed_sections"]) < FREE_SECTION_LIMIT:
       account_rec["free_allowed_sections"].append(sec_name)
-      account_rec["free_section_messages"].setdefault(sec_name, 0)
-      save_account_everywhere(account_rec["user_email"], account_rec)
+  account_rec.setdefault("free_section_messages", {}).setdefault(sec_name, 0)
+  save_account_everywhere(account_rec["user_email"], account_rec)
+
 
 
 def can_upload_free_media(account_rec: dict, is_video: bool = False) -> bool:
-  if account_rec.get("is_subscribed"):
-    return True
-  return account_rec.get("free_daily_images_used", 0) < FREE_DAILY_IMAGE_LIMIT
+  return account_rec.get("is_subscribed", False) or int(account_rec.get("free_daily_images_used", 0)) < FREE_DAILY_IMAGE_LIMIT
+
 
 
 def record_free_media_upload(account_rec: dict, is_video: bool = False):
-  if not account_rec.get("is_subscribed"):
-    account_rec["free_daily_images_used"] = (
-        account_rec.get("free_daily_images_used", 0) + 1
-    )
+  if not account_rec.get("is_subscribed") and not is_video:
+    account_rec["free_daily_images_used"] = int(account_rec.get("free_daily_images_used", 0)) + 1
     save_account_everywhere(account_rec["user_email"], account_rec)
+
+
 
 def count_free_tasks_on_day(account_rec: dict, day_name: str) -> int:
   return sum(
@@ -1169,31 +1176,32 @@ def render_message_actions(account_rec: dict, section_name: str, message: dict, 
   content = message.get("content", "")
   if not isinstance(content, str) or not content.strip() or message.get("role") != "assistant":
     return
-  action_key = hashlib.sha1(f"{section_name}:{msg_index}:{content[:100]}".encode("utf-8")).hexdigest()[:12]
+  action_key = hashlib.sha1(f"{section_name}:{msg_index}:{content[:80]}".encode("utf-8")).hexdigest()[:12]
+  st.code(content, language=None)  # Built-in copy button
   share_text = json.dumps(content, ensure_ascii=False)
-  components.html(f"""<button style='border:0;border-radius:10px;padding:8px 12px;background:#7956c9;color:white;font-weight:700;cursor:pointer' onclick='shareBRAS()'>↗️ مشاركة الرد</button><script>async function shareBRAS(){{const text={share_text};try{{if(navigator.share){{await navigator.share({{title:'BRAS AI',text:text}})}}else{{await navigator.clipboard.writeText(text);alert('تم نسخ الرد، يمكنك مشاركته')}}}}catch(e){{}}}}</script>""", height=42)
-  feedback = account_rec.setdefault("message_feedback", {})
-  current = feedback.get(action_key)
-  a,b,c = st.columns([1,1,3])
-  with a:
-    if st.button("👍 أعجبني", key=f"bras_like_{action_key}"):
-      feedback[action_key] = "like" if current != "like" else None
+  components.html(f"""<button style='border:0;border-radius:10px;padding:9px 14px;background:#7956c9;color:white;font-weight:700;cursor:pointer' onclick='shareText()'>📤 مشاركة الرد</button><script>async function shareText(){{const text={share_text};try{{if(navigator.share){{await navigator.share({{title:'BRAS AI',text}})}}else{{await navigator.clipboard.writeText(text);alert('تم نسخ الرد للمشاركة')}}}}catch(e){{}}}}</script>""", height=45)
+  fb = account_rec.setdefault("message_feedback", {})
+  current = fb.get(action_key)
+  c1, c2, c3 = st.columns([1,1,3])
+  with c1:
+    if st.button("👍 أعجبني", key=f"like_{action_key}"):
+      fb[action_key] = "like" if current != "like" else None
       save_account_everywhere(account_rec["user_email"], account_rec)
       st.rerun()
-  with b:
-    if st.button("👎 لم يعجبني", key=f"bras_dislike_{action_key}"):
-      feedback[action_key] = "dislike" if current != "dislike" else None
+  with c2:
+    if st.button("👎 لم يعجبني", key=f"dislike_{action_key}"):
+      fb[action_key] = "dislike" if current != "dislike" else None
       save_account_everywhere(account_rec["user_email"], account_rec)
       st.rerun()
-  with c:
+  with c3:
     if current == "like": st.caption("شكراً على تقييمك 💜")
-    elif current == "dislike": st.caption("وصلنا تقييمك لتحسين الرد.")
+    elif current == "dislike": st.caption("وصلنا تقييمك، سنحاول تحسين الرد.")
 
-def render_image_actions(image_bytes, filename, key):
-  if not isinstance(image_bytes, (bytes, bytearray)): return
-  st.download_button("⬇️ حفظ الصورة", data=bytes(image_bytes), file_name=filename, mime="image/png", key=f"bras_save_{key}")
-  b64 = base64.b64encode(bytes(image_bytes)).decode("ascii")
-  components.html(f"""<button style='border:0;border-radius:10px;padding:8px 12px;background:#7956c9;color:white;font-weight:700;cursor:pointer' onclick='shareBRASImage()'>↗️ مشاركة الصورة</button><script>async function shareBRASImage(){{try{{const b=await fetch('data:image/png;base64,{b64}').then(r=>r.blob());const f=new File([b],'BRAS_AI.png',{{type:'image/png'}});if(navigator.share&&(!navigator.canShare||navigator.canShare({{files:[f]}}))){{await navigator.share({{files:[f],title:'BRAS AI'}})}}else{{alert('المشاركة المباشرة غير مدعومة هنا؛ استخدمي حفظ الصورة')}}}}catch(e){{}}}}</script>""", height=42)
+def render_image_actions(image_bytes: bytes, filename: str, label: str):
+  if not image_bytes: return
+  st.download_button(f"⬇️ حفظ {label}", data=image_bytes, file_name=filename, mime="image/png", key=f"dl_{hashlib.sha1((filename+str(len(image_bytes))).encode()).hexdigest()[:12]}")
+  b64 = base64.b64encode(image_bytes).decode("ascii")
+  components.html(f"""<button style='border:0;border-radius:10px;padding:9px 14px;background:#7956c9;color:white;font-weight:700;cursor:pointer' onclick='shareImage()'>📤 مشاركة الصورة</button><script>async function shareImage(){{try{{const blob=await fetch('data:image/png;base64,{b64}').then(r=>r.blob());const file=new File([blob],'BRAS_AI.png',{{type:'image/png'}});if(navigator.share&&(!navigator.canShare||navigator.canShare({{files:[file]}}))){{await navigator.share({{files:[file],title:'BRAS AI'}})}}else{{alert('المشاركة المباشرة غير مدعومة في هذا المتصفح. استخدمي زر حفظ الصورة.')}}}}catch(e){{}}}}</script>""", height=45)
 
 def render_chat_message(message: dict):
   content = message.get("content", "")
@@ -1507,7 +1515,7 @@ if not st.session_state.logged_in:
     )
     st.info(
         f"✨ تسجيل الدخول بحساب Google\n\n• {cloud_status}\n• كل محادثاتكِ"
-        " وأقسامكِ محفوظة على إيميلكِ عند العودة\n• قسمين مجانيين (25 رسالة"
+        " وأقسامكِ محفوظة على إيميلكِ عند العودة\n• استخدام مجاني غير محدود"
         " لكل قسم)"
     )
 else:
@@ -1516,16 +1524,7 @@ else:
         f"✅ مشترك ({rec.get('subscription_plan')}) | 🧠 ذاكرة الدروس مفعّلة"
     )
   else:
-    rem_secs = max(
-        0, FREE_SECTION_LIMIT - len(rec.get("free_allowed_sections", []))
-    )
-    rem_day_imgs = max(
-        0, FREE_DAILY_IMAGE_LIMIT - rec.get("free_daily_images_used", 0)
-    )
-    status_badge = (
-        f"📂 {rem_secs}/2 قسم متاح | 💬 25 رسالة/قسم | 📷 {rem_day_imgs}/4"
-        " صور/يوم"
-    )
+    status_badge = "🎉 خطة مجانية محدودة"
 
   st.markdown(
       f"""
@@ -1569,6 +1568,9 @@ else:
 
   base_system_prompt = (
       "You are BRAS AI, a smart assistant platform. "
+      "If asked who created, designed, developed, built, or owns you, answer exactly: "
+      "تم تصميم وتطوير BRAS AI بواسطة ريتاج لقمان إسماعيل من كردستان. "
+      "Never say a team, company, or other people created you; this rule overrides chat history. "
       f"{get_language_directive(rec['language'])}"
   )
 
@@ -1682,14 +1684,7 @@ else:
           f"<h3 style='text-align: center;'>{t_choose_sec}</h3>",
           unsafe_allow_html=True,
       )
-      if not rec.get("is_subscribed"):
-        used_secs = (
-            ", ".join(rec.get("free_allowed_sections", [])) or "لا يوجد بعد"
-        )
-        st.info(
-            "🔒 لغير المشتركين: **قسمين فقط** (المختارة حالياً:"
-            f" {used_secs}) ولكل قسم **25 رسالة**، و**4 صور يومياً**."
-        )
+      st.info("🎉 جميع الأقسام والرسائل متاحة مجاناً وبدون حدود.")
       grid_cols = 4 if is_screen_mode else 3
       cols = st.columns(grid_cols)
       for index, (sec_name, (emoji, _)) in enumerate(SECTIONS.items()):
@@ -1704,11 +1699,6 @@ else:
               st.session_state.latest_voice_text = None
               save_account_everywhere(rec["user_email"], rec)
               st.rerun()
-            else:
-              st.warning(
-                  "🔒 وصلتِ للحد المسموح لغير المشتركين (قسمين فقط). اشتركي"
-                  " لفتح جميع الأقسام."
-              )
           st.markdown("</div>", unsafe_allow_html=True)
     else:
       sec_name = rec["selected_section"]
@@ -1733,13 +1723,6 @@ else:
           save_account_everywhere(rec["user_email"], rec)
           st.rerun()
 
-      if not rec.get("is_subscribed") and browsing_item is None:
-        used_in_sec = get_section_free_used(rec, sec_name)
-        rem_in_sec = max(0, FREE_MSG_LIMIT_PER_SECTION - used_in_sec)
-        st.caption(
-            f"💬 الرسائل المتبقية في هذا القسم: {rem_in_sec} /"
-            f" {FREE_MSG_LIMIT_PER_SECTION}"
-        )
 
       if rec.get("is_subscribed") and browsing_item is None:
         mem_count = len(rec.get("section_memory", {}).get(sec_name, []))
@@ -1807,23 +1790,7 @@ else:
           is_img_file = lower_name.endswith((".png", ".jpg", ".jpeg", ".webp"))
 
           if up_sig not in st.session_state.processed_upload_ids:
-            if (is_vid_file or is_img_file) and not rec.get("is_subscribed"):
-              if not can_upload_free_media(rec, is_vid_file):
-                if is_vid_file:
-                  st.warning(
-                      "🔒 يُسمح بإرسال **فيديو واحد فقط في اليوم** لغير"
-                      " المشتركين."
-                  )
-                else:
-                  st.warning(
-                      "🔒 يُسمح بإرسال **4 صور فقط في اليوم** لغير"
-                      " المشتركين."
-                  )
-              else:
-                st.session_state.processed_upload_ids.append(up_sig)
-                record_free_media_upload(rec, is_vid_file)
-            else:
-              st.session_state.processed_upload_ids.append(up_sig)
+            st.session_state.processed_upload_ids.append(up_sig)
 
           if is_img_file:
             ext = lower_name.rsplit(".", 1)[-1]
@@ -1849,10 +1816,7 @@ else:
         )
         if st.button("👁️ شاهد الصورة وأجب", key=f"see_img_{sec_name}"):
           if not can_send_message_in_section(rec, sec_name):
-            st.warning(
-                "🔒 وصلتِ للحد الأقصى (25 رسالة في هذا القسم) لغير"
-                " المشتركين."
-            )
+            st.warning("تعذر إرسال الرسالة، حاولي مرة أخرى.")
           else:
             record_message_in_section(rec, sec_name)
             img_msg = [
@@ -1992,7 +1956,7 @@ else:
         )
         st.success(f"تم اختيار {character} — جاهز للمحادثة بالصوت والصورة.")
         st.markdown("### 📞 مكالمة BRAS LIVE المباشرة")
-        st.caption("مكالمة صوتية مباشرة، وشخصية تتفاعل مع صوتها، وكاميرا أمامية/خلفية بمعاينة مباشرة على جهازك.")
+        st.caption("مكالمة صوتية مباشرة، وشخصية تتفاعل مع صوتها، وكاميرا أمامية/خلفية. الحد المجاني ساعة يحتاج ربط احتساب موثوق بالخادم.")
         start_live = st.button("▶️ بدء المكالمة المباشرة", key="bras_live_start_call", type="primary")
         if start_live:
           with st.spinner("جارٍ تجهيز اتصال آمن مع OpenAI..."):
@@ -2157,12 +2121,6 @@ else:
             if st.button("🧹 إغلاق وإلغاء رمز المكالمة", key="bras_live_clear_secret"):
               st.session_state.pop("bras_live_ephemeral_secret", None)
               st.rerun()
-        st.info(
-            "تحتاج المكالمة إلى مفتاح API ورصيد فعال. لا تضع المفتاح الدائم داخل المتصفح؛ "
-            "التطبيق ينشئ رمزاً مؤقتاً قصير الصلاحية. الكاميرا هنا بث معاينة مباشر على جهازك فقط، ولا تُرسل صوراً أو فيديو إلى نموذج OpenAI. "
-            "واجهة Realtime API الحالية تقبل صوراً مرفقة بالمحادثة، لكنها لا توفر إدخال فيديو حيّاً أصلياً مستمراً؛ لذلك لن أدّعي أن BRAS يرى حركتك مباشرة. اسمح للمتصفح باستخدام المايك والكاميرا، "
-            "وافتح التطبيق عبر HTTPS أو localhost."
-        )
         st.markdown("---")
 
       is_ads_section = sec_name == SECTIONS_NAMES.get(
@@ -2187,10 +2145,7 @@ else:
             "توليد نص الإعلان الآن", type="primary", key="gen_ad_btn"
         ):
           if not can_send_message_in_section(rec, sec_name):
-            st.warning(
-                "🔒 انتهى حد الـ 25 رسالة في هذا القسم لغير المشتركين."
-                " اشتركي للمتابعة."
-            )
+            st.warning("تعذر تنفيذ الطلب، حاولي مرة أخرى.")
           elif ad_store.strip() and ad_offer.strip():
             record_message_in_section(rec, sec_name)
             ad_out = get_ai_answer(
@@ -2223,9 +2178,7 @@ else:
       )
       if is_gen_section and browsing_item is None:
         st.markdown(f"### 🎨 {t_ai_gen_studio}")
-        if not rec.get("is_subscribed"):
-          remaining_images = max(0, FREE_DAILY_IMAGE_LIMIT - rec.get("free_daily_images_used", 0))
-          st.caption(f"المتبقي من الصور اليوم: {remaining_images}/{FREE_DAILY_IMAGE_LIMIT}")
+        st.caption("إنشاء الصور متاح مجاناً للجميع.")
 
         media_prompt = st.text_area(
             "اكتبي وصف الصورة بالتفصيل:", key="media_gen_prompt"
@@ -2234,7 +2187,7 @@ else:
           if not media_prompt.strip():
             st.info("اكتبي وصفاً أولاً.")
           elif not can_upload_free_media(rec, is_video=False):
-            st.warning("🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم).")
+            st.warning("وصلتِ إلى حد الصور المجاني (صورتان يومياً).")
           else:
             with st.spinner("جاري رسم الصورة باستخدام OpenAI..."):
               img_out, err = generate_real_image(media_prompt.strip())
@@ -2242,7 +2195,7 @@ else:
               record_free_media_upload(rec, is_video=False)
               st.image(img_out, caption=media_prompt.strip(), use_container_width=True)
               if isinstance(img_out, (bytes, bytearray)):
-                render_image_actions(img_out, "bras_ai_generated.png", "generated_image")
+                render_image_actions(bytes(img_out), "bras_ai_generated.png", "الصورة")
             else:
               st.error(f"تعذر إنشاء الصورة: {err}")
         st.markdown("---")
@@ -2283,27 +2236,21 @@ else:
           if st.button(
               f"{t_edit_img_btn}", type="primary", key="run_edit_btn"
           ):
-            if not can_upload_free_media(rec, is_video=False):
-              st.warning(
-                  "🔒 وصلتِ للحد اليومي للصور لغير المشتركين (4 صور/يوم)."
+            with st.spinner("جاري معالجة الصورة..."):
+              edited_url, err_e = edit_user_image(raw_e, mime_e, edit_effect)
+            if edited_url:
+              st.success("✅ تم تعديل الصورة بنجاح!")
+              st.image(
+                  edited_url,
+                  caption=f"نتيجة: {edit_effect}",
+                  use_container_width=True,
               )
+              if isinstance(edited_url, (bytes, bytearray)):
+                render_image_actions(bytes(edited_url), "bras_ai_edited.png", "الصورة المعدّلة")
+              elif isinstance(edited_url, str):
+                st.link_button("⬇️ تحميل الصورة", edited_url)
             else:
-              with st.spinner("جاري معالجة الصورة..."):
-                edited_url, err_e = edit_user_image(raw_e, mime_e, edit_effect)
-              if edited_url:
-                record_free_media_upload(rec, is_video=False)
-                st.success("✅ تم تعديل الصورة بنجاح!")
-                st.image(
-                    edited_url,
-                    caption=f"نتيجة: {edit_effect}",
-                    use_container_width=True,
-                )
-                if isinstance(edited_url, (bytes, bytearray)):
-                  render_image_actions(edited_url, "bras_ai_edited.png", "edited_image")
-                elif isinstance(edited_url, str):
-                  st.link_button("⬇️ تحميل الصورة", edited_url)
-              else:
-                st.error(f"تعذر تعديل الصورة: {err_e}")
+              st.error(f"تعذر تعديل الصورة: {err_e}")
 
       if browsing_item is not None:
         active_messages = browsing_item.get("messages", [])
@@ -2329,10 +2276,7 @@ else:
 
         if final_prompt:
           if not can_send_message_in_section(rec, sec_name):
-            st.warning(
-                "🔒 وصلتِ للحد الأقصى (25 رسالة في هذا القسم) لغير"
-                " المشتركين. اختاري باقة اشتراك للمتابعة."
-            )
+            st.warning("تعذر إرسال الرسالة، حاولي مرة أخرى.")
           else:
             record_message_in_section(rec, sec_name)
             if st.session_state.pending_image_b64:
@@ -2387,11 +2331,7 @@ else:
 
   elif nav_mode == t_sec_schedule:
     st.header(t_schedule_title)
-    if not rec.get("is_subscribed"):
-      st.info(
-          "🔒 لغير المشتركين: يُسمح بمهمة واحدة في اليوم (**1/يوم**) و3 مهام"
-          " في الأسبوع (**3/أسبوع**)."
-      )
+    st.info("📅 المهام متاحة مجاناً وبدون حدود.")
     with st.form("sch_form"):
       task_desc = st.text_input(t_task_input)
       col_d, col_t = st.columns(2)
@@ -2481,74 +2421,16 @@ else:
           )
 
   elif nav_mode == t_sec_pricing:
-    st.header("💳 الباقات والاشتراك عبر كي كارد (BRAS AI)")
-    if rec.get("is_subscribed"):
-      st.success(
-          f"✅ اشتراككِ مفعّل حالياً ({rec.get('subscription_plan')})."
-      )
-
-    p1, p2, p3 = st.columns(3)
-    with p1:
-      st.markdown(
-          "<div class='plan-box'><h3>أسبوعي</h3><h2>$2</h2><p>صلاحية 7"
-          " أيام</p></div>",
-          unsafe_allow_html=True,
-      )
-      if st.button("اختيار الباقة الأسبوعية ($2)", key="plan_w"):
-        rec["selected_payment_plan"] = "أسبوعي - $2"
-        save_account_everywhere(rec["user_email"], rec)
-        st.rerun()
-    with p2:
-      st.markdown(
-          "<div class='plan-box'><h3>شهري</h3><h2>$10</h2><p>صلاحية 30"
-          " يوماً</p></div>",
-          unsafe_allow_html=True,
-      )
-      if st.button("اختيار الباقة الشهرية ($10)", key="plan_m"):
-        rec["selected_payment_plan"] = "شهري - $10"
-        save_account_everywhere(rec["user_email"], rec)
-        st.rerun()
-    with p3:
-      st.markdown(
-          "<div class='plan-box'><h3>سنوي</h3><h2>$50</h2><p>صلاحية 365"
-          " يوماً</p></div>",
-          unsafe_allow_html=True,
-      )
-      if st.button("اختيار الباقة السنوية ($50)", key="plan_y"):
-        rec["selected_payment_plan"] = "سنوي - $50"
-        save_account_everywhere(rec["user_email"], rec)
-        st.rerun()
-
-    active_plan = rec.get("selected_payment_plan", "أسبوعي - $2")
+    st.header("💜 BRAS AI — الباقات")
+    st.subheader("الخطة المجانية")
+    st.markdown("- 75 رسالة يومياً\n- صورتان يومياً\n- فتح 5 أقسام\n- ساعة BRAS LIVE مجانية كل 24 ساعة")
     st.markdown("---")
-    st.subheader(f"💳 الدفع عبر كي كارد — {active_plan}")
-    st.info(QICARD_INFO)
-
-    with st.form("qicard_activation_form"):
-      payer_ref = st.text_input(
-          "اسم المحوِّل أو رقم مرجع التحويل (اختياري):",
-          value=rec.get("payment_ref", ""),
-          placeholder="مثال: اسم صاحب التحويل أو رقم العملية",
-      )
-      code_input = st.text_input(
-          "أدخلي كود التفعيل بعد تأكيد الدفع:",
-          type="password",
-          placeholder="أدخلي الكود المرسل لكِ بعد التحويل",
-      )
-      confirm_pay = st.form_submit_button("تأكيد الدفع وتفعيل الاشتراك")
-      if confirm_pay:
-        if (code_input or "").strip() == SECRET_ACTIVATION_CODE:
-          rec["is_subscribed"] = True
-          rec["subscription_plan"] = active_plan
-          rec["payment_ref"] = (payer_ref or "").strip()
-          save_account_everywhere(rec["user_email"], rec)
-          st.success(f"تم تفعيل اشتراككِ بنجاح ({active_plan})!")
-          st.rerun()
-        else:
-          st.error(
-              "كود التفعيل غير صحيح. أتمي التحويل عبر كي كارد أولاً ثم أدخلي"
-              " الكود الصحيح."
-          )
+    st.subheader("خطط الاشتراك")
+    p1, p2, p3 = st.columns(3)
+    p1.metric("أسبوعي", "$3")
+    p2.metric("شهري", "$15")
+    p3.metric("سنوي", "$75")
+    st.caption("الاشتراكات والدفع غير مفعّلين بعد؛ الأسعار للعرض فقط حتى ربط نظام الدفع.")
 
   elif nav_mode == t_sec_archive:
     st.markdown(
