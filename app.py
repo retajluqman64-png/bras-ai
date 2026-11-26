@@ -608,56 +608,46 @@ def get_english_ui_pack() -> dict:
 
 
 def resolve_ui_pack(selected_lang: str) -> dict:
-  if (
-      "كرمانجي" in selected_lang
-      or "Kurmanji" in selected_lang
-      or "كرمانج" in selected_lang
-      or "Badini" in selected_lang
-  ):
-    return get_kurmanji_ui_pack()
-  if "Sorani" in selected_lang or "سوراني" in selected_lang:
-    return get_sorani_ui_pack()
-  if "English" in selected_lang:
-    return get_english_ui_pack()
-  if "Arabic" in selected_lang:
-    return get_arabic_ui_pack()
-
-  cache = st.session_state.setdefault("ui_translations_cache", {})
-  if selected_lang in cache:
-    return cache[selected_lang]
-
+  # Merge every locale with English defaults to avoid KeyError for missing keys.
   base_pack = get_english_ui_pack()
-  if not client:
-    return base_pack
-
-  try:
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        response_format={"type": "json_object"},
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Translate every string value in the provided JSON UI"
-                    f" dictionary accurately and naturally into '{selected_lang}'."
-                    " Keep emojis intact and return valid JSON with the exact"
-                    " same keys."
-                ),
-            },
+  chosen_pack = None
+  if ("كرمانجي" in selected_lang or "Kurmanji" in selected_lang or "كرمانج" in selected_lang or "Badini" in selected_lang):
+    chosen_pack = get_kurmanji_ui_pack()
+  elif "Sorani" in selected_lang or "سوراني" in selected_lang:
+    chosen_pack = get_sorani_ui_pack()
+  elif "English" in selected_lang:
+    chosen_pack = base_pack
+  elif "Arabic" in selected_lang:
+    chosen_pack = get_arabic_ui_pack()
+  else:
+    cache = st.session_state.setdefault("ui_translations_cache", {})
+    if selected_lang in cache:
+      chosen_pack = cache[selected_lang]
+    elif client:
+      try:
+        resp = client.chat.completions.create(
+          model="gpt-4o-mini", response_format={"type": "json_object"},
+          messages=[
+            {"role": "system", "content": (
+              "Translate every string value in the provided JSON UI dictionary "
+              f"accurately and naturally into '{selected_lang}'. Keep emojis intact "
+              "and return valid JSON with the exact same keys."
+            )},
             {"role": "user", "content": json.dumps(base_pack, ensure_ascii=False)},
-        ],
-    )
-    translated = json.loads(resp.choices[0].message.content or "{}")
-    merged = {**base_pack, **translated}
-    if isinstance(translated.get("sections_map"), dict):
-      merged["sections_map"] = {
-          **base_pack["sections_map"],
-          **translated["sections_map"],
-      }
-    cache[selected_lang] = merged
-    return merged
-  except Exception:
-    return base_pack
+          ],
+        )
+        chosen_pack = json.loads(resp.choices[0].message.content or "{}")
+        cache[selected_lang] = chosen_pack
+      except Exception:
+        chosen_pack = base_pack
+    else:
+      chosen_pack = base_pack
+  if not isinstance(chosen_pack, dict):
+    chosen_pack = base_pack
+  merged = {**base_pack, **chosen_pack}
+  nested = chosen_pack.get("sections_map", {})
+  merged["sections_map"] = {**base_pack.get("sections_map", {}), **(nested if isinstance(nested, dict) else {})}
+  return merged
 
 
 if not st.session_state.logged_in:
