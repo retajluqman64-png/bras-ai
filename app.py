@@ -307,7 +307,15 @@ def create_bras_realtime_secret(character_name: str):
 
 
 api_key = st.secrets.get("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key) if api_key else None
+# Keep model names configurable: availability and pricing can change by account.
+BRAS_TEXT_MODEL = str(st.secrets.get("BRAS_TEXT_MODEL", "gpt-4o-mini")).strip()
+BRAS_USE_RESPONSES_API = str(
+    st.secrets.get("BRAS_USE_RESPONSES_API", "false")
+).lower() in ("1", "true", "yes", "on")
+BRAS_ENABLE_WEB_SEARCH = str(
+    st.secrets.get("BRAS_ENABLE_WEB_SEARCH", "false")
+).lower() in ("1", "true", "yes", "on")
+client = OpenAI(api_key=api_key, timeout=45.0, max_retries=2) if api_key else None
 
 QICARD_INFO = st.secrets.get(
     "QICARD_INFO",
@@ -1105,6 +1113,32 @@ def get_language_directive(selected_lang: str) -> str:
   return f"Respond naturally and fluently in {selected_lang}."
 
 
+def _responses_input_from_history(chat_history: list) -> list:
+  """Convert the app's stored chat format into Responses API input items."""
+  items = []
+  for message in chat_history[-12:]:
+    role = message.get("role", "user")
+    if role not in ("user", "assistant"):
+      continue
+    content = message.get("content", "")
+    if isinstance(content, str):
+      items.append({"role": role, "content": content})
+      continue
+    parts = []
+    for part in content:
+      if not isinstance(part, dict):
+        continue
+      if part.get("type") == "text" and part.get("text"):
+        parts.append({"type": "input_text", "text": str(part["text"])})
+      elif part.get("type") == "image_url":
+        image_url = part.get("image_url", {})
+        if isinstance(image_url, dict) and image_url.get("url"):
+          parts.append({"type": "input_image", "image_url": image_url["url"]})
+    if parts:
+      items.append({"role": role, "content": parts})
+  return items
+
+
 def get_ai_answer(
     account_rec: dict,
     system_instruction: str,
@@ -1113,35 +1147,56 @@ def get_ai_answer(
 ) -> str:
   if not client:
     return (
-        "أهلاً بكِ في BRAS AI! أضيفي مفتاح OPENAI_API_KEY في Streamlit Secrets"
+        "أهلاً بكِ في BRAS AI! أضيفي مفتاح OPENAI_API_KEY في إعدادات Secrets"
         " لتفعيل الردود الذكية."
     )
+
   memory_note = (
       build_subscriber_memory_context(account_rec, sec_name) if sec_name else ""
   )
-  lang_directive = get_language_directive(account_rec["language"])
+  lang_directive = get_language_directive(account_rec.get("language", "العربية"))
   sys_full = (
-      f"{system_instruction}{memory_note}\n"
+      f"{system_instruction}{memory_note}\\n"
       "CREATOR IDENTITY: If asked who made, designed, developed, or owns BRAS AI, "
       "answer: تم تصميم وتطوير BRAS AI بواسطة ريتاج لقمان إسماعيل من كردستان. "
-      "Do not attribute it to a team or another creator.\n"
+      "Do not attribute it to a team or another creator.\\n"
       f"Current date: {TODAY_STR}. "
       "Answer text messages directly without asking the user to send an image"
       " unless an image was actually attached. "
-      "When an image is attached, inspect the image carefully and answer"
-      " accurately based on what is shown. "
-      "Give clear, helpful, and direct responses. "
+      "When an image is attached, inspect it carefully and describe only what"
+      " is supported by the image. Do not claim to access a camera or files"
+      " that were not provided. Give clear, helpful, and direct responses. "
       f"{lang_directive}"
   )
-  recent_msgs = format_history_for_api(chat_history)
 
   try:
-    payload = [{"role": "system", "content": sys_full}] + recent_msgs
-    resp = client.chat.completions.create(model="gpt-4o-mini", messages=payload)
-    content = (resp.choices[0].message.content or "").strip()
+    if BRAS_USE_RESPONSES_API:
+      response_args = {
+          "model": BRAS_TEXT_MODEL,
+          "instructions": sys_full,
+          "input": _responses_input_from_history(chat_history),
+      }
+      # Web search is opt-in because it can add latency and API cost.
+      if BRAS_ENABLE_WEB_SEARCH:
+        response_args["tools"] = [{"type": "web_search"}]
+      resp = client.responses.create(**response_args)
+      content = (getattr(resp, "output_text", "") or "").strip()
+    else:
+      payload = [{"role": "system", "content": sys_full}] + format_history_for_api(chat_history)
+      resp = client.chat.completions.create(
+          model=BRAS_TEXT_MODEL,
+          messages=payload,
+          timeout=45.0,
+      )
+      content = (resp.choices[0].message.content or "").strip()
+
     return content if content else "تم استلام رسالتكِ؛ جربي صياغة السؤال مرة أخرى."
-  except Exception as exc:
-    return f"تعذر إتمام الرد الآن: {exc}"
+  except Exception:
+    # Do not expose internal request details, credentials, or provider traces to users.
+    return (
+        "تعذر إتمام الرد الآن. تحققي من إعدادات نموذج BRAS AI ومفتاح API "
+        "ثم حاولي مرة أخرى."
+    )
 
 
 def get_section_free_used(account_rec: dict, sec_name: str) -> int:
