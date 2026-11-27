@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 import os
 import re
+import secrets
 import urllib.parse
 import urllib.request
 from openai import OpenAI
@@ -34,6 +35,8 @@ SUPABASE_KEY = str(st.secrets.get("SUPABASE_KEY", "")).strip()
 GOOGLE_CLIENT_ID = str(st.secrets.get("GOOGLE_CLIENT_ID", "")).strip()
 GOOGLE_CLIENT_SECRET = str(st.secrets.get("GOOGLE_CLIENT_SECRET", "")).strip()
 APP_REDIRECT_URI = str(st.secrets.get("APP_REDIRECT_URI", "")).strip()
+BRAS_DEV_EMAIL = str(st.secrets.get("BRAS_DEV_EMAIL", "")).strip().lower()
+BRAS_DEV_PASSWORD = str(st.secrets.get("BRAS_DEV_PASSWORD", "")).strip()
 
 
 def is_valid_gmail(email_str: str) -> bool:
@@ -1500,6 +1503,22 @@ label, .stRadio label, .stCheckbox label, .stSelectbox label,
 )
 
 if not st.session_state.logged_in:
+  # Temporary owner-only development login. Credentials are supplied via hosting Secrets,
+  # never hardcoded in the source or exposed to visitors.
+  if BRAS_DEV_EMAIL and BRAS_DEV_PASSWORD:
+    with st.expander("دخول التطوير المؤقت (لصاحبة التطبيق فقط)"):
+      with st.form("bras_dev_login_form"):
+        dev_email_input = st.text_input("بريد صاحبة التطبيق", key="bras_dev_email_input")
+        dev_password_input = st.text_input("كلمة مرور التطوير", type="password", key="bras_dev_password_input")
+        dev_submit = st.form_submit_button("دخول مؤقت")
+      if dev_submit:
+        if (dev_email_input or "").strip().lower() == BRAS_DEV_EMAIL and secrets.compare_digest((dev_password_input or ""), BRAS_DEV_PASSWORD):
+          st.session_state.logged_in = True
+          st.session_state.active_gmail = BRAS_DEV_EMAIL
+          st.session_state.login_step = 1
+          st.rerun()
+        else:
+          st.error("بيانات دخول التطوير غير صحيحة.")
   st.markdown(
       f"<h3 style='text-align: center;'>{t_login_title}</h3>",
       unsafe_allow_html=True,
