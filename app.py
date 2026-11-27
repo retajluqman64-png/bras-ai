@@ -6,7 +6,6 @@ from datetime import datetime
 import json
 import os
 import re
-import secrets
 import urllib.parse
 import urllib.request
 from openai import OpenAI
@@ -35,8 +34,6 @@ SUPABASE_KEY = str(st.secrets.get("SUPABASE_KEY", "")).strip()
 GOOGLE_CLIENT_ID = str(st.secrets.get("GOOGLE_CLIENT_ID", "")).strip()
 GOOGLE_CLIENT_SECRET = str(st.secrets.get("GOOGLE_CLIENT_SECRET", "")).strip()
 APP_REDIRECT_URI = str(st.secrets.get("APP_REDIRECT_URI", "")).strip()
-BRAS_DEV_EMAIL = str(st.secrets.get("BRAS_DEV_EMAIL", "")).strip().lower()
-BRAS_DEV_PASSWORD = str(st.secrets.get("BRAS_DEV_PASSWORD", "")).strip()
 
 
 def is_valid_gmail(email_str: str) -> bool:
@@ -73,7 +70,6 @@ def build_empty_account_record(email_str: str) -> dict:
       "free_section_messages": {},
       "archives": [],
       "saved_chats": [],
-      "chat_folders": ["الدراسة", "البرمجة", "المشاريع", "أفكار"],
       "image_library": [],
       "browsing_archive": None,
       "free_allowed_sections": [],
@@ -1217,8 +1213,6 @@ def save_full_chat_snapshot(account_rec: dict, label: str, msgs: list):
       "title": f"{label} — {datetime.now().strftime('%H:%M')}",
       "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
       "messages": [dict(m) for m in msgs],
-      "favorite": False,
-      "folder": "بدون مجلد",
   }
   account_rec["saved_chats"].insert(0, entry)
   save_account_everywhere(account_rec["user_email"], account_rec)
@@ -1503,22 +1497,6 @@ label, .stRadio label, .stCheckbox label, .stSelectbox label,
 )
 
 if not st.session_state.logged_in:
-  # Temporary owner-only development login. Credentials are supplied via hosting Secrets,
-  # never hardcoded in the source or exposed to visitors.
-  if BRAS_DEV_EMAIL and BRAS_DEV_PASSWORD:
-    with st.expander("دخول التطوير المؤقت (لصاحبة التطبيق فقط)"):
-      with st.form("bras_dev_login_form"):
-        dev_email_input = st.text_input("بريد صاحبة التطبيق", key="bras_dev_email_input")
-        dev_password_input = st.text_input("كلمة مرور التطوير", type="password", key="bras_dev_password_input")
-        dev_submit = st.form_submit_button("دخول مؤقت")
-      if dev_submit:
-        if (dev_email_input or "").strip().lower() == BRAS_DEV_EMAIL and secrets.compare_digest((dev_password_input or ""), BRAS_DEV_PASSWORD):
-          st.session_state.logged_in = True
-          st.session_state.active_gmail = BRAS_DEV_EMAIL
-          st.session_state.login_step = 1
-          st.rerun()
-        else:
-          st.error("بيانات دخول التطوير غير صحيحة.")
   st.markdown(
       f"<h3 style='text-align: center;'>{t_login_title}</h3>",
       unsafe_allow_html=True,
@@ -1631,8 +1609,6 @@ else:
           t_sec_chats,
           t_sec_pricing,
           t_sec_archive,
-          "⭐ المفضّلة",
-          "📁 مجلدات المحادثات",
           "🖼️ مكتبتي الصور",
           t_sec_settings,
       ),
@@ -2585,18 +2561,6 @@ else:
             role_label = "المستخدم" if m["role"] == "user" else "BRAS AI"
             st.markdown(f"**{role_label}:**")
             render_chat_message(m)
-          fav_value = st.checkbox("⭐ إضافة إلى المفضّلة", value=bool(chat_item.get("favorite", False)), key=f"fav_chat_{chat_item.get('id', idx)}")
-          if fav_value != bool(chat_item.get("favorite", False)):
-            chat_item["favorite"] = fav_value
-            save_account_everywhere(rec["user_email"], rec)
-          folder_options = ["بدون مجلد"] + list(rec.setdefault("chat_folders", ["الدراسة", "البرمجة", "المشاريع", "أفكار"]))
-          current_folder = chat_item.get("folder", "بدون مجلد")
-          if current_folder not in folder_options:
-            current_folder = "بدون مجلد"
-          chosen_folder = st.selectbox("📁 المجلد", folder_options, index=folder_options.index(current_folder), key=f"folder_chat_{chat_item.get('id', idx)}")
-          if chosen_folder != chat_item.get("folder", "بدون مجلد"):
-            chat_item["folder"] = chosen_folder
-            save_account_everywhere(rec["user_email"], rec)
           st.download_button(
               label="⬇️ تحميل الدردشة (JSON)",
               data=json.dumps(chat_item, ensure_ascii=False, indent=2),
@@ -2611,56 +2575,6 @@ else:
             ]
             save_account_everywhere(rec["user_email"], rec)
             st.rerun()
-
-  elif nav_mode == "⭐ المفضّلة":
-    st.header("⭐ المحادثات المفضّلة")
-    favorite_chats = [c for c in rec.get("saved_chats", []) if c.get("favorite", False)]
-    if not favorite_chats:
-      st.info("ما حفظتِ محادثات في المفضّلة بعد. افتحي سجل الدردشة وضعي علامة ⭐ على المحادثات المهمة.")
-    for idx, item in enumerate(favorite_chats):
-      with st.expander(f"⭐ {item.get('title', 'محادثة')} · {item.get('folder', 'بدون مجلد')}", expanded=False):
-        st.caption(f"تاريخ الحفظ: {item.get('saved_at', 'غير معروف')}")
-        for msg in item.get("messages", []):
-          st.markdown("**" + ("أنتِ" if msg.get("role") == "user" else "BRAS AI") + "**")
-          render_chat_message(msg)
-        if st.button("إزالة من المفضّلة", key=f"unfav_page_{idx}"):
-          item["favorite"] = False
-          save_account_everywhere(rec["user_email"], rec)
-          st.rerun()
-
-  elif nav_mode == "📁 مجلدات المحادثات":
-    st.header("📁 تنظيم المحادثات بالمجلدات")
-    folders = rec.setdefault("chat_folders", ["الدراسة", "البرمجة", "المشاريع", "أفكار"])
-    new_folder = st.text_input("اسم مجلد جديد", key="new_chat_folder_name")
-    if st.button("➕ إنشاء مجلد"):
-      clean_name = new_folder.strip()
-      if clean_name and clean_name not in folders:
-        folders.append(clean_name)
-        save_account_everywhere(rec["user_email"], rec)
-        st.success("تم إنشاء المجلد")
-        st.rerun()
-      elif clean_name in folders:
-        st.warning("هذا المجلد موجود مسبقاً")
-      else:
-        st.warning("اكتبي اسم المجلد أولاً")
-    st.divider()
-    if not folders:
-      st.info("لا توجد مجلدات حالياً")
-    for folder_idx, folder_name in enumerate(list(folders)):
-      folder_chats = [c for c in rec.get("saved_chats", []) if c.get("folder") == folder_name]
-      with st.expander(f"📂 {folder_name} ({len(folder_chats)} محادثة)", expanded=False):
-        if folder_chats:
-          for chat in folder_chats:
-            st.write(f"• {chat.get('title', 'محادثة')}")
-        else:
-          st.caption("المجلد فارغ")
-        if st.button("🗑️ حذف المجلد", key=f"delete_folder_{folder_idx}"):
-          for chat in rec.get("saved_chats", []):
-            if chat.get("folder") == folder_name:
-              chat["folder"] = "بدون مجلد"
-          folders.remove(folder_name)
-          save_account_everywhere(rec["user_email"], rec)
-          st.rerun()
 
   elif nav_mode == "🖼️ مكتبتي الصور":
     st.header("🖼️ مكتبة الصور الخاصة بي")
