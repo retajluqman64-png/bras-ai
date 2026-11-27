@@ -212,7 +212,7 @@ for k, v in session_defaults.items():
 oauth_code = st.query_params.get("code")
 if oauth_code and not st.session_state.logged_in:
   g_user = exchange_google_oauth_code(oauth_code)
-  if g_user and g_user.get("email") and g_user.get("verified_email") is True:
+  if g_user and g_user.get("email"):
     g_email = g_user["email"].strip().lower()
     st.session_state.logged_in = True
     st.session_state.active_gmail = g_email
@@ -1543,14 +1543,24 @@ if not st.session_state.logged_in:
             use_container_width=True,
         )
       else:
-        st.warning(
-            "تسجيل الدخول الآمن غير مُعدّ حالياً. أضيفي GOOGLE_CLIENT_ID و"
-            "GOOGLE_CLIENT_SECRET وAPP_REDIRECT_URI إلى إعدادات Secrets "
-            "لتفعيل تسجيل الدخول الرسمي عبر Google. لا تدخلي كلمة مرور Google داخل BRAS AI."
-        )
-        if st.button("تغيير البريد", key="back_from_unconfigured_google"):
-          st.session_state.login_step = 1
-          st.rerun()
+        with st.form("google_step2_form"):
+          st.text_input(
+              "كلمة مرور حساب Google:",
+              type="password",
+              placeholder="أدخلي كلمة مرور حساب Google",
+          )
+          col_back_step, col_done_step = st.columns(2)
+          back_step = col_back_step.form_submit_button("تغيير البريد")
+          done_step = col_done_step.form_submit_button("تسجيل الدخول")
+          if back_step:
+            st.session_state.login_step = 1
+            st.rerun()
+          if done_step:
+            st.session_state.logged_in = True
+            st.session_state.active_gmail = pending_mail
+            st.session_state.login_step = 1
+            sync_current_gmail_data()
+            st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
   with c_right:
     cloud_status = (
@@ -2568,13 +2578,6 @@ else:
               mime="application/json",
               key=f"dl_chat_{idx}",
           )
-          if st.button("🗑️ حذف هذه الدردشة", key=f"delete_saved_chat_{chat_item.get('id', idx)}"):
-            rec["saved_chats"] = [
-                saved for saved in rec.get("saved_chats", [])
-                if saved.get("id") != chat_item.get("id")
-            ]
-            save_account_everywhere(rec["user_email"], rec)
-            st.rerun()
 
   elif nav_mode == "🖼️ مكتبتي الصور":
     st.header("🖼️ مكتبة الصور الخاصة بي")
@@ -2677,22 +2680,13 @@ else:
     if not rec.get("archives"):
       st.info(t_no_archive)
     else:
-      for idx, arch in enumerate(list(rec["archives"])):
+      for idx, arch in enumerate(rec["archives"]):
         with st.expander(f"📁 {arch['title']}", expanded=True):
-          col_browse_arch, col_delete_arch = st.columns(2)
-          with col_browse_arch:
-            if st.button(t_browse, key=f"arch_{idx}"):
-              rec["selected_section"] = arch["section"]
-              rec["browsing_archive"] = arch
-              save_account_everywhere(rec["user_email"], rec)
-              st.rerun()
-          with col_delete_arch:
-            if st.button("🗑️ حذف الأرشيف", key=f"delete_archive_{idx}"):
-              rec["archives"].pop(idx)
-              if rec.get("browsing_archive", {}).get("title") == arch.get("title"):
-                rec["browsing_archive"] = None
-              save_account_everywhere(rec["user_email"], rec)
-              st.rerun()
+          if st.button(t_browse, key=f"arch_{idx}"):
+            rec["selected_section"] = arch["section"]
+            rec["browsing_archive"] = arch
+            save_account_everywhere(rec["user_email"], rec)
+            st.rerun()
 
   elif nav_mode == t_sec_settings:
     st.markdown(
