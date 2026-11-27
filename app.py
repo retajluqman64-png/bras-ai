@@ -70,6 +70,7 @@ def build_empty_account_record(email_str: str) -> dict:
       "free_section_messages": {},
       "archives": [],
       "saved_chats": [],
+      "chat_folders": ["الدراسة", "البرمجة", "المشاريع", "أفكار"],
       "image_library": [],
       "browsing_archive": None,
       "free_allowed_sections": [],
@@ -212,7 +213,7 @@ for k, v in session_defaults.items():
 oauth_code = st.query_params.get("code")
 if oauth_code and not st.session_state.logged_in:
   g_user = exchange_google_oauth_code(oauth_code)
-  if g_user and g_user.get("email"):
+  if g_user and g_user.get("email") and g_user.get("verified_email") is True:
     g_email = g_user["email"].strip().lower()
     st.session_state.logged_in = True
     st.session_state.active_gmail = g_email
@@ -1213,6 +1214,8 @@ def save_full_chat_snapshot(account_rec: dict, label: str, msgs: list):
       "title": f"{label} — {datetime.now().strftime('%H:%M')}",
       "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
       "messages": [dict(m) for m in msgs],
+      "favorite": False,
+      "folder": "بدون مجلد",
   }
   account_rec["saved_chats"].insert(0, entry)
   save_account_everywhere(account_rec["user_email"], account_rec)
@@ -1543,24 +1546,14 @@ if not st.session_state.logged_in:
             use_container_width=True,
         )
       else:
-        with st.form("google_step2_form"):
-          st.text_input(
-              "كلمة مرور حساب Google:",
-              type="password",
-              placeholder="أدخلي كلمة مرور حساب Google",
-          )
-          col_back_step, col_done_step = st.columns(2)
-          back_step = col_back_step.form_submit_button("تغيير البريد")
-          done_step = col_done_step.form_submit_button("تسجيل الدخول")
-          if back_step:
-            st.session_state.login_step = 1
-            st.rerun()
-          if done_step:
-            st.session_state.logged_in = True
-            st.session_state.active_gmail = pending_mail
-            st.session_state.login_step = 1
-            sync_current_gmail_data()
-            st.rerun()
+        st.warning(
+            "تسجيل الدخول الآمن غير مُعدّ حالياً. أضيفي GOOGLE_CLIENT_ID و"
+            "GOOGLE_CLIENT_SECRET وAPP_REDIRECT_URI إلى إعدادات Secrets "
+            "لتفعيل تسجيل الدخول الرسمي عبر Google. لا تدخلي كلمة مرور Google داخل BRAS AI."
+        )
+        if st.button("تغيير البريد", key="back_from_unconfigured_google"):
+          st.session_state.login_step = 1
+          st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
   with c_right:
     cloud_status = (
@@ -1619,6 +1612,8 @@ else:
           t_sec_chats,
           t_sec_pricing,
           t_sec_archive,
+          "⭐ المفضّلة",
+          "📁 مجلدات المحادثات",
           "🖼️ مكتبتي الصور",
           t_sec_settings,
       ),
@@ -2571,6 +2566,18 @@ else:
             role_label = "المستخدم" if m["role"] == "user" else "BRAS AI"
             st.markdown(f"**{role_label}:**")
             render_chat_message(m)
+          fav_value = st.checkbox("⭐ إضافة إلى المفضّلة", value=bool(chat_item.get("favorite", False)), key=f"fav_chat_{chat_item.get('id', idx)}")
+          if fav_value != bool(chat_item.get("favorite", False)):
+            chat_item["favorite"] = fav_value
+            save_account_everywhere(rec["user_email"], rec)
+          folder_options = ["بدون مجلد"] + list(rec.setdefault("chat_folders", ["الدراسة", "البرمجة", "المشاريع", "أفكار"]))
+          current_folder = chat_item.get("folder", "بدون مجلد")
+          if current_folder not in folder_options:
+            current_folder = "بدون مجلد"
+          chosen_folder = st.selectbox("📁 المجلد", folder_options, index=folder_options.index(current_folder), key=f"folder_chat_{chat_item.get('id', idx)}")
+          if chosen_folder != chat_item.get("folder", "بدون مجلد"):
+            chat_item["folder"] = chosen_folder
+            save_account_everywhere(rec["user_email"], rec)
           st.download_button(
               label="⬇️ تحميل الدردشة (JSON)",
               data=json.dumps(chat_item, ensure_ascii=False, indent=2),
@@ -2578,6 +2585,63 @@ else:
               mime="application/json",
               key=f"dl_chat_{idx}",
           )
+          if st.button("🗑️ حذف هذه الدردشة", key=f"delete_saved_chat_{chat_item.get('id', idx)}"):
+            rec["saved_chats"] = [
+                saved for saved in rec.get("saved_chats", [])
+                if saved.get("id") != chat_item.get("id")
+            ]
+            save_account_everywhere(rec["user_email"], rec)
+            st.rerun()
+
+  elif nav_mode == "⭐ المفضّلة":
+    st.header("⭐ المحادثات المفضّلة")
+    favorite_chats = [c for c in rec.get("saved_chats", []) if c.get("favorite", False)]
+    if not favorite_chats:
+      st.info("ما حفظتِ محادثات في المفضّلة بعد. افتحي سجل الدردشة وضعي علامة ⭐ على المحادثات المهمة.")
+    for idx, item in enumerate(favorite_chats):
+      with st.expander(f"⭐ {item.get('title', 'محادثة')} · {item.get('folder', 'بدون مجلد')}", expanded=False):
+        st.caption(f"تاريخ الحفظ: {item.get('saved_at', 'غير معروف')}")
+        for msg in item.get("messages", []):
+          st.markdown("**" + ("أنتِ" if msg.get("role") == "user" else "BRAS AI") + "**")
+          render_chat_message(msg)
+        if st.button("إزالة من المفضّلة", key=f"unfav_page_{idx}"):
+          item["favorite"] = False
+          save_account_everywhere(rec["user_email"], rec)
+          st.rerun()
+
+  elif nav_mode == "📁 مجلدات المحادثات":
+    st.header("📁 تنظيم المحادثات بالمجلدات")
+    folders = rec.setdefault("chat_folders", ["الدراسة", "البرمجة", "المشاريع", "أفكار"])
+    new_folder = st.text_input("اسم مجلد جديد", key="new_chat_folder_name")
+    if st.button("➕ إنشاء مجلد"):
+      clean_name = new_folder.strip()
+      if clean_name and clean_name not in folders:
+        folders.append(clean_name)
+        save_account_everywhere(rec["user_email"], rec)
+        st.success("تم إنشاء المجلد")
+        st.rerun()
+      elif clean_name in folders:
+        st.warning("هذا المجلد موجود مسبقاً")
+      else:
+        st.warning("اكتبي اسم المجلد أولاً")
+    st.divider()
+    if not folders:
+      st.info("لا توجد مجلدات حالياً")
+    for folder_idx, folder_name in enumerate(list(folders)):
+      folder_chats = [c for c in rec.get("saved_chats", []) if c.get("folder") == folder_name]
+      with st.expander(f"📂 {folder_name} ({len(folder_chats)} محادثة)", expanded=False):
+        if folder_chats:
+          for chat in folder_chats:
+            st.write(f"• {chat.get('title', 'محادثة')}")
+        else:
+          st.caption("المجلد فارغ")
+        if st.button("🗑️ حذف المجلد", key=f"delete_folder_{folder_idx}"):
+          for chat in rec.get("saved_chats", []):
+            if chat.get("folder") == folder_name:
+              chat["folder"] = "بدون مجلد"
+          folders.remove(folder_name)
+          save_account_everywhere(rec["user_email"], rec)
+          st.rerun()
 
   elif nav_mode == "🖼️ مكتبتي الصور":
     st.header("🖼️ مكتبة الصور الخاصة بي")
@@ -2680,13 +2744,22 @@ else:
     if not rec.get("archives"):
       st.info(t_no_archive)
     else:
-      for idx, arch in enumerate(rec["archives"]):
+      for idx, arch in enumerate(list(rec["archives"])):
         with st.expander(f"📁 {arch['title']}", expanded=True):
-          if st.button(t_browse, key=f"arch_{idx}"):
-            rec["selected_section"] = arch["section"]
-            rec["browsing_archive"] = arch
-            save_account_everywhere(rec["user_email"], rec)
-            st.rerun()
+          col_browse_arch, col_delete_arch = st.columns(2)
+          with col_browse_arch:
+            if st.button(t_browse, key=f"arch_{idx}"):
+              rec["selected_section"] = arch["section"]
+              rec["browsing_archive"] = arch
+              save_account_everywhere(rec["user_email"], rec)
+              st.rerun()
+          with col_delete_arch:
+            if st.button("🗑️ حذف الأرشيف", key=f"delete_archive_{idx}"):
+              rec["archives"].pop(idx)
+              if rec.get("browsing_archive", {}).get("title") == arch.get("title"):
+                rec["browsing_archive"] = None
+              save_account_everywhere(rec["user_email"], rec)
+              st.rerun()
 
   elif nav_mode == t_sec_settings:
     st.markdown(
