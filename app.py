@@ -1275,28 +1275,65 @@ def save_full_chat_snapshot(account_rec: dict, label: str, msgs: list):
 
 
 def render_message_actions(account_rec: dict, section_name: str, message: dict, msg_index: int):
+  """Render copy/share/rating controls directly beneath an assistant reply."""
   content = message.get("content", "")
   if not isinstance(content, str) or not content.strip() or message.get("role") != "assistant":
     return
-  action_key = hashlib.sha1(f"{section_name}:{msg_index}:{content[:100]}".encode("utf-8")).hexdigest()[:12]
-  share_text = json.dumps(content, ensure_ascii=False)
-  components.html(f"""<button style='border:0;border-radius:10px;padding:8px 12px;background:#7956c9;color:white;font-weight:700;cursor:pointer' onclick='shareBRAS()'>↗️ مشاركة الرد</button><script>async function shareBRAS(){{const text={share_text};try{{if(navigator.share){{await navigator.share({{title:'BRAS AI',text:text}})}}else{{await navigator.clipboard.writeText(text);alert('تم نسخ الرد، يمكنك مشاركته')}}}}catch(e){{}}}}</script>""", height=42)
+
+  action_key = hashlib.sha1(
+      f"{section_name}:{msg_index}:{content}".encode("utf-8")
+  ).hexdigest()[:12]
+  safe_text = json.dumps(content, ensure_ascii=False).replace("</", "<\\/")
+  copy_fn = f"copyBRAS_{action_key}"
+  share_fn = f"shareBRAS_{action_key}"
+  components.html(
+      f"""<div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center'>
+      <button style='border:1px solid #7956c9;border-radius:10px;padding:8px 12px;background:transparent;color:inherit;font-weight:700;cursor:pointer' onclick='{copy_fn}()'>📋 نسخ الرد</button>
+      <button style='border:0;border-radius:10px;padding:8px 12px;background:#7956c9;color:white;font-weight:700;cursor:pointer' onclick='{share_fn}()'>↗️ مشاركة الرد</button>
+      <span id='status_{action_key}' style='font-size:12px'></span></div>
+      <script>
+      const brasText_{action_key} = {safe_text};
+      async function {copy_fn}() {{
+        const status = document.getElementById('status_{action_key}');
+        try {{
+          if (navigator.clipboard && window.isSecureContext) {{
+            await navigator.clipboard.writeText(brasText_{action_key});
+          }} else {{
+            const area = document.createElement('textarea'); area.value = brasText_{action_key};
+            document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove();
+          }}
+          status.textContent = 'تم نسخ الرد ✓';
+        }} catch (e) {{ status.textContent = 'تعذر النسخ من هذا المتصفح'; }}
+      }}
+      async function {share_fn}() {{
+        const status = document.getElementById('status_{action_key}');
+        try {{
+          if (navigator.share) await navigator.share({{title:'BRAS AI', text:brasText_{action_key}}});
+          else {{ await {copy_fn}(); status.textContent = 'نُسخ الرد؛ يمكنك مشاركته الآن'; }}
+        }} catch (e) {{ if (e.name !== 'AbortError') status.textContent = 'تعذرت المشاركة'; }}
+      }}
+      </script>""",
+      height=76,
+  )
+
   feedback = account_rec.setdefault("message_feedback", {})
   current = feedback.get(action_key)
-  a,b,c = st.columns([1,1,3])
+  a, b, c = st.columns([1, 1, 3])
   with a:
     if st.button("👍 أعجبني", key=f"bras_like_{action_key}"):
-      feedback[action_key] = "like" if current != "like" else None
+      feedback[action_key] = "dislike" if current == "like" else "like"
       save_account_everywhere(account_rec["user_email"], account_rec)
       st.rerun()
   with b:
     if st.button("👎 لم يعجبني", key=f"bras_dislike_{action_key}"):
-      feedback[action_key] = "dislike" if current != "dislike" else None
+      feedback[action_key] = "like" if current == "dislike" else "dislike"
       save_account_everywhere(account_rec["user_email"], account_rec)
       st.rerun()
   with c:
-    if current == "like": st.caption("شكراً على تقييمك 💜")
-    elif current == "dislike": st.caption("وصلنا تقييمك لتحسين الرد.")
+    if current == "like":
+      st.caption("شكراً على تقييمك 💜")
+    elif current == "dislike":
+      st.caption("وصلنا تقييمك لتحسين الرد.")
 
 def render_image_actions(image_bytes, filename, key):
   if not isinstance(image_bytes, (bytes, bytearray)): return
@@ -2532,6 +2569,11 @@ else:
               rec["section_messages"][sec_name].append(
                   {"role": "assistant", "content": full_response}
               )
+              # Render controls in the same run as the freshly generated reply.
+              render_message_actions(
+                  rec, sec_name, rec["section_messages"][sec_name][-1],
+                  len(rec["section_messages"][sec_name]) - 1,
+              )
               record_subscriber_lesson_memory(
                   rec,
                   sec_name,
@@ -2626,13 +2668,21 @@ else:
             role_label = "المستخدم" if m["role"] == "user" else "BRAS AI"
             st.markdown(f"**{role_label}:**")
             render_chat_message(m)
-          st.download_button(
-              label="⬇️ تحميل الدردشة (JSON)",
-              data=json.dumps(chat_item, ensure_ascii=False, indent=2),
-              file_name=f"bras_ai_chat_{chat_item['id']}.json",
-              mime="application/json",
-              key=f"dl_chat_{idx}",
-          )
+          c_download, c_delete = st.columns([2, 1])
+          with c_download:
+            st.download_button(
+                label="⬇️ تحميل الدردشة (JSON)",
+                data=json.dumps(chat_item, ensure_ascii=False, indent=2),
+                file_name=f"bras_ai_chat_{chat_item['id']}.json",
+                mime="application/json",
+                key=f"dl_chat_{idx}_{chat_item.get('id', idx)}",
+            )
+          with c_delete:
+            if st.button("🗑️ حذف الدردشة", key=f"delete_saved_chat_{idx}_{chat_item.get('id', idx)}"):
+              rec["saved_chats"].pop(idx)
+              save_account_everywhere(rec["user_email"], rec)
+              st.success("تم حذف الدردشة من السجل.")
+              st.rerun()
 
   elif nav_mode == "🖼️ مكتبتي الصور":
     st.header("🖼️ مكتبة الصور الخاصة بي")
@@ -2737,11 +2787,19 @@ else:
     else:
       for idx, arch in enumerate(rec["archives"]):
         with st.expander(f"📁 {arch['title']}", expanded=True):
-          if st.button(t_browse, key=f"arch_{idx}"):
-            rec["selected_section"] = arch["section"]
-            rec["browsing_archive"] = arch
-            save_account_everywhere(rec["user_email"], rec)
-            st.rerun()
+          c_browse, c_delete_archive = st.columns([2, 1])
+          with c_browse:
+            if st.button(t_browse, key=f"arch_{idx}"):
+              rec["selected_section"] = arch["section"]
+              rec["browsing_archive"] = arch
+              save_account_everywhere(rec["user_email"], rec)
+              st.rerun()
+          with c_delete_archive:
+            if st.button("🗑️ حذف الأرشيف", key=f"delete_archive_{idx}"):
+              rec["archives"].pop(idx)
+              save_account_everywhere(rec["user_email"], rec)
+              st.success("تم حذف الأرشيف.")
+              st.rerun()
 
   elif nav_mode == t_sec_settings:
     st.markdown(
