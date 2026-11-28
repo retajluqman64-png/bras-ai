@@ -72,6 +72,7 @@ def build_empty_account_record(email_str: str) -> dict:
       "free_section_messages": {},
       "archives": [],
       "saved_chats": [],
+      "chat_folders": ["عام"],
       "image_library": [],
       "browsing_archive": None,
       "free_allowed_sections": [],
@@ -1321,7 +1322,10 @@ def save_full_chat_snapshot(account_rec: dict, label: str, msgs: list):
       "title": f"{label} — {datetime.now().strftime('%H:%M')}",
       "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
       "messages": [dict(m) for m in msgs],
+      "folder": "عام",
+      "pinned": False,
   }
+  account_rec.setdefault("chat_folders", ["عام"])
   account_rec["saved_chats"].insert(0, entry)
   save_account_everywhere(account_rec["user_email"], account_rec)
 
@@ -2730,6 +2734,23 @@ else:
   elif nav_mode == t_sec_chats:
     st.header("💬 سجل الدردشة الكاملة")
     saved_chats = rec.get("saved_chats", [])
+    chat_folders = rec.setdefault("chat_folders", ["عام"])
+    if "عام" not in chat_folders:
+      chat_folders.insert(0, "عام")
+    folder_col1, folder_col2 = st.columns([3, 1])
+    with folder_col1:
+      new_folder_name = st.text_input("📁 إنشاء مجلد جديد", placeholder="اسم المجلد", key="bras_new_chat_folder")
+    with folder_col2:
+      if st.button("➕ إضافة مجلد", key="bras_add_chat_folder"):
+        cleaned_folder = new_folder_name.strip()
+        if cleaned_folder and cleaned_folder not in chat_folders:
+          chat_folders.append(cleaned_folder)
+          save_account_everywhere(rec["user_email"], rec)
+          st.success("تم إنشاء المجلد")
+          st.rerun()
+        elif cleaned_folder in chat_folders:
+          st.warning("هذا المجلد موجود مسبقاً")
+    folder_filter = st.selectbox("عرض المجلد", ["كل المجلدات"] + chat_folders, key="bras_chat_folder_filter")
     search_term = st.text_input(
         "🔎 ابحث داخل الدردشات المحفوظة",
         placeholder="اكتب كلمة أو عبارة من محادثة قديمة...",
@@ -2769,6 +2790,9 @@ else:
         if not query_terms or all(term in searchable for term in query_terms):
           matched_chats.append((idx, chat_item))
 
+      if folder_filter != "كل المجلدات":
+        matched_chats = [(idx, chat_item) for idx, chat_item in matched_chats if chat_item.get("folder", "عام") == folder_filter]
+      matched_chats.sort(key=lambda pair: bool(pair[1].get("pinned", False)), reverse=True)
       if query_terms:
         st.caption(f"نتائج البحث: {len(matched_chats)} محادثة")
       if query_terms and not matched_chats:
@@ -2779,9 +2803,27 @@ else:
         saved_at = str(chat_item.get("saved_at", ""))
         chat_messages = chat_item.get("messages", [])
         with st.expander(
-            f"🗂️ {chat_title} ({saved_at})",
+            f"{'📌 ' if chat_item.get('pinned', False) else '🗂️ '}{chat_title} ({saved_at})",
             expanded=(idx == 0 and not query_terms),
         ):
+          chat_item.setdefault("folder", "عام")
+          chat_item.setdefault("pinned", False)
+          control_pin, control_folder = st.columns([1, 2])
+          with control_pin:
+            pin_label = "📌 إلغاء التثبيت" if chat_item.get("pinned") else "📌 تثبيت المحادثة"
+            if st.button(pin_label, key=f"toggle_pin_chat_{chat_item.get('id', idx)}_{idx}"):
+              chat_item["pinned"] = not bool(chat_item.get("pinned", False))
+              save_account_everywhere(rec["user_email"], rec)
+              st.rerun()
+          with control_folder:
+            current_folder = chat_item.get("folder", "عام")
+            if current_folder not in chat_folders:
+              chat_folders.append(current_folder)
+            new_chat_folder = st.selectbox("مجلد المحادثة", chat_folders, index=chat_folders.index(current_folder), key=f"move_chat_folder_{chat_item.get('id', idx)}_{idx}")
+            if new_chat_folder != current_folder:
+              chat_item["folder"] = new_chat_folder
+              save_account_everywhere(rec["user_email"], rec)
+              st.rerun()
           title_matches = bool(query_terms) and all(
               term in normalize_chat_search_text(chat_title) for term in query_terms
           )
