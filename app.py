@@ -67,6 +67,8 @@ def build_empty_account_record(email_str: str) -> dict:
       "my_schedule": [],
       "section_messages": {},
       "section_memory": {},
+      "auto_memory_enabled": True,
+      "auto_memory_summary": "",
       "free_section_messages": {},
       "archives": [],
       "saved_chats": [],
@@ -1139,6 +1141,57 @@ def _responses_input_from_history(chat_history: list) -> list:
   return items
 
 
+def get_auto_memory_context(account_rec: dict) -> str:
+  if not account_rec.get("auto_memory_enabled", True):
+    return ""
+  summary = str(account_rec.get("auto_memory_summary", "")).strip()[:1800]
+  if not summary:
+    return ""
+  return ("\n\nUser-approved automatic memory summary (use only when relevant; "
+          "do not assume details beyond it):\n" + summary)
+
+
+def update_auto_memory(account_rec: dict, chat_history: list):
+  """Extract a short durable, non-sensitive memory from recent chat; best-effort."""
+  if not account_rec.get("auto_memory_enabled", True) or not client or not chat_history:
+    return
+  previous = str(account_rec.get("auto_memory_summary", "")).strip()[:1800]
+  recent = []
+  for msg in chat_history[-8:]:
+    role = msg.get("role", "")
+    if role not in ("user", "assistant"):
+      continue
+    content = msg.get("content", "")
+    if isinstance(content, list):
+      content = " ".join(part.get("text", "") for part in content if isinstance(part, dict) and part.get("type") == "text")
+    content = str(content).strip()
+    if content:
+      recent.append({"role": role, "content": content[:700]})
+  if not recent:
+    return
+  try:
+    resp = client.chat.completions.create(
+      model=BRAS_TEXT_MODEL,
+      messages=[
+        {"role": "system", "content": (
+          "Update a concise user memory for a personal assistant. Keep only durable, "
+          "useful preferences, ongoing goals/projects, and user-provided context. "
+          "Avoid sensitive personal data, health details, secrets, credentials, "
+          "precise location, or temporary facts. Do not infer. Output plain text, "
+          "Arabic if appropriate, maximum 1200 characters. If no useful facts, output empty."
+        )},
+        {"role": "user", "content": "Previous memory:\n" + previous + "\n\nRecent conversation:\n" + json.dumps(recent, ensure_ascii=False)},
+      ],
+      max_tokens=350,
+      timeout=25.0,
+    )
+    new_summary = (resp.choices[0].message.content or "").strip()[:1200]
+    account_rec["auto_memory_summary"] = new_summary
+    save_account_everywhere(account_rec["user_email"], account_rec)
+  except Exception:
+    pass
+
+
 def get_ai_answer(
     account_rec: dict,
     system_instruction: str,
@@ -2045,6 +2098,7 @@ else:
                 rec, sec_name, rec["section_messages"][sec_name]
             )
             save_account_everywhere(rec["user_email"], rec)
+            update_auto_memory(rec, rec["section_messages"][sec_name])
             st.session_state.latest_voice_text = full_response
             st.rerun()
 
@@ -2580,6 +2634,7 @@ else:
                   rec["section_messages"][sec_name],
               )
               save_account_everywhere(rec["user_email"], rec)
+              update_auto_memory(rec, rec["section_messages"][sec_name])
 
   elif nav_mode == t_sec_schedule:
     st.header(t_schedule_title)
@@ -2877,6 +2932,19 @@ else:
       new_lang = st.selectbox(t_lang_label, languages_40, index=current_lang_idx)
 
       st.markdown("---")
+      st.subheader("🧠 الذاكرة الذكية التلقائية")
+      auto_memory_choice = st.checkbox(
+          "تفعيل الذاكرة التلقائية (يحفظ تفضيلات ومعلومات عامة مفيدة فقط)",
+          value=bool(rec.get("auto_memory_enabled", True)),
+          key="auto_memory_settings_toggle",
+      )
+      st.caption("يمكنك إيقاف الذاكرة أو مسح ملخصها في أي وقت. لا يُفترض حفظ المعلومات الحساسة.")
+      if st.button("🗑️ مسح الذاكرة الذكية الآن", key="clear_auto_memory_now"):
+        rec["auto_memory_summary"] = ""
+        save_account_everywhere(rec["user_email"], rec)
+        st.success("تم مسح الذاكرة الذكية.")
+        st.rerun()
+      st.markdown("---")
       st.checkbox("Enable notifications on app open", value=True)
 
       if st.button(t_save):
@@ -2886,6 +2954,9 @@ else:
         rec["voice"] = new_voice
         rec["screen_mode"] = new_screen
         rec["language"] = new_lang
+        rec["auto_memory_enabled"] = bool(auto_memory_choice)
+        if not rec["auto_memory_enabled"]:
+          rec["auto_memory_summary"] = rec.get("auto_memory_summary", "")
         if lang_changed:
           rec["selected_section"] = None
           rec["browsing_archive"] = None
