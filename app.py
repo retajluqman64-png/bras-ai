@@ -1327,8 +1327,8 @@ def save_full_chat_snapshot(account_rec: dict, label: str, msgs: list):
 
 
 
-def render_message_actions(account_rec: dict, section_name: str, message: dict, msg_index: int):
-  """Render copy/share/rating controls directly beneath an assistant reply."""
+def render_message_actions(account_rec: dict, section_name: str, message: dict, msg_index: int, system_instruction: str = ""):
+  """Render copy/share/rating and latest-reply regeneration controls."""
   content = message.get("content", "")
   if not isinstance(content, str) or not content.strip() or message.get("role") != "assistant":
     return
@@ -1371,7 +1371,12 @@ def render_message_actions(account_rec: dict, section_name: str, message: dict, 
 
   feedback = account_rec.setdefault("message_feedback", {})
   current = feedback.get(action_key)
-  a, b, c = st.columns([1, 1, 3])
+  live_history = account_rec.get("section_messages", {}).get(section_name, [])
+  latest_assistant_index = max(
+      (i for i, m in enumerate(live_history) if m.get("role") == "assistant"),
+      default=-1,
+  )
+  a, b, c = st.columns([1, 1, 2])
   with a:
     if st.button("👍 أعجبني", key=f"bras_like_{action_key}"):
       feedback[action_key] = "dislike" if current == "like" else "like"
@@ -1383,6 +1388,21 @@ def render_message_actions(account_rec: dict, section_name: str, message: dict, 
       save_account_everywhere(account_rec["user_email"], account_rec)
       st.rerun()
   with c:
+    if msg_index == latest_assistant_index and system_instruction:
+      if st.button("🔄 إعادة توليد الرد", key=f"bras_regenerate_{action_key}"):
+        retry_history = live_history[:msg_index]
+        with st.spinner("جاري كتابة رد جديد... 🔄"):
+          new_response = get_ai_answer(
+              account_rec, system_instruction, retry_history, sec_name=section_name
+          )
+        if new_response and not new_response.startswith("تعذر إتمام الرد الآن"):
+          live_history[msg_index]["content"] = new_response
+          record_subscriber_lesson_memory(account_rec, section_name, live_history)
+          save_account_everywhere(account_rec["user_email"], account_rec)
+          update_auto_memory(account_rec, live_history)
+          st.rerun()
+        else:
+          st.error("ما قدرنا نعيد توليد الرد حالياً. حاول مرة ثانية.")
     if current == "like":
       st.caption("شكراً على تقييمك 💜")
     elif current == "dislike":
@@ -2560,7 +2580,7 @@ else:
         with st.chat_message(message["role"]):
           render_chat_message(message)
           if browsing_item is None and message.get("role") == "assistant":
-            render_message_actions(rec, sec_name, message, msg_index)
+            render_message_actions(rec, sec_name, message, msg_index, system_prompt)
 
       if browsing_item is None:
         user_spoken_text = None
@@ -2627,6 +2647,7 @@ else:
               render_message_actions(
                   rec, sec_name, rec["section_messages"][sec_name][-1],
                   len(rec["section_messages"][sec_name]) - 1,
+                  system_prompt,
               )
               record_subscriber_lesson_memory(
                   rec,
