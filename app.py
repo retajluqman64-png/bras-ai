@@ -12,6 +12,76 @@ from openai import OpenAI
 import streamlit as st
 import streamlit.components.v1 as components
 
+
+def detect_requested_file_format(user_text: str):
+  text = (user_text or "").lower()
+  direct_create_terms = ("سويلي", "سوّيلي", "جهزلي", "جهّزلي", "أنشئ", "انشئ", "اكتبلي", "اكتب لي", "أريد", "اريد", "create", "make", "generate", "download", "export", "save as")
+  explanatory_terms = ("شلون", "كيف", "طريقة", "how to", "what is")
+  if any(term in text for term in explanatory_terms) and not any(term in text for term in ("سويلي", "سوّيلي", "جهزلي", "جهّزلي", "أنشئلي", "انشئلي", "أريد منك", "اريد منك", "make me", "create for me")):
+    return None
+  if not any(term in text for term in direct_create_terms): return None
+  if any(term in text for term in ("pdf", "بي دي اف")): return "pdf"
+  if any(t in text for t in ("docx", "word", "وورد")): return "docx"
+  if "json" in text: return "json"
+  if any(t in text for t in ("csv", "جدول بيانات")): return "csv"
+  if any(t in text for t in (".py", "python file", "ملف بايثون", "كود بايثون")): return "py"
+  if any(t in text for t in (".html", "html file", "صفحة html")): return "html"
+  if any(t in text for t in ("markdown", "ماركداون")): return "md"
+  return "txt"
+
+
+def make_requested_attachment(answer_text: str, fmt: str, prompt_text: str = ""):
+  body = (answer_text or "").strip()
+  if not body: return None
+  if fmt in ("py", "html"):
+    body = re.sub(r"^```(?:python|py|html)?\s*", "", body, flags=re.IGNORECASE)
+    body = re.sub(r"\s*```$", "", body)
+  filenames = {"pdf":"bras_ai_document.pdf", "docx":"bras_ai_document.docx", "json":"bras_ai_output.json", "csv":"bras_ai_table.csv", "py":"bras_ai_code.py", "html":"bras_ai_page.html", "md":"bras_ai_document.md", "txt":"bras_ai_document.txt"}
+  try:
+    if fmt == "json":
+      try: raw=json.dumps(json.loads(body), ensure_ascii=False, indent=2).encode("utf-8")
+      except Exception: raw=json.dumps({"request":prompt_text,"content":body},ensure_ascii=False,indent=2).encode("utf-8")
+    elif fmt == "pdf":
+      from reportlab.lib.pagesizes import A4
+      from reportlab.pdfgen import canvas
+      from reportlab.pdfbase import pdfmetrics
+      from reportlab.pdfbase.ttfonts import TTFont
+      from reportlab.lib.utils import simpleSplit
+      out=BytesIO(); pdf=canvas.Canvas(out,pagesize=A4); w,h=A4; font="Helvetica"
+      for path in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf","/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf","/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf"):
+        if os.path.exists(path):
+          try: pdfmetrics.registerFont(TTFont("BRASUnicode",path)); font="BRASUnicode"; break
+          except Exception: pass
+      shown=body
+      pdf_note = None
+      if re.search(r'[\u0600-\u06ff]',body):
+        try:
+          import arabic_reshaper
+          from bidi.algorithm import get_display
+          shown="\n".join(get_display(arabic_reshaper.reshape(line)) for line in body.splitlines())
+        except Exception:
+          pdf_note = "ملاحظة: قد تظهر الحروف العربية غير متصلة في PDF. أضيفي arabic-reshaper وpython-bidi إلى requirements لتحسين تشكيل العربية."
+      pdf.setFont(font,11); y=h-48
+      for para in shown.splitlines() or [shown]:
+        for line in simpleSplit(para or " ",font,11,w-80):
+          if y<45: pdf.showPage(); pdf.setFont(font,11); y=h-48
+          pdf.drawString(40,y,line); y-=16
+      pdf.save(); raw=out.getvalue()
+    elif fmt == "docx":
+      from docx import Document
+      doc=Document(); doc.add_heading("BRAS AI",level=1)
+      for para in body.splitlines(): doc.add_paragraph(para)
+      out=BytesIO(); doc.save(out); raw=out.getvalue()
+    else: raw=body.encode("utf-8-sig" if fmt=="csv" else "utf-8")
+    mime={"pdf":"application/pdf","docx":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","json":"application/json","csv":"text/csv","py":"text/x-python","html":"text/html","md":"text/markdown"}.get(fmt,"text/plain")
+    result = {"filename":filenames.get(fmt,"bras_ai_output.txt"),"mime":mime,"data_b64":base64.b64encode(raw).decode("ascii")}
+    if fmt == "pdf" and locals().get("pdf_note"):
+      result["note"] = pdf_note
+    return result
+  except Exception:
+    return {"filename":"bras_ai_output.txt","mime":"text/plain","data_b64":base64.b64encode(body.encode("utf-8")).decode("ascii"),"note":"تعذر إنشاء الصيغة المطلوبة؛ جهزت نسخة TXT بديلة."}
+
+
 st.set_page_config(
     page_title="BRAS AI - المنصة الشاملة الذكية",
     page_icon="💜",
@@ -1209,6 +1279,28 @@ def get_ai_answer(
       build_subscriber_memory_context(account_rec, sec_name) if sec_name else ""
   )
   lang_directive = get_language_directive(account_rec.get("language", "العربية"))
+  last_user_text = ""
+  for recent_msg in reversed(chat_history or []):
+    if recent_msg.get("role") == "user":
+      last_user_content = recent_msg.get("content", "")
+      if isinstance(last_user_content, list):
+        last_user_text = " ".join(str(part.get("text", "")) for part in last_user_content if isinstance(part, dict) and part.get("type") == "text")
+      else:
+        last_user_text = str(last_user_content)
+      break
+  requested_format = detect_requested_file_format(last_user_text)
+  format_instruction = ""
+  if requested_format:
+    format_instruction = {
+      "json": "Produce valid raw JSON only, without markdown fences or prose.",
+      "csv": "Produce valid CSV only, with a header row when appropriate, no markdown table.",
+      "py": "Produce complete runnable Python source only, no markdown fences or explanations outside code.",
+      "html": "Produce a complete HTML file only, with inline CSS if useful; no markdown fences.",
+      "md": "Produce a complete clean Markdown document.",
+      "txt": "Produce a complete clean plain-text document, without chatty introduction.",
+      "pdf": "Produce a complete document body with a title and structured sections; avoid chatty preface.",
+      "docx": "Produce a complete document body with title and sections; avoid chatty preface.",
+    }.get(requested_format, "Produce a complete requested artifact, not instructions for the user.")
   sys_full = (
       f"{system_instruction}{memory_note}\\n"
       "CREATOR IDENTITY: If asked who made, designed, developed, or owns BRAS AI, "
@@ -1220,6 +1312,8 @@ def get_ai_answer(
       "When an image is attached, inspect it carefully and describe only what"
       " is supported by the image. Do not claim to access a camera or files"
       " that were not provided. Give clear, helpful, and direct responses. "
+      "EXECUTION-FIRST: If the user explicitly asks to create/write/prepare something, deliver the finished result, not instructions. Format file requests as complete content ready to export. Only claim success for operations actually performed and confirmed. Use only app-supported capabilities; if unsupported, explain briefly and provide the closest completed output. "
+      f"{format_instruction} "
       f"{lang_directive}"
   )
 
@@ -1446,6 +1540,18 @@ def render_chat_message(message: dict):
             pass
   else:
     st.markdown(str(content))
+  render_attachment_download(message)
+
+
+def render_attachment_download(message: dict):
+  attachment = message.get("attachment")
+  if isinstance(attachment, dict) and attachment.get("data_b64"):
+    try:
+      st.download_button("📥 تحميل الملف الذي جهّزه BRAS AI", data=base64.b64decode(attachment["data_b64"]),
+          file_name=attachment.get("filename", "bras_ai_output.txt"), mime=attachment.get("mime", "text/plain"),
+          key=f"bras_file_dl_{hashlib.sha1(attachment['data_b64'].encode()).hexdigest()[:12]}")
+      if attachment.get("note"): st.caption(attachment["note"])
+    except Exception: st.info("تعذر عرض تنزيل الملف لهذا الرد.")
 
 
 if not st.session_state.logged_in:
@@ -2595,6 +2701,7 @@ else:
 
         typed_prompt = st.chat_input("اكتبي رسالتكِ هنا...")
         final_prompt = user_spoken_text if user_spoken_text else typed_prompt
+        requested_file_format = detect_requested_file_format(final_prompt or "")
 
         if final_prompt:
           if not can_send_message_in_section(rec, sec_name):
@@ -2644,15 +2751,18 @@ else:
                 st.markdown(full_response)
               else:
                 reply_with_voice(full_response, rec["voice"])
-              rec["section_messages"][sec_name].append(
-                  {"role": "assistant", "content": full_response}
-              )
+              assistant_message = {"role": "assistant", "content": full_response}
+              if requested_file_format:
+                assistant_message["attachment"] = make_requested_attachment(full_response, requested_file_format, prompt_text=final_prompt)
+              rec["section_messages"][sec_name].append(assistant_message)
               # Render controls in the same run as the freshly generated reply.
               render_message_actions(
                   rec, sec_name, rec["section_messages"][sec_name][-1],
                   len(rec["section_messages"][sec_name]) - 1,
                   system_prompt,
               )
+              if requested_file_format:
+                render_attachment_download(rec["section_messages"][sec_name][-1])
               record_subscriber_lesson_memory(
                   rec,
                   sec_name,
