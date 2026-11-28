@@ -2729,27 +2729,83 @@ else:
 
   elif nav_mode == t_sec_chats:
     st.header("💬 سجل الدردشة الكاملة")
-    if not rec.get("saved_chats"):
+    saved_chats = rec.get("saved_chats", [])
+    search_term = st.text_input(
+        "🔎 ابحث داخل الدردشات المحفوظة",
+        placeholder="اكتب كلمة أو عبارة من محادثة قديمة...",
+        key="bras_saved_chat_search",
+    ).strip()
+
+    def normalize_chat_search_text(value):
+      text_value = str(value or "").lower()
+      text_value = re.sub(r"[\u064B-\u065F\u0670]", "", text_value)
+      text_value = text_value.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
+      text_value = text_value.replace("ى", "ي").replace("ة", "ه")
+      return re.sub(r"\s+", " ", text_value).strip()
+
+    def get_chat_search_content(chat_item):
+      chunks = [str(chat_item.get("title", ""))]
+      for msg in chat_item.get("messages", []):
+        content = msg.get("content", "")
+        if isinstance(content, str):
+          chunks.append(content)
+        elif isinstance(content, list):
+          for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+              chunks.append(str(part.get("text", "")))
+      return "\n".join(chunks)
+
+    if not saved_chats:
       st.info(
           "لم يتم حفظ أي دردشة كاملة بعد. اضغطي على «حفظ في سجل الدردشة» داخل"
           " أي قسم لحفظها هنا."
       )
     else:
-      for idx, chat_item in enumerate(rec["saved_chats"]):
+      query_norm = normalize_chat_search_text(search_term)
+      query_terms = [term for term in query_norm.split() if term]
+      matched_chats = []
+      for idx, chat_item in enumerate(saved_chats):
+        searchable = normalize_chat_search_text(get_chat_search_content(chat_item))
+        if not query_terms or all(term in searchable for term in query_terms):
+          matched_chats.append((idx, chat_item))
+
+      if query_terms:
+        st.caption(f"نتائج البحث: {len(matched_chats)} محادثة")
+      if query_terms and not matched_chats:
+        st.info("ما لقينا محادثات تطابق بحثك. جرّب كلمة ثانية.")
+
+      for idx, chat_item in matched_chats:
+        chat_title = str(chat_item.get("title", "محادثة"))
+        saved_at = str(chat_item.get("saved_at", ""))
+        chat_messages = chat_item.get("messages", [])
         with st.expander(
-            f"🗂️ {chat_item['title']} ({chat_item['saved_at']})",
-            expanded=(idx == 0),
+            f"🗂️ {chat_title} ({saved_at})",
+            expanded=(idx == 0 and not query_terms),
         ):
-          for m in chat_item["messages"]:
-            role_label = "المستخدم" if m["role"] == "user" else "BRAS AI"
-            st.markdown(f"**{role_label}:**")
-            render_chat_message(m)
+          title_matches = bool(query_terms) and all(
+              term in normalize_chat_search_text(chat_title) for term in query_terms
+          )
+          if query_terms and not title_matches:
+            for msg in chat_messages:
+              content = msg.get("content", "")
+              searchable_msg = normalize_chat_search_text(
+                  content if isinstance(content, str) else get_chat_search_content({"messages": [msg]})
+              )
+              if all(term in searchable_msg for term in query_terms):
+                role_label = "المستخدم" if msg.get("role") == "user" else "BRAS AI"
+                st.markdown(f"**{role_label} (مطابقة البحث):**")
+                render_chat_message(msg)
+          else:
+            for m in chat_messages:
+              role_label = "المستخدم" if m.get("role") == "user" else "BRAS AI"
+              st.markdown(f"**{role_label}:**")
+              render_chat_message(m)
           c_download, c_delete = st.columns([2, 1])
           with c_download:
             st.download_button(
                 label="⬇️ تحميل الدردشة (JSON)",
                 data=json.dumps(chat_item, ensure_ascii=False, indent=2),
-                file_name=f"bras_ai_chat_{chat_item['id']}.json",
+                file_name=f"bras_ai_chat_{chat_item.get('id', idx)}.json",
                 mime="application/json",
                 key=f"dl_chat_{idx}_{chat_item.get('id', idx)}",
             )
