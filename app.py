@@ -2842,17 +2842,41 @@ else:
               role_label = "المستخدم" if m.get("role") == "user" else "BRAS AI"
               st.markdown(f"**{role_label}:**")
               render_chat_message(m)
-          c_download, c_delete = st.columns([2, 1])
-          with c_download:
+          # Prepare a readable plain-text transcript alongside the existing JSON export.
+          transcript_lines = [f"BRAS AI — {chat_title}", f"تاريخ الحفظ: {saved_at}", "=" * 36, ""]
+          for transcript_msg in chat_messages:
+            transcript_role = "المستخدم" if transcript_msg.get("role") == "user" else "BRAS AI"
+            transcript_content = transcript_msg.get("content", "")
+            if isinstance(transcript_content, str):
+              transcript_text = transcript_content
+            elif isinstance(transcript_content, list):
+              transcript_text = "\n".join(
+                str(part.get("text", "")) for part in transcript_content
+                if isinstance(part, dict) and part.get("type") == "text"
+              )
+            else:
+              transcript_text = str(transcript_content)
+            transcript_lines.extend([f"{transcript_role}:", transcript_text, "", "-" * 24, ""])
+          transcript_text_file = "\n".join(transcript_lines)
+          c_json, c_txt, c_delete = st.columns([1, 1, 1])
+          with c_json:
             st.download_button(
-                label="⬇️ تحميل الدردشة (JSON)",
+                label="⬇️ JSON",
                 data=json.dumps(chat_item, ensure_ascii=False, indent=2),
                 file_name=f"bras_ai_chat_{chat_item.get('id', idx)}.json",
                 mime="application/json",
                 key=f"dl_chat_{idx}_{chat_item.get('id', idx)}",
             )
+          with c_txt:
+            st.download_button(
+                label="📄 TXT مرتب",
+                data=transcript_text_file,
+                file_name=f"bras_ai_chat_{chat_item.get('id', idx)}.txt",
+                mime="text/plain; charset=utf-8",
+                key=f"dl_chat_txt_{idx}_{chat_item.get('id', idx)}",
+            )
           with c_delete:
-            if st.button("🗑️ حذف الدردشة", key=f"delete_saved_chat_{idx}_{chat_item.get('id', idx)}"):
+            if st.button("🗑️ حذف", key=f"delete_saved_chat_{idx}_{chat_item.get('id', idx)}"):
               rec["saved_chats"].pop(idx)
               save_account_everywhere(rec["user_email"], rec)
               st.success("تم حذف الدردشة من السجل.")
